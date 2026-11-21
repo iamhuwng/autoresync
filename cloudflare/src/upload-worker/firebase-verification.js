@@ -28,6 +28,18 @@ function getFirebaseProjectId(env) {
     : '';
 }
 
+export function identityFromFirebaseClaims(payload) {
+  const googleIdentities = payload.firebase?.identities?.['google.com'];
+  return {
+    valid: true,
+    uid: payload.sub,
+    email: typeof payload.email === 'string' ? payload.email : undefined,
+    emailVerified: payload.email_verified === true,
+    hasGoogleIdentity: Array.isArray(googleIdentities) && googleIdentities.length > 0,
+    photoURL: typeof payload.picture === 'string' ? payload.picture : undefined,
+  };
+}
+
 async function verifyFirebaseJwt(token, env, jwtVerify, jwks) {
   const projectId = getFirebaseProjectId(env);
   if (!projectId) {
@@ -44,12 +56,7 @@ async function verifyFirebaseJwt(token, env, jwtVerify, jwks) {
       return { valid: false, reason: 'missing_subject' };
     }
 
-    return {
-      valid: true,
-      uid: payload.sub,
-      email: typeof payload.email === 'string' ? payload.email : undefined,
-      emailVerified: payload.email_verified === true,
-    };
+    return identityFromFirebaseClaims(payload);
   } catch {
     return { valid: false, reason: 'invalid_token' };
   }

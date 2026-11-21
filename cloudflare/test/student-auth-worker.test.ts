@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { createStudentAuthWorkerHandlers } from '../src/upload-worker/student-auth/worker.ts';
 
@@ -5,21 +6,27 @@ const allowedOrigin = 'https://app.hocthem.net';
 
 const createMemoryDatabase = (seed: Record<string, unknown> = {}) => {
   const values = new Map<string, unknown>(Object.entries(seed));
+  const revisions = new Map<string, number>();
+  const etagFor = (path: string) => `etag:${path}:${revisions.get(path) ?? 0}`;
+  const writeValue = (path: string, value: unknown) => {
+    revisions.set(path, (revisions.get(path) ?? 0) + 1);
+    if (value === null) values.delete(path);
+    else values.set(path, value);
+  };
   return {
     values,
     readValue: vi.fn(async (path: string) => values.get(path) ?? null),
     readWithEtag: vi.fn(async (path: string) => ({
       data: values.get(path) ?? null,
-      etag: `etag:${path}`,
+      etag: etagFor(path),
     })),
     writeIfMatch: vi.fn(async (path: string, value: unknown, etag: string) => {
-      if (etag !== `etag:${path}` || values.has(path)) return false;
-      if (value === null) values.delete(path);
-      else values.set(path, value);
+      if (etag !== etagFor(path)) return false;
+      writeValue(path, value);
       return true;
     }),
     patchAdminMultiLocation: vi.fn(async (updates: Readonly<Record<string, unknown>>) => {
-      Object.entries(updates).forEach(([path, value]) => values.set(path, value));
+      Object.entries(updates).forEach(([path, value]) => writeValue(path, value));
     }),
   };
 };
@@ -48,6 +55,14 @@ const makeRequest = (path: string, body?: Record<string, unknown>, options: { or
 );
 
 const readJson = async (response: Response) => response.json() as Promise<Record<string, unknown>>;
+
+const makeGoogleRegistration = (studentId: string) => makeRequest('/auth/student/ensure-id', {
+  registerGoogle: true, studentId, firstName: 'New', familyName: 'Student', displayName: 'New Student',
+}, { authorization: 'Bearer firebase-id-token' });
+
+const googleIdentity = {
+  valid: true, uid: 'google-new', email: 'google@example.com', emailVerified: true, hasGoogleIdentity: true,
+};
 
 describe('student authentication Worker', () => {
   it('creates student-only profiles and a private hashed ID index', async () => {
@@ -213,13 +228,122 @@ describe('student authentication Worker', () => {
       rateLimit: async () => true,
     });
 
-    const response = await worker.fetch(makeRequest('/auth/student/ensure-id', undefined, {
-      authorization: 'Bearer firebase-id-token',
-    }), makeEnv());
+    const request = new Request('https://worker.example/auth/student/ensure-id', {
+      method: 'POST',
+      headers: { Origin: allowedOrigin, Authorization: 'Bearer firebase-id-token', 'Content-Type': 'application/json' },
+      body: '',
+    });
+    const response = await worker.fetch(request, makeEnv());
 
     expect(response.status).toBe(200);
     expect(await readJson(response)).toEqual({ studentId: 'STU-ABCD2345', created: true });
     expect(database.values.get('student_identifiers/google-student')).toMatchObject({ studentId: 'STU-ABCD2345' });
+  });
+
+  it('activates a new Google student profile only after the chosen ID is secured', async () => {
+    const takenId = 'taken-id';
+    const takenIdHash = createHash('sha256').update(takenId).digest('hex');
+    const database = createMemoryDatabase({
+      [`student_login_ids/${takenIdHash}`]: { uid: 'another-student' },
+    });
+    const worker = createStudentAuthWorkerHandlers({
+      firebaseVerifier: { verifyAuthorizationHeader: async () => googleIdentity },
+      databaseFactory: () => database,
+      rateLimit: async () => true,
+    });
+    const submit = (studentId: string) => worker.fetch(makeGoogleRegistration(studentId), makeEnv());
+
+    const duplicate = await submit(takenId);
+    expect(duplicate.status).toBe(409);
+    expect(await readJson(duplicate)).toEqual({ code: 'student_id_unavailable' });
+    expect(database.writeIfMatch).not.toHaveBeenCalled();
+    expect(database.values.has('users/google-new')).toBe(false);
+    expect(database.values.has('student_identifiers/google-new')).toBe(false);
+
+    const response = await submit('New-Student');
+    expect(response.status).toBe(200);
+    expect(await readJson(response)).toEqual({ studentId: 'New-Student', created: true });
+    expect(database.writeIfMatch.mock.calls.map(([path]) => path)).toEqual([
+      expect.stringMatching(/^student_login_ids\//u), 'student_identifiers/google-new', 'users/google-new',
+    ]);
+    expect(database.values.get('users/google-new')).toMatchObject({
+      uid: 'google-new', email: 'google@example.com', role: 'student', status: 'active',
+      firstName: 'New', familyName: 'Student', displayName: 'New Student',
+    });
+    expect(database.values.get('student_identifiers/google-new')).toMatchObject({
+      studentId: 'New-Student', normalizedStudentId: 'new-student',
+    });
+
+    const retry = await submit('New-Student');
+    expect(retry.status).toBe(200);
+    expect(await readJson(retry)).toEqual({ studentId: 'New-Student', created: false });
+  });
+
+  it('keeps one chosen ID when two Google registration requests arrive together', async () => {
+    const database = createMemoryDatabase();
+    const worker = createStudentAuthWorkerHandlers({
+      firebaseVerifier: { verifyAuthorizationHeader: async () => googleIdentity },
+      databaseFactory: () => database,
+      rateLimit: async () => true,
+    });
+    const responses = await Promise.all([
+      worker.fetch(makeGoogleRegistration('choice-1'), makeEnv()),
+      worker.fetch(makeGoogleRegistration('choice-2'), makeEnv()),
+    ]);
+
+    expect(responses.map(({ status }) => status).sort()).toEqual([200, 409]);
+    const winner = await readJson(responses.find(({ status }) => status === 200)!);
+    expect(database.values.get('student_identifiers/google-new')).toMatchObject({ studentId: winner.studentId });
+    expect([...database.values.keys()].filter((path) => path.startsWith('student_login_ids/'))).toHaveLength(1);
+  });
+
+  it('preserves an administrator profile created during Google registration', async () => {
+    const database = createMemoryDatabase();
+    const writeIfMatch = database.writeIfMatch.getMockImplementation()!;
+    database.writeIfMatch.mockImplementation(async (path, value, etag) => {
+      if (path === 'users/google-new') {
+        const profileEtag = (await database.readWithEtag(path)).etag;
+        await writeIfMatch(path, { role: 'teacher', status: 'active' }, profileEtag);
+      }
+      return writeIfMatch(path, value, etag);
+    });
+    const worker = createStudentAuthWorkerHandlers({
+      firebaseVerifier: { verifyAuthorizationHeader: async () => googleIdentity },
+      databaseFactory: () => database,
+      rateLimit: async () => true,
+    });
+
+    const response = await worker.fetch(makeGoogleRegistration('new-id'), makeEnv());
+
+    expect(response.status).toBe(403);
+    expect(database.values.get('users/google-new')).toEqual({ role: 'teacher', status: 'active' });
+  });
+
+  it.each([
+    { registerGoogle: false, emailVerified: true, hasGoogleIdentity: true, profile: null },
+    { registerGoogle: true, emailVerified: false, hasGoogleIdentity: true, profile: null },
+    { registerGoogle: true, emailVerified: true, hasGoogleIdentity: false, profile: null },
+    { registerGoogle: true, emailVerified: true, hasGoogleIdentity: true, profile: { role: 'student', status: 'blocked' } },
+    { registerGoogle: true, emailVerified: true, hasGoogleIdentity: true, profile: { role: 'teacher', status: 'active' } },
+  ])('rejects ineligible Google profile creation %j', async ({ registerGoogle, emailVerified, hasGoogleIdentity, profile }) => {
+    const database = createMemoryDatabase(profile ? { 'users/google-new': profile } : {});
+    const worker = createStudentAuthWorkerHandlers({
+      firebaseVerifier: {
+        verifyAuthorizationHeader: async () => ({
+          valid: true, uid: 'google-new', email: 'google@example.com', emailVerified, hasGoogleIdentity,
+        }),
+      },
+      databaseFactory: () => database,
+      rateLimit: async () => true,
+    });
+    const response = await worker.fetch(makeRequest('/auth/student/ensure-id', {
+      registerGoogle, studentId: 'google-new', firstName: 'New', familyName: 'Student', displayName: 'New Student',
+    }, { authorization: 'Bearer firebase-id-token' }), makeEnv());
+
+    expect(response.status).toBe(403);
+    expect(await readJson(response)).toEqual({ code: 'account_unavailable' });
+    expect(database.writeIfMatch).not.toHaveBeenCalled();
+    expect(database.patchAdminMultiLocation).not.toHaveBeenCalled();
   });
 
   it('rejects changing an assigned student ID without mutating the profile or identifier', async () => {
@@ -265,27 +389,21 @@ describe('student authentication Worker', () => {
     expect(database.values.has('student_identifiers/google-student')).toBe(false);
   });
 
-  it('treats a committed ensure-id patch as success when the patch response is lost', async () => {
-    const database = createMemoryDatabase({
-      'users/google-student': {
-        uid: 'google-student', email: 'google@example.com', role: 'student', status: 'active',
-      },
-    });
-    database.patchAdminMultiLocation.mockImplementationOnce(async (updates) => {
-      Object.entries(updates).forEach(([path, value]) => database.values.set(path, value));
-      throw new Error('network_lost_after_commit');
+  it('keeps a committed Google signup when the profile write response is lost', async () => {
+    const database = createMemoryDatabase();
+    const writeIfMatch = database.writeIfMatch.getMockImplementation()!;
+    database.writeIfMatch.mockImplementation(async (path, value, etag) => {
+      const saved = await writeIfMatch(path, value, etag);
+      if (path === 'users/google-new') throw new Error('network_lost_after_commit');
+      return saved;
     });
     const worker = createStudentAuthWorkerHandlers({
-      firebaseVerifier: {
-        verifyAuthorizationHeader: async () => ({ valid: true, uid: 'google-student' }),
-      },
+      firebaseVerifier: { verifyAuthorizationHeader: async () => googleIdentity },
       databaseFactory: () => database,
       rateLimit: async () => true,
     });
 
-    const response = await worker.fetch(makeRequest('/auth/student/ensure-id', {
-      studentId: 'google-student-7',
-    }, { authorization: 'Bearer firebase-id-token' }), makeEnv());
+    const response = await worker.fetch(makeGoogleRegistration('google-student-7'), makeEnv());
 
     expect(response.status).toBe(200);
     expect(await readJson(response)).toEqual({ studentId: 'google-student-7', created: true });

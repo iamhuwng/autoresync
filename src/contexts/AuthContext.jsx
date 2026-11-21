@@ -332,7 +332,9 @@ export function AuthProvider({ children }) {
       throw createAuthError('auth/user-disabled', 'Your account is unavailable. Please contact an administrator.');
     }
 
-    if (!userData && result.deferNewGoogleProfile) {
+    const hasGoogleIdentity = result.deferNewGoogleProfile
+      || authUser.providerData?.some((provider) => provider.providerId === 'google.com');
+    if (!userData && hasGoogleIdentity) {
       return { ...result, needsStudentRegistration: true };
     }
 
@@ -455,54 +457,39 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const setupStudentCredentials = async ({ studentId, password, firstName, familyName }) => {
-    if (!auth.currentUser?.getIdToken) throw studentAuthError('unauthorized');
-    const currentIdentifier = await get(ref(database, `student_identifiers/${auth.currentUser.uid}`));
+  const setupStudentCredentials = async ({ studentId, password, firstName, familyName }, { registerGoogle = false } = {}) => {
+    const authUser = auth.currentUser;
+    if (!authUser?.getIdToken || (registerGoogle && !authUser.email)) throw studentAuthError('unauthorized');
+    const currentIdentifier = await get(ref(database, `student_identifiers/${authUser.uid}`));
     const assignedId = currentIdentifier.val()?.studentId;
     if (assignedId && assignedId.trim().normalize('NFKC').toLowerCase() !== studentId.trim().normalize('NFKC').toLowerCase()) {
       throw studentAuthError('student_id_already_assigned');
     }
     try {
-      await updatePassword(auth.currentUser, password);
+      await updatePassword(authUser, password);
     } catch (error) {
       if (error?.code !== 'auth/requires-recent-login') throw error;
-      await reauthenticateWithPopup(auth.currentUser, googleProvider);
-      await updatePassword(auth.currentUser, password);
+      await reauthenticateWithPopup(authUser, googleProvider);
+      await updatePassword(authUser, password);
     }
-    await auth.currentUser.reload?.();
-    setUser(auth.currentUser);
+    await authUser.reload?.();
+    const displayName = `${firstName} ${familyName}`.trim();
+    if (registerGoogle) await updateAuthProfile(authUser, { displayName });
+    const idToken = await authUser.getIdToken();
+    if (auth.currentUser !== authUser) throw studentAuthError('unauthorized');
+    setUser(authUser);
     setProfile((currentProfile) => currentProfile ? { ...currentProfile } : currentProfile);
-    const idToken = await auth.currentUser.getIdToken();
     await callStudentAuthWorker('/auth/student/ensure-id', {
       studentId,
       firstName,
       familyName,
-      displayName: `${firstName} ${familyName}`.trim(),
+      displayName,
+      ...(registerGoogle ? { registerGoogle: true } : {}),
     }, idToken);
-    await updateAuthProfile(auth.currentUser, { displayName: `${firstName} ${familyName}`.trim() });
+    if (!registerGoogle) await updateAuthProfile(authUser, { displayName });
   };
 
-  const completeGoogleRegistration = async ({ studentId, password, firstName, familyName }) => {
-    if (!auth.currentUser?.uid || !auth.currentUser.email) throw studentAuthError('unauthorized');
-    const userRef = ref(database, `users/${auth.currentUser.uid}`);
-    const snapshot = await get(userRef);
-    await setupStudentCredentials({ studentId, password, firstName, familyName });
-    if (!snapshot.exists()) {
-      await set(userRef, {
-        uid: auth.currentUser.uid,
-        email: auth.currentUser.email,
-        displayName: `${firstName.trim()} ${familyName.trim()}`.trim(),
-        photoURL: auth.currentUser.photoURL || null,
-        role: 'student',
-        firstName: firstName.trim(),
-        familyName: familyName.trim(),
-        createdAt: serverTimestamp(),
-        lastLoginAt: serverTimestamp(),
-        status: 'active',
-        forceReauth: false,
-      });
-    }
-  };
+  const completeGoogleRegistration = (credentials) => setupStudentCredentials(credentials, { registerGoogle: true });
 
   /**
    * Manual logout

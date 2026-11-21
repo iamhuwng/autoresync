@@ -16,11 +16,35 @@ describe('upload-worker Firebase verifier', () => {
 
     await expect(
       verifier.verifyAuthorizationHeader('Bearer firebase-token', env),
-    ).resolves.toEqual({ valid: true, uid: 'teacher-uid' });
+    ).resolves.toMatchObject({ valid: true, uid: 'teacher-uid', emailVerified: false, hasGoogleIdentity: false });
 
     expect(jwtVerify).toHaveBeenCalledWith('firebase-token', jwks, {
       issuer: 'https://securetoken.google.com/temp-a1437',
       audience: 'temp-a1437',
+    });
+  });
+
+  it('uses verified Firebase claims for the linked Google identity', async () => {
+    const verifier = createFirebaseVerifier({
+      jwtVerify: vi.fn().mockResolvedValue({
+        payload: {
+          sub: 'new-student',
+          email: 'student@example.com',
+          email_verified: true,
+          picture: 'https://example.com/student.png',
+          firebase: { identities: { 'google.com': ['provider-id'] } },
+        },
+      }),
+      jwks: vi.fn(),
+    });
+
+    await expect(verifier.verifyAuthorizationHeader('Bearer firebase-token', env)).resolves.toEqual({
+      valid: true,
+      uid: 'new-student',
+      email: 'student@example.com',
+      emailVerified: true,
+      hasGoogleIdentity: true,
+      photoURL: 'https://example.com/student.png',
     });
   });
 
