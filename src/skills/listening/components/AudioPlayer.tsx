@@ -1118,13 +1118,12 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     }
   }, [effectiveVolume]);
 
-  // Update playback speed
+  // Update playback speed (never override teacher-controlled session speed)
   useEffect(() => {
     const audio = audioRef.current;
-    if (audio) {
-      audio.playbackRate = effectiveAllowSpeedControl ? playbackSpeed : 1;
-    }
-  }, [playbackSpeed, effectiveAllowSpeedControl, audioSource?.url]);
+    if (!audio || typeof masterAudioState?.speed === 'number') return;
+    audio.playbackRate = effectiveAllowSpeedControl ? playbackSpeed : 1;
+  }, [playbackSpeed, effectiveAllowSpeedControl, audioSource?.url, masterAudioState?.speed]);
 
   // Reset state and reload audio when URL or section changes
   useLayoutEffect(() => {
