@@ -1,7 +1,6 @@
 // File: src/hooks/solo/useSoloTimer.ts
-import { useState, useEffect, useRef, useCallback, createElement } from 'react';
-import { notifications } from '@mantine/notifications';
-import { IconClock } from '@tabler/icons-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { toast } from '../../components/modern/ToastNotification';
 import { useTimerExpiry } from '../test/useTimerExpiry';
 
 interface UseSoloTimerOptions {
@@ -81,12 +80,9 @@ export const useSoloTimer = ({
                 // 5-minute warning
                 if (hasTimer && remaining === 300 && !hasShownWarningRef.current) {
                     hasShownWarningRef.current = true;
-                    notifications.show({
+                    toast.warning('5 minutes remaining!', {
                         title: 'Time Warning',
-                        message: '⏰ 5 minutes remaining!',
-                        color: 'orange',
-                        icon: createElement(IconClock, { size: 20 }),
-                        autoClose: 10000,
+                        duration: 10000,
                     });
                 }
 

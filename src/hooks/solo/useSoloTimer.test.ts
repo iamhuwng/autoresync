@@ -2,18 +2,14 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSoloTimer } from './useSoloTimer';
 
-const { notificationsShowMock } = vi.hoisted(() => ({
-  notificationsShowMock: vi.fn(),
+const { toastWarningMock } = vi.hoisted(() => ({
+  toastWarningMock: vi.fn(),
 }));
 
-vi.mock('@mantine/notifications', () => ({
-  notifications: {
-    show: notificationsShowMock,
+vi.mock('../../components/modern/ToastNotification', () => ({
+  toast: {
+    warning: toastWarningMock,
   },
-}));
-
-vi.mock('@tabler/icons-react', () => ({
-  IconClock: () => null,
 }));
 
 describe('useSoloTimer', () => {
@@ -113,10 +109,10 @@ describe('useSoloTimer', () => {
     });
 
     expect(result.current.timeRemaining).toBe(300);
-    expect(notificationsShowMock).toHaveBeenCalledTimes(1);
-    expect(notificationsShowMock).toHaveBeenCalledWith(expect.objectContaining({
+    expect(toastWarningMock).toHaveBeenCalledTimes(1);
+    expect(toastWarningMock).toHaveBeenCalledWith('5 minutes remaining!', expect.objectContaining({
       title: 'Time Warning',
-      color: 'orange',
+      duration: 10000,
     }));
   });
 
