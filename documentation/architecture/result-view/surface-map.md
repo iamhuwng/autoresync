@@ -1,5 +1,9 @@
 # Result View Surface Map
 
+## 2026-11-25 Shared external audio (BYO Backblaze B2) saved-result playback
+
+PR #326 adds `SavedSectionAudio.tsx` inside `SharedSavedResultCore` so THCS and Listening saved results can replay retained BYO Backblaze B2 section recordings through the existing authorized Worker routes (`/listening-delivery/result-review` and `/external-audio/read-thcs` / `/external-audio/play-thcs`). The three canonical saved-result shells (`ResultSlidePanel`, `ResultDetailModal`, `LegacyResultDetailView`), `StudentHomeworkDetailPage` entry ownership, `testResults.service.ts` canonical storage, and `featureRegistry.ts` action tracking remain intact. No new result shell, route, or ownership boundary is added.
+
 ## Homework Writing authority recovery
 
 `TeacherHomeworkDetailPage` opens the existing `ResultDetailModal` on

@@ -1,5 +1,9 @@
 # Result View Visibility Policy
 
+## 2026-11-25 Shared external audio (BYO Backblaze B2) saved-result playback
+
+PR #326 extends saved-result audio replay in `SharedSavedResultCore` (`SavedSectionAudio.tsx`) to resolve provider-neutral B2 section recordings using the caller's authenticated Firebase ID token and canonical `test_results/{resultId}` read permission. RTDB `test_results/{resultId}` read rules and the two-step teacher visibility gate remain unchanged; short-lived B2 presigned playback URLs are never persisted in `test_results`, student projections, or logs.
+
 ## Ordinary Writing homework sharing
 
 The submitting student's authenticated request can authorize sharing their own
