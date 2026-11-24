@@ -654,6 +654,12 @@ function requiresLegacyStudentSafeProjection(kind: HomeworkContentKind): boolean
     return kind === 'ielts_reading' || kind === 'ielts_listening';
 }
 
+function isExternalAudioHomeworkEnvironment(env: WorkerEnv): boolean {
+    return isLocalHomeworkEmulator(env)
+        || env.FIREBASE_PROJECT_ID === 'temp-a1437'
+        || env.FIREBASE_PROJECT_ID === 'luyentap-pdf-qa-20261021';
+}
+
 async function assertLegacyStudentSafeProjection(
     env: WorkerEnv,
     accessToken: string,
@@ -719,7 +725,7 @@ async function resolveStandardTestContent(
                 : canonical.isPublic === false && version.ownerId === uid &&
                     env.EXTERNAL_AUDIO_PRIVATE_HOMEWORK_ENABLED === 'enabled';
             if (canonical.type !== 'IELTS' || record.ownerId !== version.ownerId ||
-                !eligible || !isLocalHomeworkEmulator(env)) {
+                !eligible || !isExternalAudioHomeworkEnvironment(env)) {
                 return assignmentError('CONTENT_NOT_ASSIGNABLE', 'External Listening audio requires an eligible homework assignment.');
             }
         }
@@ -777,7 +783,7 @@ async function resolveStandardTestContent(
     }
     const thcsAudioVersion = contentRef.contentKind === 'thcs_test' && typeof record.externalAudioVersionId === 'string'
         ? record.externalAudioVersionId : undefined;
-    if (thcsAudioVersion && (env.EXTERNAL_AUDIO_THCS_ENABLED !== 'enabled' || !isLocalHomeworkEmulator(env) ||
+    if (thcsAudioVersion && (env.EXTERNAL_AUDIO_THCS_ENABLED !== 'enabled' || !isExternalAudioHomeworkEnvironment(env) ||
         (!isPublicRecord(record) && record.ownerId !== uid))) {
         return assignmentError('CONTENT_NOT_ASSIGNABLE', 'This external-audio THCS test is unavailable for assignment.');
     }

@@ -125,7 +125,7 @@ interface AudioQaEnv {
     VITE_R2_UPLOAD_WORKER_URL?: string;
 }
 
-const PRODUCTION_APP_ORIGINS = new Set(['https://kahut1.web.app', 'https://hocthem.net']);
+const PRODUCTION_APP_ORIGINS = new Set(['https://kahut1.web.app', 'https://hocthem.net', 'https://www.hocthem.net']);
 const PRODUCTION_WORKER_ORIGINS = new Set(['https://r2-upload-signer.iamhuwng.workers.dev']);
 
 function parseUrl(value: string) {

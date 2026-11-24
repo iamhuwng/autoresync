@@ -1,6 +1,11 @@
-const APPROVED_ORIGINS = new Set([
+const PRODUCTION_APP_ORIGINS = new Set([
   'https://kahut1.web.app',
   'https://hocthem.net',
+  'https://www.hocthem.net',
+]);
+
+const APPROVED_ORIGINS = new Set([
+  ...PRODUCTION_APP_ORIGINS,
   'http://localhost:5173',
   'http://localhost:5174',
 ]);
@@ -60,6 +65,10 @@ export const parseSpareAllowedLocalhostOrigins = (env) => {
 export const isApprovedOrigin = (origin, env) => (
   typeof origin === 'string'
   && (APPROVED_ORIGINS.has(origin) || parseSpareAllowedLocalhostOrigins(env).has(origin))
+);
+
+export const isApprovedProductionAppOrigin = (origin) => (
+  typeof origin === 'string' && PRODUCTION_APP_ORIGINS.has(origin)
 );
 
 export const isApprovedLocalAppOrigin = (origin, env) => (

@@ -4,6 +4,7 @@ import {
   corsResponseHeaders,
   handleCorsPreflight,
   isApprovedLocalAppOrigin,
+  isApprovedProductionAppOrigin,
   rejectDisallowedActualOrigin,
 } from './src/upload-worker/cors-policy.js';
 import {
@@ -160,7 +161,10 @@ export function createUploadWorker({
           return new Response(null, { status: 404, headers: { 'Cache-Control': 'no-store' } });
         }
         const origin = request.headers.get('Origin');
-        if (origin && !isApprovedLocalAppOrigin(origin, env)) {
+        const originAllowed = env.EXTERNAL_AUDIO_ENVIRONMENT === 'production' && env.FIREBASE_PROJECT_ID === 'temp-a1437'
+          ? isApprovedProductionAppOrigin(origin)
+          : isApprovedLocalAppOrigin(origin, env);
+        if (origin && !originAllowed) {
           return new Response(null, { status: 403, headers: { Vary: 'Origin' } });
         }
         const method = request.method === 'OPTIONS' ? request.headers.get('Access-Control-Request-Method') : request.method;

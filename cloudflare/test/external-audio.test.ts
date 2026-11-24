@@ -913,8 +913,33 @@ describe('external audio lifecycle and trusted playback', () => {
     });
     expect(externalAudioDraftsEnabled(prodEnv, req('https://kahut1.web.app'))).toBe(true);
     expect(externalAudioDraftsEnabled(prodEnv, req('https://hocthem.net'))).toBe(true);
+    expect(externalAudioDraftsEnabled(prodEnv, req('https://www.hocthem.net'))).toBe(true);
     expect(externalAudioThcsEnabled(prodEnv, req('https://kahut1.web.app'))).toBe(true);
     expect(externalAudioDraftsEnabled(prodEnv, req('http://localhost:5173'))).toBe(false);
     expect(externalAudioDraftsEnabled(prodEnv, req('https://evil.example'))).toBe(false);
+
+    // Verify worker.js CORS gate accepts production origins (OPTIONS & POST) and rejects localhost/evil origins in production.
+    const prodWorker = createUploadWorker({
+      fetchImpl: f.fetchMock,
+      verifyToken: async () => ({ uid: 'owner-1' }),
+      readDatabaseValue: async (path) => f.appValues.get(path),
+      now,
+    });
+    for (const allowedOrigin of ['https://kahut1.web.app', 'https://hocthem.net', 'https://www.hocthem.net']) {
+      const preflight = await prodWorker.fetch(new Request('https://r2-upload-signer.iamhuwng.workers.dev/external-audio/connections', {
+        method: 'OPTIONS',
+        headers: { Origin: allowedOrigin, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'authorization, content-type' },
+      }), prodEnv as never, {} as never);
+      expect(preflight.status).toBe(204);
+      expect(preflight.headers.get('Access-Control-Allow-Origin')).toBe(allowedOrigin);
+      expect(preflight.headers.get('Access-Control-Allow-Methods')).toBe('OPTIONS, POST');
+    }
+    for (const blockedOrigin of ['http://localhost:5173', 'https://evil.example']) {
+      const rejected = await prodWorker.fetch(new Request('https://r2-upload-signer.iamhuwng.workers.dev/external-audio/connections', {
+        method: 'OPTIONS',
+        headers: { Origin: blockedOrigin, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'authorization, content-type' },
+      }), prodEnv as never, {} as never);
+      expect(rejected.status).toBe(403);
+    }
   });
 });

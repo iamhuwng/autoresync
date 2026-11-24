@@ -47,7 +47,7 @@ import { refreshPublicBookReadiness } from '../services/materialCatalog/publicBo
 import { resolveBookDeliveryWorkerOrigin } from '../services/book-delivery/bookDelivery.browser';
 import AIMaintenanceBanner from '../components/ai/AIMaintenanceBanner';
 import { ExternalAudioImpactCounts } from '../components/external-audio/ExternalAudioStorage';
-import { createExternalAudioClient, externalAudioHealth, type AdminAudioConnection, type ExternalAudioImpact } from '../services/externalAudioClient';
+import { createExternalAudioClient, externalAudioHealth, resolveExternalAudioOrigin, type AdminAudioConnection, type ExternalAudioImpact } from '../services/externalAudioClient';
 
 // ============================================================================
 // Types
@@ -91,7 +91,8 @@ const ExternalAudioHealthSection: React.FC<{
     const [loading, setLoading] = useState(false);
     const [impact, setImpact] = useState<Record<string, ExternalAudioImpact | 'checking' | 'unavailable'>>({});
     const client = useMemo(() => {
-        const origin = import.meta.env.VITE_R2_UPLOAD_WORKER_URL as string | undefined;
+        const origin = resolveExternalAudioOrigin({ role: 'super_admin' })
+            ?? (import.meta.env.VITE_R2_UPLOAD_WORKER_URL as string | undefined);
         return origin ? createExternalAudioClient(origin, () => user.getIdToken()) : null;
     }, [user]);
     const load = useCallback(async () => {

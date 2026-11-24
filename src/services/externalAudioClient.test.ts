@@ -96,6 +96,7 @@ describe('external audio client boundary', () => {
         const teacher = { role: 'teacher' };
         expect(resolveExternalAudioOrigin(teacher, prodEnv, 'https://kahut1.web.app')).toBe(prodWorker);
         expect(resolveExternalAudioOrigin(teacher, prodEnv, 'https://hocthem.net')).toBe(prodWorker);
+        expect(resolveExternalAudioOrigin(teacher, prodEnv, 'https://www.hocthem.net')).toBe(prodWorker);
         expect(resolveExternalAudioOrigin(teacher, { ...prodEnv, VITE_R2_UPLOAD_WORKER_URL: undefined }, 'https://kahut1.web.app')).toBe(prodWorker);
         expect(resolveExternalAudioOrigin(teacher, prodEnv, 'http://localhost:5173')).toBeNull();
         expect(resolveExternalAudioOrigin(teacher, prodEnv, 'https://evil.example')).toBeNull();

@@ -9,7 +9,7 @@ import { fail, readJson, record } from './protocol.ts';
 type Store = ReturnType<typeof createAudioCredentialStore>;
 type Asset = Extract<AudioAssetRecord, { storageProvider: 'b2' }>;
 
-const PRODUCTION_APP_ORIGINS = new Set(['https://kahut1.web.app', 'https://hocthem.net']);
+const PRODUCTION_APP_ORIGINS = new Set(['https://kahut1.web.app', 'https://hocthem.net', 'https://www.hocthem.net']);
 
 export interface DraftAudioEnv extends CredentialStoreEnv {
   readonly EXTERNAL_AUDIO_DRAFTS_ENABLED?: string;
