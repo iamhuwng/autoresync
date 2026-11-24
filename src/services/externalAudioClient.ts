@@ -127,6 +127,7 @@ interface AudioQaEnv {
 
 const PRODUCTION_APP_ORIGINS = new Set(['https://kahut1.web.app', 'https://hocthem.net', 'https://www.hocthem.net']);
 const PRODUCTION_WORKER_ORIGINS = new Set(['https://r2-upload-signer.iamhuwng.workers.dev']);
+const LOCAL_QA_PROJECT_ID = import.meta.env.DEV || import.meta.env.MODE === 'test' ? 'demo-luyentap-local' : '';
 
 function parseUrl(value: string) {
     try { return new URL(value); }
@@ -177,7 +178,7 @@ export function resolveExternalAudioOrigin(
         return productionWorkerOrigin(env.VITE_R2_UPLOAD_WORKER_URL || 'https://r2-upload-signer.iamhuwng.workers.dev');
     }
     if (!env.DEV || env.VITE_EXTERNAL_AUDIO_LOCAL_QA !== 'enabled' || env.VITE_FIREBASE_LOCAL_ONLY !== 'true'
-        || env.VITE_FIREBASE_PROJECT_ID !== 'demo-luyentap-local' || !localOrigin(origin)) return null;
+        || !LOCAL_QA_PROJECT_ID || env.VITE_FIREBASE_PROJECT_ID !== LOCAL_QA_PROJECT_ID || !localOrigin(origin)) return null;
     return localOrigin(env.VITE_R2_UPLOAD_WORKER_URL);
 }
 
@@ -221,8 +222,8 @@ export function resolveAudioCourseOrigin(env: AudioQaEnv = import.meta.env, orig
         return productionWorkerOrigin(env.VITE_R2_UPLOAD_WORKER_URL || 'https://r2-upload-signer.iamhuwng.workers.dev');
     }
     if (!externalAudioAuthoringOptedIn(env) || env.VITE_EXTERNAL_AUDIO_LOCAL_QA !== 'enabled' ||
-        env.VITE_FIREBASE_LOCAL_ONLY !== 'true' ||
-        env.VITE_FIREBASE_PROJECT_ID !== 'demo-luyentap-local' || !localOrigin(origin)) return null;
+        env.VITE_FIREBASE_LOCAL_ONLY !== 'true' || !LOCAL_QA_PROJECT_ID ||
+        env.VITE_FIREBASE_PROJECT_ID !== LOCAL_QA_PROJECT_ID || !localOrigin(origin)) return null;
     return localOrigin(env.VITE_R2_UPLOAD_WORKER_URL);
 }
 
