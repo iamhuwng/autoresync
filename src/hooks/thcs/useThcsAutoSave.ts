@@ -13,31 +13,42 @@ interface UseThcsAutoSaveInput {
     draftId: string | null;
     data: Partial<THCSDraft>;
     isDirty: boolean;
+    manualOnly?: boolean;
+    validate?: (draftId: string, draft: Partial<THCSDraft>) => Promise<void>;
 }
 
 interface UseThcsAutoSaveReturn {
     isSaving: boolean;
     lastSavedAt: Date | null;
     error: string | null;
-    saveNow: (targetDraftId?: string) => Promise<{ success: boolean; error?: string }>;
+    saveNow: (targetDraftId?: string, updates?: Partial<THCSDraft>) => Promise<{ success: boolean; error?: string }>;
 }
 
-export function useThcsAutoSave({ draftId, data, isDirty }: UseThcsAutoSaveInput): UseThcsAutoSaveReturn {
+export function useThcsAutoSave({ draftId, data, isDirty, manualOnly = false, validate }: UseThcsAutoSaveInput): UseThcsAutoSaveReturn {
     const [isSaving, setIsSaving] = useState(false);
     const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
     const [error, setError] = useState<string | null>(null);
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const dataRef = useRef(data);
     dataRef.current = data;
+    const inflight = useRef<Promise<unknown> | null>(null);
 
-    const performSave = useCallback(async (targetDraftId = draftId): Promise<{ success: boolean; error?: string }> => {
+    const performSave = useCallback(async (targetDraftId = draftId, updates?: Partial<THCSDraft>): Promise<{ success: boolean; error?: string }> => {
         if (!targetDraftId) return { success: false, error: 'Draft ID is missing' };
 
+        const snapshot = updates ?? dataRef.current;
+        const prior = inflight.current;
         setIsSaving(true);
         setError(null);
 
+        const save = (async () => {
+            await prior?.catch(() => {});
+            await validate?.(targetDraftId, snapshot);
+            return updateThcsDraft(targetDraftId, snapshot);
+        })();
+        inflight.current = save;
         try {
-            const result = await updateThcsDraft(targetDraftId, dataRef.current);
+            const result = await save;
             if (result.success) {
                 setLastSavedAt(new Date());
                 // Clear any offline backup on success
@@ -49,23 +60,27 @@ export function useThcsAutoSave({ draftId, data, isDirty }: UseThcsAutoSaveInput
         } catch (err) {
             const msg = err instanceof Error ? err.message : 'Save failed';
             setError(msg);
+            if (manualOnly) return { success: false, error: msg };
             console.warn('⚠️ Auto-save failed, saving offline backup:', msg);
             // Offline fallback — save to localStorage
             try {
                 localStorage.setItem(
                     OFFLINE_KEY_PREFIX + targetDraftId,
-                    JSON.stringify(dataRef.current)
+                    JSON.stringify(snapshot)
                 );
             } catch { /* localStorage might be full */ }
             return { success: false, error: msg };
         } finally {
-            setIsSaving(false);
+            if (inflight.current === save) {
+                inflight.current = null;
+                setIsSaving(false);
+            }
         }
-    }, [draftId]);
+    }, [draftId, manualOnly, validate]);
 
     // Debounced auto-save on data change
     useEffect(() => {
-        if (!isDirty || !draftId) return;
+        if (!isDirty || !draftId || manualOnly) return;
 
         if (timerRef.current) clearTimeout(timerRef.current);
         timerRef.current = setTimeout(() => {
@@ -75,17 +90,20 @@ export function useThcsAutoSave({ draftId, data, isDirty }: UseThcsAutoSaveInput
         return () => {
             if (timerRef.current) clearTimeout(timerRef.current);
         };
-    }, [isDirty, draftId, data, performSave]);
+    }, [isDirty, draftId, data, manualOnly, performSave]);
 
     // On mount: check for offline backups and sync
     useEffect(() => {
-        if (!draftId) return;
+        if (!draftId || manualOnly) return;
 
         const offlineData = localStorage.getItem(OFFLINE_KEY_PREFIX + draftId);
         if (offlineData) {
+            let backup: Partial<THCSDraft>;
+            try { backup = JSON.parse(offlineData); } catch { return; }
+            if (backup.sections?.some((section) => section.externalAudio || section.externalAudioRequired)) return;
             console.log('📦 Found offline backup for draft:', draftId);
             // Attempt to sync the offline data
-            updateThcsDraft(draftId, JSON.parse(offlineData))
+            updateThcsDraft(draftId, backup)
                 .then((result) => {
                     if (result.success) {
                         localStorage.removeItem(OFFLINE_KEY_PREFIX + draftId);
@@ -97,11 +115,11 @@ export function useThcsAutoSave({ draftId, data, isDirty }: UseThcsAutoSaveInput
                     console.warn('⚠️ Could not sync offline backup yet');
                 });
         }
-    }, [draftId]);
+    }, [draftId, manualOnly]);
 
-    const saveNow = useCallback(async (targetDraftId?: string) => {
+    const saveNow = useCallback(async (targetDraftId?: string, updates?: Partial<THCSDraft>) => {
         if (timerRef.current) clearTimeout(timerRef.current);
-        return performSave(targetDraftId);
+        return performSave(targetDraftId, updates);
     }, [performSave]);
 
     return { isSaving, lastSavedAt, error, saveNow };

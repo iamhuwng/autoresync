@@ -275,6 +275,29 @@ describe('R2UploadClient authenticated grant flow', () => {
         )).rejects.toMatchObject({ code: 'invalid_upload_response' });
     });
 
+    it('classifies a draft image promotion transport failure as retryable', async () => {
+        const key = 'temp/images/owner-a/0123456789abcdef0123456789abcdef-diagram.png';
+        const newKey = 'images/owner-a/0123456789abcdef0123456789abcdef-diagram.png';
+        const promoted = { success: true, newKey, newUrl: 'https://pub.example/' + newKey };
+        const fetchImpl = vi.fn()
+            .mockRejectedValueOnce(new TypeError('Network is unavailable'))
+            .mockResolvedValueOnce(jsonResponse(promoted));
+        const client = makeClient({ fetchImpl });
+        const request = expect.objectContaining({
+            method: 'POST',
+            headers: expect.objectContaining({ Authorization: 'Bearer firebase-token-sentinel' }),
+            body: JSON.stringify({ sourceKey: key }),
+        });
+
+        await expect(client.promoteDraftImage(key)).rejects.toMatchObject({
+            code: 'network_error',
+            recoverable: true,
+        });
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+        await expect(client.promoteDraftImage(key)).resolves.toEqual(promoted);
+        expect(fetchImpl).toHaveBeenNthCalledWith(2, 'https://canary.example.test/thcs/draft-images/promote', request);
+    });
+
     it('uses configured canary endpoint for authorize, PUT, and move', async () => {
         const endpoint = 'https://canary.example.test/base/';
         const normalizedEndpoint = 'https://canary.example.test/base';

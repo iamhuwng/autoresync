@@ -119,4 +119,24 @@ describe('useSoloTimer', () => {
       color: 'orange',
     }));
   });
+
+  it('tracks elapsed time for untimed attempts without starting expiry', () => {
+    const onTimeUp = vi.fn();
+    const { result } = renderHook(() => useSoloTimer({
+      durationMinutes: null,
+      allowPause: false,
+      testSubmitted: false,
+      onTimeUp,
+    }));
+
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+
+    expect(result.current.hasTimer).toBe(false);
+    expect(result.current.elapsedSeconds).toBe(3);
+    expect(result.current.timeRemaining).toBe(Infinity);
+    expect(result.current.showTimeUpOverlay).toBe(false);
+    expect(onTimeUp).not.toHaveBeenCalled();
+  });
 });

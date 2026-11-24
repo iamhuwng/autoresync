@@ -1164,8 +1164,9 @@ describe('ListeningPracticeView mobile host (PRD-0045 Task 5.10)', () => {
     );
 
     expect(await screen.findByTestId('listening-practice-review-shell')).toBeTruthy();
-    expect(await screen.findByTestId('mock-results-screen')).toBeTruthy();
-    expect(screen.getByTestId('results-title').textContent).toContain('30/40');
+    expect(screen.getByRole('heading', { name: 'Test completed' })).toBeVisible();
+    expect(screen.getByText('30 of 40 correct')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Back to Practice' })).toBeVisible();
   });
 
   // ── 5.10.12: Auto-save error toast deduplication ──

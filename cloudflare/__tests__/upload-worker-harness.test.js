@@ -421,6 +421,38 @@ describe('r2-upload-signer native R2 harness', () => {
     expect(await env.R2_BUCKET.get(destKey)).toBeNull();
   });
 
+  it('copies an owned draft image and reuses it after the temporary source expires', async () => {
+    const sourceKey = `temp/images/owner-a/${FIXED_NONCE}-draft-image.png`;
+    const destKey = sourceKey.slice('temp/'.length);
+    const promote = (token, body = { sourceKey }) => fetchWorker('/thcs/draft-images/promote', {
+      method: 'POST',
+      headers: { ...bearer(token), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    expect((await promote('valid-owner-a-token')).status).toBe(404);
+    await env.R2_BUCKET.put(sourceKey, 'fixture image', { httpMetadata: { contentType: 'image/png' } });
+    expect((await promote('invalid-token')).status).toBe(401);
+    expect((await promote('valid-owner-b-token')).status).toBe(403);
+    expect((await promote('valid-owner-a-token', { sourceKey, destKey: 'images/unrelated.png' })).status).toBe(400);
+    expect((await promote('valid-owner-a-token', { sourceKey: sourceKey.replace('/images/', '/audio/') })).status).toBe(400);
+    expect(await env.R2_BUCKET.head(destKey)).toBeNull();
+
+    const first = await promote('valid-owner-a-token');
+    expect(first.status).toBe(200);
+    const result = await first.json();
+    expect(result).toEqual({ success: true, newKey: destKey, newUrl: `${env.PUBLIC_URL}/${destKey}` });
+    const copied = await env.R2_BUCKET.get(destKey);
+    expect(copied.httpMetadata.contentType).toBe('image/png');
+    expect(await copied.text()).toBe('fixture image');
+    expect(await (await env.R2_BUCKET.get(sourceKey)).text()).toBe('fixture image');
+    await env.R2_BUCKET.delete(sourceKey);
+
+    const retry = await promote('valid-owner-a-token');
+    expect(retry.status).toBe(200);
+    expect(await retry.json()).toEqual(result);
+    expect((await env.R2_BUCKET.head(destKey)).version).toBe(copied.version);
+  });
+
   it('moves an uploaded object through authenticated same-owner scope', async () => {
     const sourceKey = `temp/audio/owner-a/${FIXED_NONCE}-harness-move.txt`;
     const destKey = `audio/owner-a/${FIXED_NONCE}-harness-move.txt`;

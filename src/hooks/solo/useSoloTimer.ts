@@ -21,6 +21,8 @@ interface UseSoloTimerOptions {
 
 interface UseSoloTimerReturn {
     timeRemaining: number;
+    /** Seconds elapsed in the current attempt, including untimed attempts. */
+    elapsedSeconds: number;
     formatTime: (seconds: number) => string;
     isPaused: boolean;
     togglePause: () => void;
@@ -69,7 +71,7 @@ export const useSoloTimer = ({
 
     // Timer countdown
     useEffect(() => {
-        if (!hasTimer || testSubmitted || isPaused) return;
+        if (testSubmitted || isPaused) return;
 
         const timer = setInterval(() => {
             setElapsedSeconds(prev => {
@@ -77,7 +79,7 @@ export const useSoloTimer = ({
                 const remaining = Math.max(0, totalSeconds - next);
 
                 // 5-minute warning
-                if (remaining === 300 && !hasShownWarningRef.current) {
+                if (hasTimer && remaining === 300 && !hasShownWarningRef.current) {
                     hasShownWarningRef.current = true;
                     notifications.show({
                         title: 'Time Warning',
@@ -89,7 +91,7 @@ export const useSoloTimer = ({
                 }
 
                 // Time up → grace period
-                if (remaining <= 0 && !hasAutoSubmittedRef.current && !hasTriggeredGracePeriodRef.current) {
+                if (hasTimer && remaining <= 0 && !hasAutoSubmittedRef.current && !hasTriggeredGracePeriodRef.current) {
                     hasTriggeredGracePeriodRef.current = true;
                     clearInterval(timer);
                     triggerGracePeriod();
@@ -118,6 +120,7 @@ export const useSoloTimer = ({
 
     return {
         timeRemaining,
+        elapsedSeconds,
         formatTime,
         isPaused,
         togglePause,

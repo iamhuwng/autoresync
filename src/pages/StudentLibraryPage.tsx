@@ -199,13 +199,13 @@ export const StudentLibraryPage: React.FC = () => {
                     <div>
                         <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 12px', letterSpacing: '-0.01em', lineHeight: 1.3, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: isMobile ? 'normal' : 'nowrap', display: isMobile ? '-webkit-box' : undefined, WebkitLineClamp: isMobile ? 2 : undefined, WebkitBoxOrient: isMobile ? 'vertical' : undefined }}>{material.title}</h3>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            <span style={{ ...localStyles.badge, ...skillBadgeStyle }}>
+                            {material.type !== 'thcs-test' && <span style={{ ...localStyles.badge, ...skillBadgeStyle }}>
                                 {getMaterialSkillLabel(material.skill)}
-                            </span>
+                            </span>}
                             {material.skill === 'reading-v2' && (
                                 <span style={{ ...localStyles.badge, background: '#f8fafc', color: '#334155', border: `1px solid ${studentTokens.borderSoft}` }}>V2 Engine</span>
                             )}
-                            <span style={{ ...localStyles.badge, background: studentTokens.bgSurfaceAlt, color: studentTokens.textBody }}>{material.type}</span>
+                            <span style={{ ...localStyles.badge, background: studentTokens.bgSurfaceAlt, color: studentTokens.textBody }}>{material.type === 'thcs-test' ? 'THCS' : material.type}</span>
                             {material.difficulty && (
                                 <span style={{ ...localStyles.badge, background: diffColor.bg, color: diffColor.text }}>{material.difficulty}</span>
                             )}

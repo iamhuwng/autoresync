@@ -14,7 +14,7 @@ import {
   createListeningMediaAssetRecord,
   type ListeningMediaAssetRecord,
 } from '../../../../src/features/assessment/listening/storage/listeningAssetRegistry.ts';
-import type { ListeningAuthoringDocumentV1 } from '../../../../functions/src/listening-authoring/repository.shared.ts';
+import type { ListeningAuthoringDocumentV1 } from '../../../../functions/src/listening-authoring/contracts.ts';
 import type { ListeningUploadSessionRecord } from '../listening-upload-session-types.ts';
 import type { FirebaseRtdbRestClient } from './rtdb.ts';
 
@@ -33,7 +33,7 @@ export interface PreparedListeningDocument {
   document: ListeningAuthoringDocumentV1;
   assets: PreparedAsset[];
 }
-const fail = (code: string): never => { throw new ListeningAssetCommitError(code); };
+function fail(code: string): never { throw new ListeningAssetCommitError(code); }
 const identifier = (value: string): boolean => /^[A-Za-z0-9_-]{1,160}$/.test(value);
 const maxBytes = 50 * 1024 * 1024;
 
@@ -121,6 +121,7 @@ export class ListeningAuthoringAssets {
     const path = `media_assets/${assetId}`;
     const current = await this.options.rtdb.readWithEtag<ListeningMediaAssetRecord | null>(path);
     if (current.data) {
+      if ('storageProvider' in current.data && current.data.storageProvider === 'b2') fail('canonical_asset_required');
       if (current.data.ownerId !== ownerId || current.data.createdBy !== ownerId || current.data.assetId !== assetId) fail('asset_owner_mismatch');
       return current.data;
     }
@@ -154,8 +155,9 @@ export class ListeningAuthoringAssets {
 
   async prepare(ownerId: string, document: ListeningAuthoringDocumentV1, reference: ListeningAssetCommitReference): Promise<PreparedListeningDocument> {
     const assets: PreparedAsset[] = [];
-    const audioSections = [];
+    const audioSections: ListeningAuthoringDocumentV1['audioSections'][number][] = [];
     for (const section of document.audioSections) {
+      if (section.externalAudio && !section.audioUrl && !section.streamUrl) { audioSections.push(section); continue; }
       if (!section.assetId && !section.audioUrl && !section.streamUrl) { audioSections.push(section); continue; }
       if (!this.options.publicUrl) fail('asset_public_url_unavailable');
       try {

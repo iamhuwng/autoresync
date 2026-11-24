@@ -27,13 +27,18 @@ import { buildListeningStudentSafeDocument } from './listening-authoring/publish
 import { ListeningAudioReplacementError, readListeningAudioReplacementWarning, resolveListeningAudioReplacement } from './listening-authoring/audio-replacement.ts';
 import type { ListeningPublishedVersionRecord } from '../../../functions/src/listening-authoring/repository.shared';
 import { readListeningCourseAccess } from './listening-course-access.ts';
+import { BackblazeAudioSource } from './external-audio/b2-source.ts';
+import { createExternalAudioConnections } from './external-audio/connections.ts';
+import { createAudioCredentialStore } from './external-audio/credential-store.ts';
+import { externalAudioDraftsEnabled, externalAudioPrivateHomeworkEnabled, externalAudioPublicListeningEnabled, readDraftAudioAsset, type DraftAudioEnv } from './external-audio/draft-assets.ts';
+import { DRAFT_AUDIO_ASSET_ID } from '../../../src/types/assessmentAudio.types.ts';
 
 export interface ListeningDeliveryWorkerIssuer {
   issue(input: IssueListeningAssetDeliveryUrlInput): Promise<ListeningDeliveryIssuedUrl>;
   refresh?(input: RefreshListeningAssetDeliveryUrlInput): Promise<ListeningDeliveryRefreshedUrl>;
 }
 
-export type ListeningDeliveryWorkerEnv = RepositoryEnv & Record<string, unknown> & {
+export type ListeningDeliveryWorkerEnv = RepositoryEnv & DraftAudioEnv & Record<string, unknown> & {
   LISTENING_DELIVERY_SECRET?: string;
   FIREBASE_DATABASE_EMULATOR_URL?: string;
   readDatabaseValue?: (path: string) => Promise<unknown>;
@@ -69,6 +74,9 @@ const BROWSER_AUTHORITY_FIELDS = [
   'issuedAt',
   'expiresAt',
   'refreshAfter',
+  'objectKey',
+  'providerVersionId',
+  'connectionId',
 ];
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -102,7 +110,7 @@ const bytesToBase64Url = (bytes: Uint8Array): string => {
     .replace(/=+$/g, '');
 };
 
-const base64UrlToBytes = (value: string): Uint8Array => {
+const base64UrlToBytes = (value: string): Uint8Array<ArrayBuffer> => {
   const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
   const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
   const binary = atob(padded);
@@ -171,7 +179,7 @@ const readDeliveryContentToken = async (
     throw new ListeningDeliveryWorkerError('delivery_token_invalid', 403);
   }
 
-  let signature: Uint8Array;
+  let signature: Uint8Array<ArrayBuffer>;
   let payload: unknown;
   try {
     signature = base64UrlToBytes(encodedSignature);
@@ -223,7 +231,7 @@ const readJsonBody = async (request: Request): Promise<unknown> => {
 
 const requireString = (
   body: Record<string, unknown>,
-  field: 'assetId' | 'resultId' | 'versionId' | 'testId' | 'mode' | 'sessionCode',
+  field: string,
 ): string => {
   const value = body[field];
   if (typeof value !== 'string' || !value.trim()) {
@@ -234,7 +242,7 @@ const requireString = (
 
 const requireDatabaseKey = (
   body: Record<string, unknown>,
-  field: 'assetId' | 'versionId' | 'testId' | 'sessionCode' | 'resultId',
+  field: 'assetId' | 'versionId' | 'testId' | 'sessionCode' | 'resultId' | 'homeworkId' | 'submissionId' | 'courseId' | 'moduleId' | 'operationId',
 ): string => {
   const value = requireString(body, field);
   if (value.length > 256 || /[.#$\[\]\/\u0000-\u001f\u007f]/.test(value)) {
@@ -258,7 +266,7 @@ const optionalString = (body: Record<string, unknown>, field: string): string | 
 
 const optionalNumber = (body: Record<string, unknown>, field: string): number | undefined => {
   const value = body[field];
-  return Number.isSafeInteger(value) ? value : undefined;
+  return typeof value === 'number' && Number.isSafeInteger(value) ? value : undefined;
 };
 
 const requirePositiveNumber = (body: Record<string, unknown>, field: string): number => {
@@ -395,6 +403,7 @@ const normalizeAssetGraph = (
   requestedAssetId: string,
   record: Record<string, unknown>,
 ): ListeningDeliveryAssetGraph | null => {
+  if (record.storageProvider === 'b2') return null;
   const assetId = typeof record.assetId === 'string' ? record.assetId : requestedAssetId;
   const ownerId = typeof record.ownerId === 'string' ? record.ownerId : '';
   const state = typeof record.state === 'string' ? record.state : '';
@@ -635,9 +644,12 @@ export const readListeningHomeworkDocument = async (
   if (!authorization || typeof env.FIREBASE_PROJECT_ID !== 'string') {
     throw new ListeningDeliveryWorkerError('delivery_homework_reader_unavailable', 500);
   }
+  const emulator = env.FIREBASE_PROJECT_ID === 'demo-luyentap-local' &&
+    /^http:\/\/localhost:[1-9][0-9]{1,4}$/u.test(env.FIRESTORE_EMULATOR_URL ?? '');
+  const origin = emulator ? env.FIRESTORE_EMULATOR_URL : 'https://firestore.googleapis.com';
   const response = await fetch(
-    `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(env.FIREBASE_PROJECT_ID)}/databases/(default)/documents/${path}`,
-    { headers: { Authorization: authorization } },
+    `${origin}/v1/projects/${encodeURIComponent(env.FIREBASE_PROJECT_ID)}/databases/(default)/documents/${path}`,
+    { headers: { Authorization: authorization }, redirect: 'error' },
   );
   if (response.status === 404) return null;
   if (!response.ok) throw new ListeningDeliveryWorkerError('delivery_homework_read_failed', 403);
@@ -677,7 +689,7 @@ export const authorizeListeningHomework = async (input: {
   existingResultId?: string;
   existingSubmittedAt?: number;
   startingSubmission?: Record<string, unknown>;
-}): Promise<{ homework: Record<string, unknown>; submission: Record<string, unknown> }> => {
+}): Promise<{ homework: Record<string, unknown>; submission: Record<string, unknown>; grant: Record<string, unknown> }> => {
   const { env, scope, authorization, now, graph } = input;
   const homeworkId = assertHomeworkId(scope.homeworkId);
   const submissionId = assertHomeworkId(scope.submissionId);
@@ -691,7 +703,8 @@ export const authorizeListeningHomework = async (input: {
   const scheduling = isRecord(homework) && isRecord(homework.scheduling) ? homework.scheduling : {};
   const config = isRecord(homework) && isRecord(homework.config) ? homework.config : {};
   const overrides = isRecord(homework) && isRecord(homework.studentOverrides) ? homework.studentOverrides : {};
-  const override = isRecord(overrides[scope.studentId]) ? overrides[scope.studentId] : {};
+  const studentOverride = overrides[scope.studentId];
+  const override = isRecord(studentOverride) ? studentOverride : {};
   const dueDate = Number(override.dueDate ?? scheduling.dueDate);
   const acceptedRetry = isRecord(submission) && input.existingResultId
     && submission.resultId === input.existingResultId && ['submitted', 'graded'].includes(String(submission.status));
@@ -725,7 +738,7 @@ export const authorizeListeningHomework = async (input: {
       && (!isRecord(student) || student.status === undefined || student.status === 'active'));
   }
   if (!member) throw new ListeningDeliveryWorkerError('delivery_not_authorized', 403);
-  return { homework, submission };
+  return { homework, submission, grant };
 };
 
 const enrichSoloGraph = async (
@@ -786,29 +799,40 @@ const enrichSoloGraph = async (
     immutable: true, active: archive.state === 'active' }], retainedSoloAccess: [access] };
 };
 
-async function authorizeListeningResult(env: WorkerEnv, scope: { resultId: string; versionId: string }, assetId: string, uid: string, authorization: string | null) {
+export async function readAuthorizedAssessmentResult(env: WorkerEnv, resultId: string, authorization: string | null) {
   let result: unknown;
-  if (env.readListeningResultDocument) result = await env.readListeningResultDocument(scope.resultId, authorization);
+  if (env.readListeningResultDocument) result = await env.readListeningResultDocument(resultId, authorization);
   else {
     if (!authorization?.startsWith('Bearer ')) throw new ListeningDeliveryWorkerError('delivery_not_authorized', 403);
-    const base = env.FIREBASE_DB_URL || `https://${env.FIREBASE_PROJECT_ID}-default-rtdb.firebaseio.com`;
-    const url = new URL(`${base.replace(/\/$/u, '')}/test_results/${scope.resultId}.json`);
+    const base = new URL(env.FIREBASE_DB_URL || `https://${env.FIREBASE_PROJECT_ID}-default-rtdb.firebaseio.com`);
+    const url = new URL(`${base.pathname.replace(/\/$/u, '')}/test_results/${resultId}.json`, base);
+    if (base.searchParams.has('ns')) url.searchParams.set('ns', base.searchParams.get('ns')!);
+    else if (env.FIREBASE_PROJECT_ID === 'demo-luyentap-local' && base.origin === env.FIREBASE_DATABASE_EMULATOR_URL) {
+      url.searchParams.set('ns', env.FIREBASE_PROJECT_ID);
+    }
     // Firebase rules, including current teacher ownership, decide who can review the canonical result.
     url.searchParams.set('auth', authorization.slice(7));
-    const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    const response = await fetch(url, { signal: AbortSignal.timeout(15000), redirect: 'error' });
     if (!response.ok) throw new ListeningDeliveryWorkerError('delivery_not_authorized', response.status === 401 || response.status === 403 ? 403 : 503);
     result = await response.json();
   }
-  if (!isRecord(result) || result.resultId !== scope.resultId
-    || (result.materialVersionId ?? (isRecord(result.listeningResultReviewAudio) ? result.listeningResultReviewAudio.versionId : null)) !== scope.versionId
+  if (!isRecord(result) || result.resultId !== resultId) throw new ListeningDeliveryWorkerError('delivery_not_authorized', 403);
+  return result;
+}
+
+async function authorizeListeningResult(env: WorkerEnv, scope: { resultId: string; versionId: string }, assetId: string, uid: string, authorization: string | null) {
+  const result = await readAuthorizedAssessmentResult(env, scope.resultId, authorization);
+  if (
+    (result.materialVersionId ?? (isRecord(result.listeningResultReviewAudio) ? result.listeningResultReviewAudio.versionId : null)) !== scope.versionId
     || String(result.testSkill).toLowerCase() !== 'listening') throw new ListeningDeliveryWorkerError('delivery_not_authorized', 403);
   const version = await readWorkerDatabaseValue(env, `listening_authoring/versions/${scope.versionId}`);
   if (!isRecord(version) || version.versionId !== scope.versionId || version.testId !== result.testId
     || !isRecord(version.assetIds) || version.assetIds[assetId] !== true || !isRecord(version.document)
-    || !Array.isArray(version.document.audioSections) || !version.document.audioSections.some(section => isRecord(section) && section.assetId === assetId)) {
+    || !Array.isArray(version.document.audioSections) || !version.document.audioSections.some(section =>
+      isRecord(section) && (section.assetId === assetId || (isRecord(section.externalAudio) && section.externalAudio.assetId === assetId)))) {
     throw new ListeningDeliveryWorkerError('delivery_not_authorized', 403);
   }
-  return { version, resultId: scope.resultId, uid };
+  return { version, result, resultId: scope.resultId, uid };
 }
 
 const createDeliveryDependencies = (
@@ -1314,7 +1338,15 @@ const readAuthorizedHomeworkVersion = async (input: {
     || (isRecord(homework) && isRecord(homework.contentRef) ? homework.contentRef.version : undefined) }, 'versionId');
   const version = await readWorkerDatabaseValue(input.env, `listening_authoring/versions/${scope.versionId}`);
   const document = isRecord(version) && isRecord(version.document) ? version.document : null;
-  const section = document && Array.isArray(document.audioSections) ? document.audioSections.find(isRecord) : null;
+  const sections = document && Array.isArray(document.audioSections) ? document.audioSections.filter(isRecord) : [];
+  const externalSection = sections.find((section) => isRecord(section.externalAudio));
+  if (externalSection && isRecord(externalSection.externalAudio) && isRecord(version)) {
+    const assetId = requireDatabaseKey(externalSection.externalAudio, 'assetId');
+    const graph = await readWorkerDatabaseValue(input.env, `media_assets/${assetId}`);
+    await authorizeExternalAudio(input, scope, assetId, graph, version);
+    return version as unknown as ListeningPublishedVersionRecord;
+  }
+  const section = sections[0];
   const assetId = isRecord(section) && typeof section.assetId === 'string' ? section.assetId : '';
   const record = assetId ? await readWorkerDatabaseValue(input.env, `media_assets/${assetId}`) : null;
   const graph = isRecord(record) ? normalizeAssetGraph(assetId, record) : null;
@@ -1324,10 +1356,198 @@ const readAuthorizedHomeworkVersion = async (input: {
   return version as unknown as ListeningPublishedVersionRecord;
 };
 
+type ExternalDeliveryInput = { request: Request; env: WorkerEnv; uid: string; now: number; clock?: () => number };
+
+function externalListeningMembership(testId: string, versionId: string, assetId: string, graph: unknown, version: unknown) {
+  if (!DRAFT_AUDIO_ASSET_ID.test(assetId) || !isRecord(graph) || graph.storageProvider !== 'b2' ||
+    graph.assetId !== assetId || graph.canonicalAssetId !== assetId || graph.state !== 'committed' ||
+    !isRecord(version) || !isRecord(version.document) || version.document.skill !== 'Listening' ||
+    version.document.type !== 'IELTS' || typeof version.document.isPublic !== 'boolean' ||
+    version.recordType !== 'published-version' || version.testId !== testId || version.versionId !== versionId ||
+    version.ownerId !== graph.ownerId || version.sourceDraftId !== graph.sourceDraftId ||
+    !isRecord(version.assetIds) || version.assetIds[assetId] !== true ||
+    !isRecord(version.archive) || !['active', 'archived'].includes(String(version.archive.state)) ||
+    !Array.isArray(version.document.audioSections) || !version.document.audioSections.some((section) =>
+      isRecord(section) && section.number === graph.sectionNumber && isRecord(section.externalAudio) &&
+      section.externalAudio.scope === 'section' && section.externalAudio.assetId === assetId)) {
+    throw new ListeningDeliveryWorkerError('delivery_not_authorized', 403);
+  }
+  const refs = normalizeReferences(graph.references);
+  if (refs.tests?.[testId] !== true || refs.versions?.[versionId] !== true) {
+    throw new ListeningDeliveryWorkerError('delivery_not_authorized', 403);
+  }
+  return { graph, refs, isPublic: version.document.isPublic, state: version.archive.state };
+}
+
+async function authorizeExternalAudio(
+  input: ExternalDeliveryInput, scope: ListeningDeliverySoloScope, assetId: string, rawGraph: unknown, version: unknown,
+) {
+  const deny = (): never => { throw new ListeningDeliveryWorkerError('delivery_not_authorized', 403); };
+  const { graph, refs, isPublic, state } = externalListeningMembership(scope.testId, scope.versionId, assetId, rawGraph, version);
+  if (scope.mode === 'course_material') {
+    if (!externalAudioDraftsEnabled(input.env, input.request) || scope.homeworkId || scope.submissionId || state !== 'active') deny();
+    const [courseAccess, profile] = await Promise.all([
+      readListeningCourseAccess((path, query) => readWorkerDatabaseValue(input.env, path, query),
+        scope, input.uid, String(graph.ownerId), input.now),
+      readWorkerDatabaseValue(input.env, `users/${input.uid}`),
+    ]);
+    if (!courseAccess) return deny();
+    if (!isRecord(profile) || profile.role !== 'student' || profile.disabled === true || profile.forceReauth === true ||
+      ['blocked', 'disabled', 'inactive', 'suspended'].includes(String(profile.status)) ||
+      courseAccess.current.isPublished !== true || courseAccess.current.state !== 'active' ||
+      (courseAccess.course.ownerId !== graph.ownerId && (courseAccess.current.isPublic !== true || !isPublic))) deny();
+    if (scope.courseAttempt) {
+      if (!await verifyListeningCourseAttempt(input.env, scope, scope.courseAttempt.operationId, input.now, scope.courseAttempt.handle)) deny();
+    } else if (readListeningAuthoritativeVersionId(courseAccess.current) !== scope.versionId) deny();
+    return graph;
+  }
+  if (!(isPublic ? externalAudioPublicListeningEnabled(input.env, input.request)
+    : scope.mode === 'homework' && externalAudioPrivateHomeworkEnabled(input.env, input.request))) deny();
+
+  const [profile, runtime] = await Promise.all([
+    readWorkerDatabaseValue(input.env, `users/${input.uid}`),
+    readWorkerDatabaseValue(input.env, `tests/${scope.testId}`),
+  ]);
+  if (!isRecord(profile) || profile.disabled === true || profile.forceReauth === true
+    || ['blocked', 'disabled', 'inactive', 'suspended'].includes(String(profile.status))
+    || !isRecord(runtime) || runtime.ownerId !== graph.ownerId) {
+    throw new ListeningDeliveryWorkerError('delivery_not_authorized', 403);
+  }
+  if (isPublic && (runtime.isPublic !== true || runtime.isPublished !== true || runtime.state !== 'active')) deny();
+  if (scope.mode === 'self_study') {
+    if (!['student', 'teacher', 'super_admin'].includes(String(profile.role)) ||
+      state !== 'active' || readListeningAuthoritativeVersionId(runtime) !== scope.versionId ||
+      scope.courseId || scope.moduleId || scope.homeworkId || scope.submissionId) deny();
+    return graph;
+  }
+
+  const { homework, grant } = await authorizeListeningHomework({
+    env: input.env, scope, authorization: input.request.headers.get('Authorization'), now: input.now,
+  });
+  if (profile.role !== 'student' || (!isPublic && grant.teacherId !== graph.ownerId)
+    || homework.privateListeningPlayback !== true
+    || grant.versionId !== scope.versionId || !Array.isArray(grant.assetIds) ||
+    !grant.assetIds.includes(assetId) || refs.assignments?.[scope.homeworkId!] !== true) deny();
+  return graph;
+}
+
+type ExternalRefreshScope = readonly (string | undefined)[];
+
+function externalRefreshScope(scope: ListeningDeliverySoloScope, assetId: string): ExternalRefreshScope {
+  return [
+    'listening-external-audio', scope.mode,
+    scope.studentId, scope.testId, scope.versionId,
+    scope.homeworkId, scope.submissionId, scope.courseId, scope.moduleId, assetId,
+    scope.courseAttempt?.operationId,
+  ];
+}
+
+export async function verifyExternalPlaybackRefresh(
+  env: WorkerEnv, scope: ExternalRefreshScope, now: number, handle: unknown,
+) {
+  const match = typeof handle === 'string' && /^(\d{13})\.([A-Za-z0-9_-]{43})$/u.exec(handle);
+  return Boolean(match && Number(match[1]) > now && await crypto.subtle.verify(
+    'HMAC', await importDeliveryHmacKey(env, ['verify']), base64UrlToBytes(match[2]),
+    textEncoder.encode(JSON.stringify([...scope, Number(match[1])])),
+  ));
+}
+
+export const ASSESSMENT_ATTEMPT_TTL_MS = 4 * 60 * 60 * 1000;
+
+export async function createExternalPlaybackRefresh(env: WorkerEnv, scope: ExternalRefreshScope, now: number, ttlMs = DELIVERY_TTL_MS) {
+  const validUntil = now + ttlMs;
+  const signature = await crypto.subtle.sign('HMAC', await importDeliveryHmacKey(env, ['sign']),
+    textEncoder.encode(JSON.stringify([...scope, validUntil])));
+  return `${validUntil}.${bytesToBase64Url(new Uint8Array(signature))}`;
+}
+
+function listeningCourseAttemptScope(scope: Pick<ListeningDeliverySoloScope, 'studentId' | 'testId' | 'versionId' | 'courseId' | 'moduleId'>,
+  operationId: string) {
+  return ['listening-course-attempt', scope.studentId, scope.testId, scope.versionId, scope.courseId, scope.moduleId, operationId];
+}
+
+export function verifyListeningCourseAttempt(env: WorkerEnv, scope: Parameters<typeof listeningCourseAttemptScope>[0],
+  operationId: string, now: number, handle: unknown) {
+  return verifyExternalPlaybackRefresh(env, listeningCourseAttemptScope(scope, operationId), now, handle);
+}
+
+async function issueExternalAudio(
+  input: ExternalDeliveryInput,
+  assetId: string,
+  body: Record<string, unknown>,
+  allowedFields: readonly string[],
+  refreshScope: ExternalRefreshScope,
+  authorize: (now: number) => Promise<Record<string, unknown>>,
+): Promise<ListeningDeliveryIssuedUrl> {
+  if (Object.keys(body).some((key) => !allowedFields.includes(key))) {
+    throw new ListeningDeliveryWorkerError('invalid_request', 400);
+  }
+  if (body.refreshHandle !== undefined && !await verifyExternalPlaybackRefresh(input.env, refreshScope, input.now, body.refreshHandle)) {
+    throw new ListeningDeliveryWorkerError('previous_delivery_invalid', 403);
+  }
+  const graph = await authorize(input.now);
+  let delivery: { url: string; expiresAt: number };
+  let ttlSeconds: number;
+  try {
+    const store = createAudioCredentialStore(input.env);
+    const asset = await readDraftAudioAsset(store, String(graph.ownerId), {
+      testType: 'ielts-listening', draftId: String(graph.sourceDraftId), sectionId: String(graph.sectionNumber),
+    }, assetId);
+    if (graph.sizeBytes !== asset.sizeBytes || graph.contentType !== asset.contentType) throw new Error('asset_metadata_mismatch');
+    const qaTtl = Number(input.env.EXTERNAL_AUDIO_PLAYBACK_QA_TTL_SECONDS);
+    ttlSeconds = Number.isSafeInteger(qaTtl) && qaTtl >= 5 && qaTtl <= 120 ? qaTtl : 120;
+    const service = createExternalAudioConnections({ store, source: new BackblazeAudioSource(), now: input.clock ?? (() => input.now) });
+    delivery = await service.signPlayback(asset, ttlSeconds);
+  } catch {
+    throw new ListeningDeliveryWorkerError('external_audio_unavailable', 422);
+  }
+  // A grant lost while Backblaze is being checked must not release a playback URL.
+  const currentTime = input.clock?.() ?? input.now;
+  await authorize(currentTime);
+  if (delivery.expiresAt <= (input.clock?.() ?? currentTime)) {
+    throw new ListeningDeliveryWorkerError('external_audio_unavailable', 422);
+  }
+  return {
+    url: delivery.url, assetId, tokenId: createOpaqueId(), deliveryReady: true,
+    refreshHandle: await createExternalPlaybackRefresh(input.env, refreshScope, currentTime),
+    issuedAt: delivery.expiresAt - ttlSeconds * 1000, expiresAt: delivery.expiresAt,
+    refreshAfter: delivery.expiresAt - Math.min(30_000, ttlSeconds * 250),
+    ttlMs: ttlSeconds * 1000,
+    range: { requestRange: 'bytes=0-0', status: 206, acceptRanges: 'bytes', contentLength: 1,
+      contentRange: `bytes 0-0/${graph.sizeBytes}` },
+  };
+}
+
 export const createListeningDeliveryWorkerHandlers = (options: {
   deliveryIssuer?: ListeningDeliveryWorkerIssuer;
   now?: () => number;
 } = {}) => ({
+  async courseOpen(input: { request: Request; env: WorkerEnv; uid: string; now: () => number }) {
+    const result = await withDeliveryErrors(async () => {
+      if (!externalAudioDraftsEnabled(input.env, input.request)) throw new ListeningDeliveryWorkerError('delivery_not_authorized', 403);
+      const body = await readJsonBody(input.request);
+      if (!isRecord(body) || Object.keys(body).some(key => !['testId', 'versionId', 'courseId', 'moduleId', 'operationId'].includes(key))) {
+        throw new ListeningDeliveryWorkerError('invalid_request', 400);
+      }
+      const testId = requireDatabaseKey(body, 'testId');
+      const versionId = requireDatabaseKey(body, 'versionId');
+      const courseId = requireDatabaseKey(body, 'courseId');
+      const moduleId = requireDatabaseKey(body, 'moduleId');
+      const operationId = requireDatabaseKey(body, 'operationId');
+      const scope: ListeningDeliverySoloScope = { testId, versionId, courseId, moduleId, studentId: input.uid, mode: 'course_material' };
+      const version = await readWorkerDatabaseValue(input.env, `listening_authoring/versions/${versionId}`);
+      const sections = isRecord(version) && isRecord(version.document) && Array.isArray(version.document.audioSections)
+        ? version.document.audioSections.filter(isRecord) : [];
+      const attachment = sections.find(section => isRecord(section.externalAudio))?.externalAudio;
+      if (!isRecord(attachment)) throw new ListeningDeliveryWorkerError('delivery_not_authorized', 403);
+      const assetId = requireDatabaseKey(attachment, 'assetId');
+      const graph = await readWorkerDatabaseValue(input.env, `media_assets/${assetId}`);
+      const now = (options.now ?? input.now)();
+      await authorizeExternalAudio({ ...input, now }, scope, assetId, graph, version);
+      return { attemptHandle: await createExternalPlaybackRefresh(input.env, listeningCourseAttemptScope(scope, operationId), now, ASSESSMENT_ATTEMPT_TTL_MS) };
+    });
+    return { ...result, init: { ...result.init, headers: { 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer' } } };
+  },
   async homeworkDocument(input: {
     request: Request;
     env: WorkerEnv;
@@ -1365,7 +1585,7 @@ export const createListeningDeliveryWorkerHandlers = (options: {
     uid: string;
     now: () => number;
   }) {
-    return withDeliveryErrors(async () => {
+    const result = await withDeliveryErrors(async () => {
       const rawBody = await readJsonBody(input.request);
       if (!isRecord(rawBody)) {
         throw new ListeningDeliveryWorkerError('invalid_request', 400);
@@ -1374,6 +1594,31 @@ export const createListeningDeliveryWorkerHandlers = (options: {
       const assetId = requireDatabaseKey(rawBody, 'assetId');
       const resultId = requireDatabaseKey(rawBody, 'resultId');
       const versionId = requireDatabaseKey(rawBody, 'versionId');
+      const clock = options.now ?? input.now;
+      if (!options.deliveryIssuer && (externalAudioDraftsEnabled(input.env, input.request)
+        || externalAudioPrivateHomeworkEnabled(input.env, input.request)
+        || externalAudioPublicListeningEnabled(input.env, input.request))) {
+        const initialGraph = await readWorkerDatabaseValue(input.env, `media_assets/${assetId}`);
+        if (isRecord(initialGraph) && initialGraph.storageProvider === 'b2') {
+          const authorize = async () => {
+            const [{ version, result }, graph, profile] = await Promise.all([
+              authorizeListeningResult(input.env, { resultId, versionId }, assetId, input.uid, input.request.headers.get('Authorization')),
+              readWorkerDatabaseValue(input.env, `media_assets/${assetId}`),
+              readWorkerDatabaseValue(input.env, `users/${input.uid}`),
+            ]);
+            if (!isRecord(profile) || !['student', 'teacher', 'super_admin'].includes(String(profile.role)) ||
+              profile.disabled === true || profile.forceReauth === true ||
+              ['blocked', 'disabled', 'inactive', 'suspended'].includes(String(profile.status)) ||
+              result.deliveryEngine !== 'listening' || result.materialVersionId !== versionId || result.sourceMaterialRemoved === true) {
+              throw new ListeningDeliveryWorkerError('delivery_not_authorized', 403);
+            }
+            return externalListeningMembership(String(result.testId), versionId, assetId, graph, version).graph;
+          };
+          return await issueExternalAudio({ ...input, now: clock(), clock }, assetId, rawBody,
+            ['assetId', 'resultId', 'versionId', 'refreshHandle'],
+            ['listening-result-external-audio', input.uid, resultId, versionId, assetId], authorize);
+        }
+      }
       const issuer = options.deliveryIssuer ?? createWorkerBoundIssuer(input.env, input.request.url, input.request.headers.get('Authorization'));
 
       return issueOrRefresh(issuer, {
@@ -1389,6 +1634,7 @@ export const createListeningDeliveryWorkerHandlers = (options: {
         },
       }, rawBody);
     });
+    return { ...result, init: { ...result.init, headers: { 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer' } } };
   },
 
   async solo(input: {
@@ -1397,7 +1643,7 @@ export const createListeningDeliveryWorkerHandlers = (options: {
     uid: string;
     now: () => number;
   }) {
-    return withDeliveryErrors(async () => {
+    const result = await withDeliveryErrors(async () => {
       const rawBody = await readJsonBody(input.request);
       if (!isRecord(rawBody)) {
         throw new ListeningDeliveryWorkerError('invalid_request', 400);
@@ -1407,6 +1653,38 @@ export const createListeningDeliveryWorkerHandlers = (options: {
       const testId = requireDatabaseKey(rawBody, 'testId');
       const versionId = requireDatabaseKey(rawBody, 'versionId');
       const mode = requireSoloMode(rawBody);
+      const now = (options.now ?? input.now)();
+      const courseAttempt = rawBody.courseAttemptHandle === undefined && rawBody.operationId === undefined ? undefined : {
+        operationId: requireDatabaseKey(rawBody, 'operationId'),
+        handle: requireString(rawBody, 'courseAttemptHandle'),
+      };
+      if (courseAttempt && mode !== 'course_material') throw new ListeningDeliveryWorkerError('invalid_request', 400);
+      const soloScope: ListeningDeliverySoloScope = {
+        testId, versionId, studentId: input.uid, mode,
+        courseId: optionalString(rawBody, 'courseId'),
+        moduleId: optionalString(rawBody, 'moduleId'),
+        homeworkId: optionalString(rawBody, 'homeworkId'),
+        submissionId: optionalString(rawBody, 'submissionId'),
+        ...(courseAttempt ? { courseAttempt } : {}),
+      };
+      if (!options.deliveryIssuer && ((mode === 'course_material' && externalAudioDraftsEnabled(input.env, input.request))
+        || externalAudioPrivateHomeworkEnabled(input.env, input.request)
+        || externalAudioPublicListeningEnabled(input.env, input.request))) {
+        const graph = await readWorkerDatabaseValue(input.env, `media_assets/${assetId}`);
+        if (isRecord(graph) && graph.storageProvider === 'b2') {
+          const authorize = async (currentTime: number) => {
+            const [currentGraph, version] = await Promise.all([
+              readWorkerDatabaseValue(input.env, `media_assets/${assetId}`),
+              readWorkerDatabaseValue(input.env, `listening_authoring/versions/${versionId}`),
+            ]);
+            return await authorizeExternalAudio({ ...input, now: currentTime }, soloScope, assetId, currentGraph, version);
+          };
+          return await issueExternalAudio({ ...input, now, clock: options.now ?? input.now }, assetId, rawBody,
+            ['assetId', 'testId', 'versionId', 'mode', 'homeworkId', 'submissionId', 'courseId', 'moduleId', 'refreshHandle', 'operationId', 'courseAttemptHandle'],
+            externalRefreshScope(soloScope, assetId), authorize);
+        }
+      }
+      if (rawBody.refreshHandle !== undefined) throw new ListeningDeliveryWorkerError('previous_delivery_invalid', 403);
       const issuer = options.deliveryIssuer ?? createWorkerBoundIssuer(input.env, input.request.url, input.request.headers.get('Authorization'));
 
       return issueOrRefresh(issuer, {
@@ -1415,19 +1693,11 @@ export const createListeningDeliveryWorkerHandlers = (options: {
           runtime: 'trusted-server',
           callerUserId: input.uid,
         },
-        now: (options.now ?? input.now)(),
-        soloScope: {
-          testId,
-          versionId,
-          studentId: input.uid,
-          mode,
-          courseId: optionalString(rawBody, 'courseId'),
-          moduleId: optionalString(rawBody, 'moduleId'),
-          homeworkId: optionalString(rawBody, 'homeworkId'),
-          submissionId: optionalString(rawBody, 'submissionId'),
-        },
+        now,
+        soloScope,
       }, rawBody);
     });
+    return { ...result, init: { ...result.init, headers: { 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer' } } };
   },
 
   async live(input: {

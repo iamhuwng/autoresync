@@ -6,6 +6,7 @@ import {
   authorizeListeningHomework,
   readListeningDatabaseValue,
   readListeningAuthoritativeVersionId,
+  verifyListeningCourseAttempt,
   ListeningDeliveryWorkerError,
   type ListeningDeliveryWorkerEnv,
 } from './listening-delivery.ts';
@@ -16,6 +17,7 @@ import {
 } from './listening-authoring/rtdb.ts';
 import { buildListeningStudentSafeDocument } from './listening-authoring/published-material.ts';
 import { readListeningCourseAccess } from './listening-course-access.ts';
+import { externalAudioDraftsEnabled } from './external-audio/draft-assets.ts';
 
 type Data = Record<string, any>;
 type Mode = 'homework' | 'self_study' | 'course_material' | 'live';
@@ -30,6 +32,7 @@ export interface ListeningSubmitRequest {
   homeworkId?: string;
   submissionId?: string;
   courseId?: string;
+  courseAttemptHandle?: string;
   moduleId?: string;
   sessionCode?: string;
   assignmentId?: string;
@@ -90,7 +93,7 @@ async function body(request: Request): Promise<Data> {
 
 function parseRequest(value: Data): ListeningSubmitRequest {
   const allowed = ['mode', 'testId', 'versionId', 'operationId', 'answers', 'homeworkId', 'submissionId', 'courseId',
-    'moduleId', 'sessionCode', 'assignmentId', 'studentId', 'timeElapsed', 'integrity', 'attemptsNullified'];
+    'moduleId', 'sessionCode', 'assignmentId', 'studentId', 'timeElapsed', 'integrity', 'attemptsNullified', 'courseAttemptHandle'];
   if (Object.keys(value).some(field => !allowed.includes(field))) fail('listening_browser_authority', 400);
   if (!['homework', 'self_study', 'course_material', 'live'].includes(value.mode)) fail('listening_mode_invalid', 400);
   for (const field of ['testId', 'versionId', 'operationId']) key(value[field], field);
@@ -98,6 +101,9 @@ function parseRequest(value: Data): ListeningSubmitRequest {
     if (value[field] !== undefined) key(value[field], field);
   }
   if (value.assignmentId && value.mode !== 'live') fail('listening_scope_invalid', 400);
+  if (value.courseAttemptHandle !== undefined && (value.mode !== 'course_material' || typeof value.courseAttemptHandle !== 'string')) {
+    fail('listening_scope_invalid', 400);
+  }
   if (value.mode === 'homework') {
     key(value.homeworkId, 'homeworkId'); key(value.submissionId, 'submissionId');
     if (value.courseId || value.moduleId || value.sessionCode || value.studentId) fail('listening_scope_invalid', 400);
@@ -173,19 +179,14 @@ async function courseContext(repository: ListeningSubmitRepository, request: Lis
   const access = await readListeningCourseAccess(repository.read, request, studentId, versionOwnerId, now);
   if (!access) fail('listening_course_not_authorized');
   const { course } = access;
-  const [materialSettings, moduleSettings] = await Promise.all([
-    repository.read(`courses/${request.courseId}/modules/${request.moduleId}/materials/${request.testId}/practiceSettings`),
-    repository.read(`courses/${request.courseId}/modules/${request.moduleId}/practiceSettings`),
-  ]);
-  const levels = [materialSettings, moduleSettings, course.practiceSettings];
-  const resolve = (field: string) => levels.find(settings => record(settings)
-    && settings[field] !== undefined && settings[field] !== 'default')?.[field] ?? null;
+  const resolve = (field: string) => access.settings.find((settings): settings is Data =>
+    record(settings) && settings[field] !== undefined && settings[field] !== 'default')?.[field] ?? null;
   const maxAttempts = resolve('maxAttempts');
   const minPassingScore = resolve('minPassingScore');
   if ((maxAttempts !== null && (!Number.isSafeInteger(maxAttempts) || maxAttempts < 1))
     || (minPassingScore !== null && (typeof minPassingScore !== 'number' || !Number.isFinite(minPassingScore)
       || minPassingScore < 0 || minPassingScore > 100))) fail('listening_course_settings_invalid', 500);
-  return { course, maxAttempts, minPassingScore };
+  return { course, current: access.current, maxAttempts, minPassingScore };
 }
 
 function buildResult(input: {
@@ -207,6 +208,7 @@ function buildResult(input: {
   const sourceType = request.mode === 'live' ? 'class' : request.mode === 'homework' ? 'homework' : request.mode === 'course_material' ? 'course' : 'library';
   const sourceId = request.homeworkId ?? request.sessionCode ?? request.courseId ?? request.testId;
   const sourceName = input.homework?.title ?? input.course?.name ?? document.title;
+  const hasExternalAudio = request.mode !== 'live' && document.audioSections.some(section => section.externalAudio);
   const passageResults = deriveIeltsPassageResults(document.questions.map(question => ({
     questionNumber: question.number, sectionId: String(question.sectionNumber), sectionName: `Part ${question.sectionNumber}`,
   })), marked.questionResults);
@@ -224,7 +226,11 @@ function buildResult(input: {
     totalQuestions: document.questions.length, submittedAt: now, createdAt: now,
     timeElapsed: elapsed, testDuration: document.duration, testTitle: document.title, testType: document.type, testSkill: 'Listening',
     markingStatus: 'auto-marked', isGuest: false, teacherId: teacherId ?? undefined, courseId, classId, moduleId,
-    listeningResultReviewAudio: document.audioSections[0] ? { audioUrl: document.audioSections[0].audioUrl,
+    listeningReviewSections: hasExternalAudio ? document.audioSections.flatMap(section => {
+      const assetId = section.externalAudio?.assetId ?? section.assetId;
+      return assetId ? [{ sectionNumber: section.number, assetId }] : [];
+    }) : undefined,
+    listeningResultReviewAudio: !hasExternalAudio && document.audioSections[0] ? { audioUrl: document.audioSections[0].audioUrl,
       assetId: document.audioSections[0].assetId, versionId: version.versionId } : undefined,
     context: { type: contextType, source: { type: sourceType, id: sourceId, name: sourceName,
       submissionId: request.submissionId, sessionCode: request.sessionCode, classId: classId ?? undefined, courseId: courseId ?? undefined },
@@ -303,6 +309,13 @@ async function submit(input: Input, repository: ListeningSubmitRepository) {
     existingSubmittedAt: record(prior.data) ? prior.data.submittedAt : undefined,
   }) : undefined;
   const course = request.mode === 'course_material' ? await courseContext(repository, request, studentId, now, version.ownerId) : undefined;
+  if (!prior.data && course && version.document.audioSections.some(section => section.externalAudio) &&
+    (!externalAudioDraftsEnabled(input.env, input.request) ||
+      course.current.isPublished !== true || course.current.state !== 'active' ||
+      (course.course.ownerId !== version.ownerId && (course.current.isPublic !== true || !version.document.isPublic)) ||
+      !await verifyListeningCourseAttempt(input.env, { ...request, studentId }, request.operationId, now, request.courseAttemptHandle))) {
+    fail('listening_course_not_authorized');
+  }
   if (!prior.data && course && course.maxAttempts !== null) {
     const results = await repository.read('test_results', { orderBy: 'studentId', equalTo: studentId });
     // shortcut: concurrent attempts can pass this count together; add reservations if strict quotas are needed.
@@ -398,9 +411,13 @@ async function startHomework(input: Input, repository: ListeningSubmitRepository
       if (completed.length >= maximum) fail('listening_max_attempts_reached', 409);
     }
     const current = existing ? null : await repository.read(`tests/${testId}`);
-    const versionId = key(existing?.listeningVersionId ?? (existing ? assignment.contentRef?.version
+    let versionId = key(existing?.listeningVersionId ?? (existing || assignment.privateListeningPlayback === true ? assignment.contentRef?.version
       : record(current) ? readListeningAuthoritativeVersionId(current) : undefined), 'versionId');
-    const version = await versionFor(repository, testId, versionId);
+    let version = await versionFor(repository, testId, versionId);
+    if (!existing && assignment.privateListeningPlayback !== true && version.document.audioSections.some((section) => section.externalAudio)) {
+      versionId = key(assignment.contentRef?.version, 'versionId');
+      version = await versionFor(repository, testId, versionId);
+    }
     if (!existing && (version.archive.state !== 'active' || !record(current) || version.ownerId !== current.ownerId)) {
       fail('listening_version_not_authorized');
     }

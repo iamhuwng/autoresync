@@ -5,6 +5,8 @@ import type { ContextResource } from '../../../services/testStorage';
 import r2StorageService from '../../../services/r2Storage';
 import { useFeatureTracking } from '../../../hooks/useFeatureTracking';
 import { FEATURE_IDS } from '../../../config/featureRegistry';
+import { DraftAudioChooser } from '../../external-audio/DraftAudioChooser';
+import { externalAudioChooserRolloutEnabled } from '../../../services/externalAudioClient';
 
 interface AudioResourceEditorProps {
     resource: ContextResource;
@@ -12,6 +14,7 @@ interface AudioResourceEditorProps {
     totalQuestions: number;
     readOnly?: boolean;
     previewUrl?: string;
+    listeningDraftId?: string;
     uploadAudio?: (file: File, onProgress: (percent: number) => void) => Promise<Partial<ContextResource>>;
 }
 
@@ -23,7 +26,7 @@ const labelStyle: React.CSSProperties = { display: 'block', fontSize: 14, fontWe
 const hintStyle: React.CSSProperties = { fontSize: 12, color: '#64748b' };
 
 export const AudioResourceEditor: React.FC<AudioResourceEditorProps> = ({
-    resource, onUpdate, totalQuestions, readOnly = false, previewUrl, uploadAudio,
+    resource, onUpdate, totalQuestions, readOnly = false, previewUrl, uploadAudio, listeningDraftId,
 }) => {
     const { trackAction } = useFeatureTracking(FEATURE_IDS.testCreation);
     const [isUploading, setIsUploading] = useState(false);
@@ -37,6 +40,8 @@ export const AudioResourceEditor: React.FC<AudioResourceEditorProps> = ({
     const latest = useRef({ resource, readOnly, onUpdate, previewUrl });
     latest.current = { resource, readOnly, onUpdate, previewUrl };
     const playbackUrl = previewUrl || resource.audioUrl;
+    const sectionId = /^audio-(\d+)$/u.exec(resource.id)?.[1] ?? null;
+    const useChooser = Boolean(listeningDraftId && sectionId && externalAudioChooserRolloutEnabled());
 
     const handleChange = (field: keyof ContextResource, value: unknown) => {
         if (readOnly) return;
@@ -66,7 +71,7 @@ export const AudioResourceEditor: React.FC<AudioResourceEditorProps> = ({
                 : { audioUrl: (await r2StorageService.uploadAudioReplacement(file, resource.audioUrl, 'audio', onProgress)).url };
             if (!mounted.current || latest.current.readOnly || latest.current.resource.id !== resource.id
                 || latest.current.resource.audioUrl !== resource.audioUrl) return;
-            latest.current.onUpdate({ ...latest.current.resource, ...updates, duration: updates.duration ?? 0 });
+            latest.current.onUpdate({ ...latest.current.resource, ...updates, externalAudio: undefined, duration: updates.duration ?? 0 });
             toast.success('Audio uploaded. Save the test to keep this change.');
         } catch (error) {
             if (!mounted.current) return;
@@ -91,11 +96,11 @@ export const AudioResourceEditor: React.FC<AudioResourceEditorProps> = ({
                 </label>
                 <div style={{ padding: '1.5rem', background: '#ecfeff', borderRadius: 8, border: '1px solid #a5f3fc' }}>
                     <p style={{ ...labelStyle, color: '#0e7490', margin: '0 0 16px' }}>Audio Source</p>
-                    <input type="file" accept="audio/*" aria-label="Audio file" ref={fileInputRef}
-                        style={{ display: 'none' }} onChange={handleFileUpload} disabled={readOnly || isUploading} />
-                    {resource.audioUrl ? (
+                    {!useChooser && <input type="file" accept="audio/*" aria-label="Audio file" ref={fileInputRef}
+                        style={{ display: 'none' }} onChange={handleFileUpload} disabled={readOnly || isUploading} />}
+                    {(resource.audioUrl || resource.externalAudio) ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                            <audio key={`${resource.id}:${playbackUrl}`} controls aria-label="Audio preview" src={playbackUrl}
+                            {!resource.externalAudio && resource.audioUrl && <audio key={`${resource.id}:${playbackUrl}`} controls aria-label="Audio preview" src={playbackUrl}
                                 style={{ width: '100%', borderRadius: 30 }} onLoadedMetadata={event => {
                                     const current = latest.current;
                                     const duration = Math.ceil(event.currentTarget.duration);
@@ -104,35 +109,49 @@ export const AudioResourceEditor: React.FC<AudioResourceEditorProps> = ({
                                         && !current.resource.duration && Number.isFinite(duration) && duration > 0) {
                                         current.onUpdate({ ...current.resource, duration });
                                     }
-                                }} />
+                                }} />}
+                            {readOnly && resource.externalAudio && (
+                                <p style={{ ...hintStyle, margin: 0, fontWeight: 600, color: '#0e7490' }}>
+                                    External audio linked (read-only)
+                                </p>
+                            )}
                             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
                                 <label style={{ ...hintStyle, flex: 1 }}>
                                     <span style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}><IconClock size={14} /> Duration (seconds)</span>
                                     <input type="number" min={0} style={controlStyle} disabled={readOnly} value={resource.duration || 0}
                                         onChange={event => handleChange('duration', Number(event.target.value) || 0)} />
                                 </label>
-                                <Button variant="glass" size="sm" disabled={readOnly || isUploading}
-                                    onClick={() => fileInputRef.current?.click()} style={{ borderColor: '#06b6d4', color: '#0891b2', marginBottom: 2 }}>Replace</Button>
-                                <Button variant="glass" size="sm" disabled={readOnly || isUploading} onClick={() => {
+                                {!useChooser && !resource.externalAudio && <Button variant="glass" size="sm" disabled={readOnly || isUploading}
+                                    onClick={() => fileInputRef.current?.click()} style={{ borderColor: '#06b6d4', color: '#0891b2', marginBottom: 2 }}>Replace</Button>}
+                                {!resource.externalAudio && <Button variant="glass" size="sm" disabled={readOnly || isUploading} onClick={() => {
                                     if (readOnly) return;
                                     trackAction('editTest', { source: 'audio_resource_editor', field: 'removeAudio' });
-                                    onUpdate({ ...resource, audioUrl: '', streamUrl: undefined, assetId: undefined, uploadSessionId: undefined, duration: 0 });
+                                    onUpdate({ ...resource, audioUrl: '', streamUrl: undefined, assetId: undefined, uploadSessionId: undefined, externalAudio: undefined, duration: 0 });
                                     toast.info('Audio removed from this edit. Save the test to keep this change.');
-                                }} style={{ borderColor: '#ef4444', color: '#ef4444', marginBottom: 2 }}>Remove</Button>
+                                }} style={{ borderColor: '#ef4444', color: '#ef4444', marginBottom: 2 }}>Remove</Button>}
                             </div>
-                            <p style={{ ...hintStyle, wordBreak: 'break-all', margin: 0 }}>URL: {resource.audioUrl}</p>
                         </div>
-                    ) : (
+                    ) : !useChooser && (
                         <div style={{ textAlign: 'center', padding: '1rem' }}>
                             <Button onClick={() => fileInputRef.current?.click()} loading={isUploading} disabled={readOnly}
                                 icon={<IconUpload size={18} />} style={{ background: '#06b6d4', opacity: readOnly ? 0.5 : 1 }}>Upload Audio File</Button>
                             <p style={{ ...hintStyle, margin: '12px 0' }}>Supports MP3, WAV, M4A (Max 50MB)</p>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '16px 0', ...hintStyle }}><hr style={{ flex: 1 }} />OR<hr style={{ flex: 1 }} /></div>
-                            <input aria-label="Direct audio URL" placeholder="Paste direct audio URL..." style={controlStyle}
-                                disabled={readOnly} onChange={event => handleChange('audioUrl', event.target.value)} />
+                            {!listeningDraftId && <>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '16px 0', ...hintStyle }}><hr style={{ flex: 1 }} />OR<hr style={{ flex: 1 }} /></div>
+                                <input aria-label="Direct audio URL" placeholder="Paste direct audio URL..." style={controlStyle}
+                                    disabled={readOnly} onChange={event => handleChange('audioUrl', event.target.value)} />
+                            </>}
                         </div>
                     )}
                     {isUploading && <div style={{ marginTop: 16 }}><progress aria-label="Audio upload progress" value={uploadProgress} max={100} style={{ width: '100%', accentColor: '#06b6d4' }} /><p style={{ ...hintStyle, textAlign: 'center', margin: '4px 0 0' }}>{uploadProgress}% Uploading...</p></div>}
+                    {listeningDraftId && !readOnly && !isUploading && <DraftAudioChooser testType="ielts-listening" saveLabel="Save Test"
+                        draftId={listeningDraftId} sectionId={sectionId}
+                        value={resource.externalAudio} hasUpload={Boolean(resource.audioUrl)} track={trackAction}
+                        onChange={(externalAudio) => latest.current.onUpdate({
+                            ...latest.current.resource,
+                            externalAudio,
+                            ...(externalAudio ? { audioUrl: '', streamUrl: undefined, assetId: undefined, uploadSessionId: undefined } : {}),
+                        })} />}
                 </div>
                 <div>
                     <p style={{ ...labelStyle, marginTop: 0 }}>Associated Questions</p>

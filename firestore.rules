@@ -490,7 +490,7 @@ service cloud.firestore {
       // Raw Book authority documents are never browser-readable. Firestore
       // rules cannot validate arbitrary members of nested lists/maps; the
       // canonical Worker owns authenticated safe Book projections.
-      allow read: if (
+      allow list: if (
           request.auth != null
           && !isBookHomeworkCompatibilityServiceAuth()
           && !isBookHomework(resource.data)
@@ -498,12 +498,23 @@ service cloud.firestore {
         ) || (
           isBookHomeworkCompatibilityReader(resource.data)
         );
+      allow get: if (
+          request.auth != null
+          && !isBookHomeworkCompatibilityServiceAuth()
+          && !isBookHomework(resource.data)
+          && !isBookHomeworkCompatibility(resource.data)
+          && (resource.data.get('privateListeningPlayback', false) != true
+            || resource.data.createdBy == request.auth.uid
+            || (resource.data.target.type == 'students'
+              && resource.data.target.studentIds.hasAny([request.auth.uid])))
+        ) || isBookHomeworkCompatibilityReader(resource.data);
       allow create: if (
           request.auth != null
           && !isBookHomework(request.resource.data)
           && !isBookHomeworkCompatibility(request.resource.data)
           && request.resource.data.createdBy == request.auth.uid
           && request.resource.data.id == assignmentId
+          && !request.resource.data.keys().hasAny(['privateListeningPlayback'])
           && isValidReadingPassageHomeworkPayload(request.resource.data)
         ) || (
           isExactBookHomeworkCompatibilityService(assignmentId, request.resource.data.createdBy)
@@ -519,6 +530,7 @@ service cloud.firestore {
         && !isBookHomework(request.resource.data)
         && !isBookHomeworkCompatibility(resource.data)
         && !isBookHomeworkCompatibility(request.resource.data)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['privateListeningPlayback'])
         && (
           (
             resource.data.createdBy == request.auth.uid

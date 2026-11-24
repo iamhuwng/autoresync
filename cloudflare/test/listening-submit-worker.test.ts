@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createListeningSubmitWorkerHandlers, type ListeningSubmitRepository } from '../src/upload-worker/listening-submit.ts';
+import { createExternalPlaybackRefresh } from '../src/upload-worker/listening-delivery.ts';
 import { FirebaseRtdbRestClient, type FirebaseRtdbQuery } from '../src/upload-worker/listening-authoring/rtdb.ts';
 
 vi.mock('../src/upload-worker/listening-authoring/rtdb.ts', async importOriginal => ({
@@ -78,10 +79,13 @@ function fixture() {
     }),
   };
   const handlers = createListeningSubmitWorkerHandlers({ repository: () => repository });
-  const env = { readListeningHomeworkDocument: async (path: string) => clone(documents[path] ?? null) };
+  const env = { readListeningHomeworkDocument: async (path: string) => clone(documents[path] ?? null),
+    FIREBASE_PROJECT_ID: 'demo-luyentap-local', FIREBASE_DATABASE_EMULATOR_URL: 'http://localhost:9000',
+    EXTERNAL_AUDIO_ENVIRONMENT: 'local', EXTERNAL_AUDIO_ROUTES_ENABLED: 'enabled', EXTERNAL_AUDIO_DRAFTS_ENABLED: 'enabled',
+    LISTENING_DELIVERY_SECRET: 'fixture-listening-course-attempt' };
   const call = (data: unknown, uid = 'student-1', route: 'submit' | 'livePin' | 'homeworkStart' = 'submit') => handlers[route]({
     uid, env, now: () => currentTime, request: new Request('https://worker.example/listening-delivery/submit', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token' }, body: JSON.stringify(data),
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token', Origin: 'http://localhost:5174' }, body: JSON.stringify(data),
     }),
   });
   const solo = { mode: 'self_study', testId: 'test-1', versionId: 'version-1', operationId: 'attempt-1',
@@ -92,13 +96,29 @@ function fixture() {
 function courseFixture() {
   const f = fixture();
   f.values['courses/course-1'] = { id: 'course-1', ownerId: 'teacher-1', name: 'Course' };
-  f.values['modules/module-1'] = { courseId: 'course-1' };
+  f.values['course_modules/module-1'] = { courseId: 'course-1' };
   f.values.course_enrollments = { enrollment: { studentId: 'student-1', courseId: 'course-1', status: 'active', expiresAt: now + 1000 } };
   f.values.course_materials = { link: { courseId: 'course-1', moduleId: 'module-1', materialId: 'test-1' } };
   return { ...f, request: { ...f.solo, mode: 'course_material', courseId: 'course-1', moduleId: 'module-1' } };
 }
 
 describe('Listening trusted submission', () => {
+  it('keeps an authorized open B2 course attempt on its original grading version after republish', async () => {
+    const f = courseFixture();
+    const version = f.values['listening_authoring/versions/version-1'];
+    version.document.audioSections = [{ number: 1, externalAudio: { scope: 'section', assetId: 'pinned-audio' } }];
+    Object.assign(f.values['tests/test-1'], { versionId: 'version-2', isPublished: true, isPublic: true, state: 'active' });
+    const handle = await createExternalPlaybackRefresh(f.env,
+      ['listening-course-attempt', 'student-1', 'test-1', 'version-1', 'course-1', 'module-1', 'attempt-1'], now);
+    expect((await f.call(f.request)).init?.status).toBe(403);
+    expect((await f.call({ ...f.request, operationId: 'another', courseAttemptHandle: handle })).init?.status).toBe(403);
+    const submitted = await f.call({ ...f.request, courseAttemptHandle: handle });
+    expect(submitted.body).toMatchObject({ percentage: 100 });
+    const { resultId } = submitted.body as { resultId: string };
+    expect(f.values[`test_results/${resultId}`]).toMatchObject({ materialVersionId: 'version-1',
+      listeningReviewSections: [{ sectionNumber: 1, assetId: 'pinned-audio' }] });
+    expect(JSON.stringify(f.values[`test_results/${resultId}`])).not.toContain(handle);
+  });
   it('pins the latest published text when starting, then preserves that pin across publication and submission', async () => {
     const f = fixture();
     delete f.documents['homework_submissions/sub-1'];

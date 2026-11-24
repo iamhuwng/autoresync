@@ -24,7 +24,7 @@ export interface ListeningResultReviewAudioInput {
 }
 
 export interface ListeningResultReviewAudioDeliveryIssuer {
-  issue(input: IssueListeningAssetDeliveryUrlInput): Promise<ListeningDeliveryIssuedUrl>;
+  issue(input: IssueListeningAssetDeliveryUrlInput, refreshHandle?: string, signal?: AbortSignal): Promise<ListeningDeliveryIssuedUrl>;
 }
 
 export type ListeningResultReviewAudioResolution =

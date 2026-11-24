@@ -1,0 +1,53 @@
+
+.section-recording {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.section-recording--practice { min-height: 5.5rem; align-content: center; }
+.section-recording p { margin: 0; }
+.section-recording-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  padding: 6px 10px;
+  background: #fff1f2;
+  color: #8b2833;
+  border: 1px solid #f3c6cd;
+  border-radius: 6px;
+  font-size: .875rem;
+}
+.section-recording-error p { margin: 0; overflow-wrap: anywhere; }
+.section-recording-retry,
+.section-recording-error button {
+  min-width: 44px;
+  min-height: 44px;
+}
+.section-recording-retry {
+  padding: 0 12px;
+  border: 1px solid currentColor;
+  border-radius: 5px;
+  color: inherit;
+  background: white;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.section-recording-hint { font-size: .8125rem; color: #586064; }
+.section-recording-floating {
+  position: fixed;
+  z-index: 9999;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(500px, calc(100% - 24px));
+}
+.section-recording-complete {
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: 48px 16px;
+  text-align: center;
+}

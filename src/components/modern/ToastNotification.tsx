@@ -1,4 +1,5 @@
 import { useEffect, useSyncExternalStore } from 'react';
+import { createPortal } from 'react-dom';
 import './ToastNotification.css';
 
 export type ToastTone = 'success' | 'error' | 'info' | 'warning';
@@ -41,6 +42,27 @@ const listeners = new Set<() => void>();
 const exitTimers = new Map<string, number>();
 const dismissTimers = new Map<string, number>();
 let toastQueue: ToastRecord[] = [];
+let toastTarget: HTMLElement | null = null;
+
+export function useDialogToastTarget(target: React.RefObject<HTMLElement | null>, open: boolean) {
+  useEffect(() => {
+    const element = target.current;
+    if (!open || !element) return;
+    toastTarget = element;
+    emitChange();
+    return () => {
+      if (toastTarget === element) {
+        toastTarget = null;
+        emitChange();
+      }
+    };
+  }, [open, target]);
+}
+
+function getToastTarget() {
+  return toastTarget;
+}
+const getServerToastTarget = () => null;
 const DEFAULT_DURATION_MS = 5000;
 const EXIT_DURATION_MS = 650;
 
@@ -196,9 +218,10 @@ export const toast = {
 
 export function ToastContainer({ className = '' }: ToastContainerProps) {
   const toasts = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const target = useSyncExternalStore(subscribe, getToastTarget, getServerToastTarget);
 
-  return (
-    <div className={`toast-container ${className}`.trim()}>
+  const cards = (
+    <div className={`toast-container ${target ? 'toast-container--in-dialog' : ''} ${className}`.trim()}>
       {toasts.map((toastRecord) => (
         <ToastCard
           key={toastRecord.id}
@@ -208,6 +231,7 @@ export function ToastContainer({ className = '' }: ToastContainerProps) {
       ))}
     </div>
   );
+  return target ? createPortal(cards, target) : cards;
 }
 
 function ToastNotification({

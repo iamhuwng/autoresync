@@ -23,9 +23,8 @@ export const deriveAssetIds = (document: ListeningAuthoringDocumentV1): Record<s
   const assetIds: Record<string, true> = {};
 
   for (const section of document.audioSections) {
-    const assetId = section.assetId;
-    if (typeof assetId === 'string' && assetId.length > 0) {
-      assetIds[assetId] = true;
+    for (const assetId of [section.assetId, section.externalAudio?.assetId]) {
+      if (typeof assetId === 'string' && assetId.length > 0) assetIds[assetId] = true;
     }
   }
 

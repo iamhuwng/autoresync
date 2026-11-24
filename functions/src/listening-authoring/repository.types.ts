@@ -73,6 +73,11 @@ export interface PublishDraftTransactionInput {
   requestHash: string;
   expectedConflictToken: number;
   publishedAt: number;
+  externalAudioValidation?: {
+    readonly assetIds: readonly string[];
+    readonly blockers: readonly PublishBlocker[];
+    readonly allowPublic?: true;
+  };
 }
 
 export interface LegacyFirstEditTransactionInput {

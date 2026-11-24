@@ -51,6 +51,16 @@
     }
   ],
   "vars": {
+    "EXTERNAL_AUDIO_ROUTES_ENABLED": "enabled",
+    "EXTERNAL_AUDIO_ENVIRONMENT": "production",
+    "EXTERNAL_AUDIO_DRAFTS_ENABLED": "enabled",
+    "EXTERNAL_AUDIO_PRIVATE_HOMEWORK_ENABLED": "enabled",
+    "EXTERNAL_AUDIO_PUBLIC_LISTENING_ENABLED": "enabled",
+    "EXTERNAL_AUDIO_THCS_ENABLED": "enabled",
+    "EXTERNAL_AUDIO_UPLOAD_ROLLOUT": "enabled",
+    "EXTERNAL_AUDIO_UPLOAD_ROLLBACK": "disabled",
+    "EXTERNAL_AUDIO_STORE_PROJECT_ID": "luyentap-audio-prod",
+    "EXTERNAL_AUDIO_STORE_DATABASE_URL": "https://luyentap-audio-prod-default-rtdb.asia-southeast1.firebasedatabase.app",
     "BOOK_COURSE_PLACEMENT_ROUTES_ENABLED": "disabled",
     "BOOK_CLASS_BOOK_PLACEMENT_ROUTES_ENABLED": "disabled",
     "BOOK_RUNTIME_LAUNCH_ROUTES_ENABLED": "disabled",
@@ -93,7 +103,9 @@
   "secrets": {
     "required": [
       "FIREBASE_WEB_API_KEY",
-      "BOOK_HOMEWORK_GOOGLE_SA_KEY"
+      "BOOK_HOMEWORK_GOOGLE_SA_KEY",
+      "EXTERNAL_AUDIO_STORE_SERVICE_ACCOUNT",
+      "EXTERNAL_AUDIO_ENCRYPTION_KEYRING"
     ]
   }
 }

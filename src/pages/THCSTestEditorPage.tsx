@@ -20,8 +20,10 @@ import { useThcsDraft } from '../hooks/thcs/useThcsDraft';
 import { useThcsAutoSave } from '../hooks/thcs/useThcsAutoSave';
 import { useThcsValidation } from '../hooks/thcs/useThcsValidation';
 
-import { createThcsDraft } from '../services/thcsDraftService';
+import { copyThcsSectionsWithoutAudio, createThcsDraft } from '../services/thcsDraftService';
 import { generateThcsTestId, saveThcsTestToFirebase } from '../services/thcsTestStorage';
+import { EXTERNAL_AUDIO_DRAFT_ONLY } from '../types/assessmentAudio.types';
+import { createExternalAudioClient, resolveExternalAudioOrigin, resolveThcsAudioOrigin } from '../services/externalAudioClient';
 import r2StorageService from '../services/r2Storage';
 import { Button, toast } from '../components/modern';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
@@ -42,7 +44,7 @@ import THCSAnswerKeyStep from '../components/thcs-editor/THCSAnswerKeyStep';
 import THCSReviewStep from '../components/thcs-editor/THCSReviewStep';
 import type { WizardStep } from '../components/thcs-editor/THCSWizardStepper';
 
-import type { THCSTestMetadata, THCSSection, THCSTest, THCSDraft } from '../types/thcs-test.types';
+import type { THCSTestMetadata, THCSSection, THCSQuestion, THCSTest, THCSDraft } from '../types/thcs-test.types';
 import { buildRoute } from '../constants/routes';
 import AIMaintenanceBanner from '../components/ai/AIMaintenanceBanner';
 
@@ -186,6 +188,11 @@ function recalculateQuestionNumbers(sections: THCSSection[]): THCSSection[] {
     }));
 }
 
+function tempQuestionImageKey(question: THCSQuestion & { _imageKey?: string }): string | undefined {
+    const key = question._imageKey ?? (question.imageUrl && r2StorageService.getKeyFromUrl(question.imageUrl));
+    return key?.startsWith('temp/images/') ? key : undefined;
+}
+
 function createDefaultSection(order: number): THCSSection {
     return {
         id: crypto.randomUUID(),
@@ -220,7 +227,7 @@ export function THCSTestEditorSurface({
     onExpandedLayoutChange,
     onStepConfigChange,
 }: THCSTestEditorSurfaceProps) {
-    const { user } = useAuth();
+    const { user, profile } = useAuth();
     const { isDesktop } = useScreenSize();
     const isMobile = !isDesktop;
 
@@ -236,11 +243,15 @@ export function THCSTestEditorSurface({
     const [isPublic, setIsPublic] = useState(false);
     const [isDirty, setIsDirty] = useState(false);
     const [draftId, setDraftId] = useState<string | null>(initialDraftId || null);
+    const savedAudioSections = useRef(new Set<string>());
+    const savingDraft = useRef(false);
     const [isPublishing, setIsPublishing] = useState(false);
     const [isSavingDraft, setIsSavingDraft] = useState(false);
     const [showPublishWarnings, setShowPublishWarnings] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
     const [publishedTestId, setPublishedTestId] = useState<string | null>(null);
+    const [hasSavedExternalAudio, setHasSavedExternalAudio] = useState(false);
+    const [externalAudioPublished, setExternalAudioPublished] = useState(false);
     const [pasteTextContent, setPasteTextContent] = useState('');
     const [parsedPasteData, setParsedPasteData] = useState<any>(null);
     const [importResolution, setImportResolution] = useState<'keep-source' | 'discard'>('keep-source');
@@ -256,7 +267,11 @@ export function THCSTestEditorSurface({
             setMetadata(draft.metadata);
             setSections(draft.sections?.length > 0 ? draft.sections : [createDefaultSection(0)]);
             setDraftId(draft.id || initialDraftId || null);
+            savedAudioSections.current = new Set(draft.sections?.map(({ id }) => id));
             setPublishedTestId((draft as THCSDraft & { publishedTestId?: string }).publishedTestId || null);
+            setIsPublic(draft.isPublic === true);
+            setHasSavedExternalAudio(draft.sections?.some((section) => Boolean(section.externalAudio)) ?? false);
+            setExternalAudioPublished(draft.externalAudioPublished === true);
             setIsDirty(false);
         }
     }, [draft, initialDraftId]);
@@ -414,14 +429,34 @@ setIsDirty(true);
     const autoSaveData = useMemo(() => ({
         metadata,
         sections,
+        isPublic,
         questionCount: sections.reduce((sum, s) => sum + s.questions.length, 0),
         totalPoints: sections.reduce((sum, s) => sum + s.totalPoints, 0),
-    }), [metadata, sections]);
+    }), [metadata, sections, isPublic]);
+
+    const hasExternalAudio = sections.some((section) => section.externalAudio);
+    const manualAudioDraft = hasExternalAudio || hasSavedExternalAudio || sections.some((section) => section.externalAudioRequired);
+    const audioOrigin = resolveThcsAudioOrigin() && resolveExternalAudioOrigin(profile);
+    const audioClient = useMemo(() => audioOrigin && user
+        ? createExternalAudioClient(audioOrigin, () => user.getIdToken()) : null, [audioOrigin, user]);
+    const issuePreviewRecording = useCallback((sectionId: string, assetId: string, signal?: AbortSignal) => {
+        if (!audioClient || !draftId) return Promise.reject(new Error(EXTERNAL_AUDIO_DRAFT_ONLY));
+        return audioClient.previewDraft({ testType: 'thcs-thpt', draftId, sectionId }, assetId, signal);
+    }, [audioClient, draftId]);
+    const validateDraftAudio = useCallback(async (id: string, data: Partial<THCSDraft>) => {
+        const attachments = (data.sections ?? []).flatMap(({ id: sectionId, externalAudio }) =>
+            externalAudio ? [{ sectionId, assetId: externalAudio.assetId }] : []);
+        if (!attachments.length) return;
+        if (!audioClient) throw new Error(EXTERNAL_AUDIO_DRAFT_ONLY);
+        await audioClient.validateThcsDraft(id, attachments);
+    }, [audioClient]);
 
     const { isSaving, lastSavedAt, error: saveError, saveNow } = useThcsAutoSave({
         draftId,
         data: autoSaveData,
         isDirty,
+        manualOnly: manualAudioDraft || draftLoading,
+        validate: validateDraftAudio,
     });
 
 
@@ -449,9 +484,10 @@ setIsDirty(true);
     }, []);
 
     const handleIsPublicChange = useCallback((value: boolean) => {
+        if (isPublishing) return;
         setIsPublic(value);
         setIsDirty(true);
-    }, []);
+    }, [isPublishing]);
 
     const handleSectionUpdate = useCallback((index: number, section: THCSSection) => {
         setSections(prev => {
@@ -554,13 +590,15 @@ setIsDirty(true);
     }, []);
 
     // ─── Save Draft ─────────────────────────────────────────────
-    const handleSaveDraft = useCallback(async () => {
+    const saveDraft = useCallback(async (forAudio = false) => {
+        if (isPublishing || savingDraft.current) return null;
         if (!user?.uid) {
             toast.error('Could not save draft: sign in and try again.');
-            return;
+            return null;
         }
 
-        trackAction('saveDraft');
+        trackAction('saveDraft', { trigger: forAudio ? 'external-audio' : 'explicit' });
+        savingDraft.current = true;
         setIsSavingDraft(true);
         try {
             let currentDraftId = draftId;
@@ -577,26 +615,50 @@ setIsDirty(true);
             if (!result.success) throw new Error(result.error || 'Could not save draft');
 
             setIsDirty(false);
-            toast.success('Saved draft.');
-            if (!draftId) onDraftCreated?.(currentDraftId);
+            setHasSavedExternalAudio(hasExternalAudio);
+            savedAudioSections.current = new Set(sections.map(({ id }) => id));
+            if (forAudio) {
+            } else {
+                toast.success('Saved draft.');
+                if (!draftId) onDraftCreated?.(currentDraftId);
+            }
+            return currentDraftId;
         } catch (error) {
             toast.error(`Could not save draft: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            return null;
         } finally {
+            savingDraft.current = false;
             setIsSavingDraft(false);
         }
-    }, [draftId, metadata, onDraftCreated, saveNow, trackAction, user]);
+    }, [draftId, hasExternalAudio, isPublishing, metadata, onDraftCreated, saveNow, sections, trackAction, user]);
+
+    const handleSaveDraft = () => { void saveDraft(); };
+    const ensureAudioDraft = (sectionId: string) => draftId && savedAudioSections.current.has(sectionId)
+        ? Promise.resolve(draftId)
+        : saveDraft(true);
 
     // ─── Publish ────────────────────────────────────────────────
+    const useTrustedAudioPublish = hasExternalAudio || externalAudioPublished;
+    const publicAudioWarning = isPublic && hasExternalAudio;
+    const publishWarnings = publicAudioWarning
+        ? [...warnings, 'Public playback depends on your selected recordings and Backblaze connection. Streaming uses your Backblaze bandwidth and may incur charges.']
+        : warnings;
     const handlePublish = useCallback(async () => {
-        if (!user?.uid) return;
+        if (!user?.uid || isPublishing || isSavingDraft) return;
+        if (useTrustedAudioPublish && !audioClient) {
+            toast.error(EXTERNAL_AUDIO_DRAFT_ONLY);
+            return;
+        }
         if (!isValid) return;
 
-        if (warnings.length > 0 && !showPublishWarnings) {
+        if (publishWarnings.length > 0 && !showPublishWarnings) {
+            if (publicAudioWarning) trackAction('publicExternalAudioPublishWarning', { outcome: 'shown' });
             setShowPublishWarnings(true);
             return;
         }
 
         trackAction('publishTest');
+        if (publicAudioWarning) trackAction('publicExternalAudioPublishWarning', { outcome: 'confirmed' });
         setIsPublishing(true);
         setShowPublishWarnings(false);
 
@@ -609,34 +671,62 @@ setIsDirty(true);
                 setDraftId(currentDraftId);
             }
 
-            const testId = publishedTestId || generateThcsTestId();
+            let testId = publishedTestId || generateThcsTestId();
             const finalSections = recalculateQuestionNumbers(sections);
             const questionCount = finalSections.reduce((sum, s) => sum + s.questions.length, 0);
             const totalPoints = finalSections.reduce((sum, s) => sum + s.totalPoints, 0);
 
-            // Move any R2 temp images to permanent storage before saving
-            const finalSectionsWithPermanentImages = await Promise.all(
-                finalSections.map(async (section) => ({
-                    ...section,
-                    questions: await Promise.all(
-                        section.questions.map(async (q: any) => {
-                            if (q._imageKey && r2StorageService.isTempFile(q._imageKey)) {
-                                const moved = await r2StorageService.moveToPermanent(q._imageKey);
-                                const { _imageKey: _, ...rest } = q;
-                                return { ...rest, imageUrl: moved.newUrl };
-                            }
-                            const { _imageKey: _, ...rest } = q;
-                            return rest;
-                        })
-                    ),
-                }))
-            );
+            if (hasExternalAudio && finalSections.some(({ questions }) => questions.some(tempQuestionImageKey))) {
+                await validateDraftAudio(currentDraftId, autoSaveData);
+            }
+
+            const promotedImages = new Map<string, string>();
+            let imagePromotionFailed = false;
+            try {
+                for (const { questions } of finalSections) {
+                    for (const question of questions) {
+                        const key = tempQuestionImageKey(question);
+                        if (key && !promotedImages.has(key)) {
+                            const image = await r2StorageService.promoteDraftImage(key);
+                            promotedImages.set(key, image.newUrl);
+                        }
+                    }
+                }
+            } catch {
+                imagePromotionFailed = true;
+            }
+
+            const preparedSections = finalSections.map((section) => ({
+                ...section,
+                questions: section.questions.map((question: THCSQuestion & { _imageKey?: string }) => {
+                    const key = tempQuestionImageKey(question);
+                    const imageUrl = key && promotedImages.get(key);
+                    if (key && !imageUrl) return question;
+                    const { _imageKey: _, ...clean } = question;
+                    return imageUrl ? { ...clean, imageUrl } : clean;
+                }),
+            }));
+
+            // Checkpoint successful copies even if another image failed. The original
+            // URLs still work if the draft write fails or the editor closes mid-save.
+            if (promotedImages.size || (useTrustedAudioPublish && !imagePromotionFailed)) {
+                const saved = await saveNow(currentDraftId, {
+                    ...autoSaveData, sections: preparedSections, questionCount, totalPoints,
+                });
+                if (!saved.success) throw new Error(saved.error || 'Could not save draft');
+                setSections(preparedSections);
+                setHasSavedExternalAudio(hasExternalAudio);
+                setIsDirty(false);
+            }
+            if (imagePromotionFailed) {
+                throw new Error('Could not prepare a question image for publishing. Try again, or replace the image if it no longer opens.');
+            }
 
             const test: THCSTest = {
                 id: testId,
                 testType: 'THCS-THPT',
                 metadata,
-                sections: finalSectionsWithPermanentImages,
+                sections: preparedSections,
                 questionCount,
                 totalPoints,
                 createdBy: user.uid,
@@ -654,8 +744,13 @@ setIsDirty(true);
                 },
             };
 
-            const saveResult = await saveThcsTestToFirebase(test);
-            if (!saveResult.success) throw new Error(saveResult.error || 'Failed to save test');
+            if (useTrustedAudioPublish && audioClient) {
+                ({ testId } = await audioClient.publishThcs(currentDraftId));
+                setExternalAudioPublished(true);
+            } else {
+                const saveResult = await saveThcsTestToFirebase(test);
+                if (!saveResult.success) throw new Error(saveResult.error || 'Failed to save test');
+            }
 
             const db = getFirestore();
             const libraryData = {
@@ -682,7 +777,11 @@ setIsDirty(true);
             await setDoc(doc(db, 'thcs_library', testId), libraryData);
 
             const { updateThcsDraft } = await import('../services/thcsDraftService');
-            await updateThcsDraft(currentDraftId, { status: 'published', publishedTestId: testId } as any);
+            const marked = await updateThcsDraft(currentDraftId, {
+                status: 'published', publishedTestId: testId,
+                ...(useTrustedAudioPublish ? { externalAudioPublished: true } : {}),
+            });
+            if (!marked.success) throw new Error('The test was published. Retry to finish updating its draft.');
             setPublishedTestId(testId);
 
             setIsDirty(false);
@@ -695,7 +794,8 @@ setIsDirty(true);
         } finally {
             setIsPublishing(false);
         }
-    }, [draftId, isPublic, isValid, metadata, onPublished, publishedTestId, sections, showPublishWarnings, trackAction, user, warnings]);
+    }, [audioClient, autoSaveData, draftId, hasExternalAudio, isPublic, isPublishing, isSavingDraft, isValid, metadata, onPublished, publicAudioWarning,
+        publishedTestId, publishWarnings, saveNow, sections, showPublishWarnings, trackAction, useTrustedAudioPublish, user, validateDraftAudio]);
 
     // ─── Duplicate ──────────────────────────────────────────────
     const handleDuplicate = useCallback(async () => {
@@ -712,7 +812,7 @@ setIsDirty(true);
             const { updateThcsDraft } = await import('../services/thcsDraftService');
             const saved = await updateThcsDraft(newDraftId, {
                 metadata: dupMetadata,
-                sections,
+                sections: copyThcsSectionsWithoutAudio(sections),
                 questionCount: sections.reduce((sum, s) => sum + s.questions.length, 0),
                 totalPoints: sections.reduce((sum, s) => sum + s.totalPoints, 0),
             } as any);
@@ -724,6 +824,10 @@ setIsDirty(true);
             } else {
                 setDraftId(newDraftId);
                 setPublishedTestId(null);
+                setSections(copyThcsSectionsWithoutAudio(sections));
+                setHasSavedExternalAudio(false);
+                setExternalAudioPublished(false);
+                setIsPublic(false);
                 setIsDirty(false);
             }
         } catch (error) {
@@ -803,11 +907,13 @@ setIsDirty(true);
     };
 
     const handleBack = () => {
+        if (isPublishing) return;
         trackAction('thcsWizardStepChanged', { step: currentStep - 1 });
         if (currentStep > 0) setCurrentStep(currentStep - 1);
     };
 
     const handleStepChange = (step: number) => {
+        if (isPublishing) return;
         if (isEditMode || step <= currentStep) {
             if (currentStep === 0 && step > 0 && !guardStep1Metadata()) return;
             if (currentStep === 1 && step > 1 && !guardStep2MissingVisualImages()) return;
@@ -881,6 +987,7 @@ setIsDirty(true);
                     <THCSQuestionsStep
                         sections={sections}
                         draftId={draftId}
+                        onEnsureAudioDraft={audioClient ? ensureAudioDraft : undefined}
                         onSectionUpdate={handleSectionUpdate}
                         onSectionDelete={handleSectionDelete}
                         onSectionMove={handleSectionMove}
@@ -909,7 +1016,7 @@ setIsDirty(true);
                         sections={sections}
                         isPublic={isPublic}
                         errors={errors}
-                        warnings={warnings}
+                        warnings={publishWarnings}
                         isValid={isValid}
                         isPublishing={isPublishing}
                         isSavingDraft={isSavingDraft}
@@ -954,7 +1061,7 @@ setIsDirty(true);
                         <Button variant="glass" onClick={onExit}>Cancel</Button>
                     )
                 ) : (
-                    <Button variant="glass" onClick={handleBack}>{stepBackLabels[currentStep]}</Button>
+                    <Button variant="glass" onClick={handleBack} disabled={isPublishing}>{stepBackLabels[currentStep]}</Button>
                 )}
             </div>
 
@@ -1084,6 +1191,8 @@ setIsDirty(true);
                     sections={sections}
                     metadata={metadata}
                     onClose={() => setShowPreview(false)}
+                    issueRecording={audioClient && draftId ? issuePreviewRecording : undefined}
+                    onAudioAction={() => trackAction('toggleThcsPreviewAudio')}
                 />
             )}
         </>

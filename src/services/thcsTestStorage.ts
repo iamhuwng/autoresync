@@ -11,6 +11,7 @@ import { ref, set, get, update, runTransaction } from 'firebase/database';
 // @ts-ignore - firebase.js doesn't have type declarations
 import { database } from './firebase';
 import type { THCSTest } from '../types/thcs-test.types';
+import { EXTERNAL_AUDIO_DRAFT_ONLY } from '../types/assessmentAudio.types';
 import { createLegacyTestMaterialSummary } from './materialCatalog/legacyTestMaterialSummary.service';
 import { buildMaterialSummaryUpdatePayload } from './materialCatalog/materialSummaryPort.service';
 
@@ -33,6 +34,9 @@ export const saveThcsTestToFirebase = async (
     test: THCSTest,
     teacherUid?: string
 ): Promise<{ success: boolean; testId?: string; error?: string }> => {
+    if (test.sections.some((section) => section.externalAudio)) {
+        return { success: false, error: EXTERNAL_AUDIO_DRAFT_ONLY };
+    }
     try {
         const testId = test.id;
         const testRef = ref(database, `tests/${testId}`);

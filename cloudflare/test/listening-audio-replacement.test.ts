@@ -108,6 +108,22 @@ describe('Listening recording replacement', () => {
     expect(f.previous.document.audioSections[0].assetId).toBe('old');
   });
 
+  it('retains previously published R2 audio across a private external publication', async () => {
+    const f = fixture();
+    await f.replace();
+    const external = { ...f.version('external', 3), previousVersionId: f.current.versionId,
+      document: { skill: 'Listening', isPublic: false, audioSections: [{ number: 1,
+        externalAudio: { assetId: 'external', scope: 'section' } }] } };
+    f.versions[external.versionId] = external;
+    f.state.tests.test = { ...f.state.tests.test, versionId: external.versionId };
+    const previousDeletes = f.bucket.delete.mock.calls.length;
+    await f.replace(f.current, external as any);
+    expect(f.bucket.delete).toHaveBeenCalledTimes(previousDeletes);
+    await expect(resolveListeningAudioReplacement(f.read, 'old')).resolves.toMatchObject({
+      original: { assetId: 'old' }, physical: { assetId: 'new' },
+    });
+  });
+
   it.each(['source-test', 'source-section', 'target-owner', 'target-anchor', 'self-loop'])('rejects a forged %s binding', async mode => {
     const f = fixture();
     await f.replace();

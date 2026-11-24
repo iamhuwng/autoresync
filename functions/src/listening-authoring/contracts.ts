@@ -1,3 +1,4 @@
+import type { DraftSectionAudio } from '../../../src/types/assessmentAudio.types';
 import {
   LISTENING_AUTHORING_OPERATION_TYPES,
   LISTENING_AUTHORING_SCHEMA_VERSION,
@@ -51,6 +52,7 @@ export interface ListeningAuthoringAudioSectionV1 {
   number: number;
   name: string;
   assetId?: string;
+  externalAudio?: DraftSectionAudio;
   audioUrl: string;
   streamUrl?: string;
   startQuestion: number;

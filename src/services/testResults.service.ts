@@ -143,6 +143,8 @@ export interface TestResultRecord {
 
   /** Stable client operation identity for idempotent solo/listening submissions. */
   submissionOperationId?: string;
+  materialVersionId?: string;
+  listeningReviewSections?: readonly { sectionNumber: number; assetId: string }[];
 
   /**
    * True when a retained result intentionally no longer has reloadable source material.
@@ -602,6 +604,7 @@ export async function saveTestResult(
     stableResultId?: string;
     submissionOperationId?: string;
     studentPrivateHomework?: boolean;
+    thcsMaterialVersionId?: string;
   }
 ): Promise<string> {
   try {
@@ -733,6 +736,7 @@ export async function saveTestResult(
     if (submissionContent?.speaking) resultRecord.speakingSubmission = submissionContent.speaking;
     if (context) resultRecord.context = context;
     if (submissionOperationId) resultRecord.submissionOperationId = submissionOperationId;
+    if (options?.thcsMaterialVersionId) resultRecord.materialVersionId = options.thcsMaterialVersionId;
     if (thcsData) (resultRecord as any).thcsData = thcsData;
     if (ieltsData) resultRecord.ieltsData = ieltsData; // PRD-0039
     resultRecord.feedbackGenerationMeta = {

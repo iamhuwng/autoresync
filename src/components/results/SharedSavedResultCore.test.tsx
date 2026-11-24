@@ -19,6 +19,9 @@ import '@testing-library/jest-dom';
 import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 
+vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: null }) }));
+vi.mock('../../hooks/useFeatureTracking', () => ({ useFeatureTracking: () => ({ trackAction: vi.fn() }) }));
+
 // ─── Hoisted mocks ──────────────────────────────────────────────────────────
 
 const {
@@ -367,6 +370,27 @@ describe('SharedSavedResultCore — PRD-0040 Task 2.2', () => {
     render(<SharedSavedResultCore result={{ ...MOCK_RESULT, testId: 'test-1', testSkill: 'Listening' }} variant="modal" />);
     expect(await screen.findByRole('note')).toHaveTextContent('Recording replaced.');
     expect(screen.queryByTestId('ssrc-listening-review-audio')).not.toBeInTheDocument();
+  });
+
+  it('keeps the other Listening result recording and question review usable when one pin is unavailable', async () => {
+    const deliveryIssuer = { issue: vi.fn(async (input) => {
+      if (input.assetId === 'missing') throw new Error('provider diagnostic');
+      return {
+        assetId: input.assetId, url: 'https://authorized.example/working', tokenId: 'token-1',
+        issuedAt: input.now, expiresAt: input.now + 60_000, refreshAfter: input.now + 50_000, ttlMs: 60_000,
+        refreshHandle: 'refresh-handle', deliveryReady: true as const,
+        range: { requestRange: 'bytes=0-0', status: 206 as const, acceptRanges: 'bytes' as const,
+          contentLength: 1, contentRange: 'bytes 0-0/1024' },
+      };
+    }) };
+    render(<SharedSavedResultCore result={{ ...MOCK_RESULT, testSkill: 'Listening', materialVersionId: 'retained',
+      listeningReviewSections: [{ sectionNumber: 1, assetId: 'missing' }, { sectionNumber: 2, assetId: 'working' }],
+    }} variant="modal" listeningResultReviewDeliveryIssuer={deliveryIssuer} />);
+    expect(await screen.findByText('This section’s recording is unavailable.')).toHaveAttribute('role', 'alert');
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Section 2 recording' }).querySelector('audio'))
+      .toHaveAttribute('src', 'https://authorized.example/working'));
+    expect(screen.queryByText('provider diagnostic')).not.toBeInTheDocument();
+    expect(screen.getByTestId('shared-saved-result-core')).toBeVisible();
   });
 
   it('uses the production result-review delivery issuer when shells do not inject one', async () => {

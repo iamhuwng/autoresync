@@ -1,5 +1,5 @@
-import { useEffect, useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useState, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ProfileCompletionForm } from './ProfileCompletionForm';
 import { getProfile, updateProfile } from '@/services/profileService';
 import { useAuth } from '@/contexts/AuthContext';
@@ -27,6 +27,8 @@ import { useResolvedStudentHomeworkList } from '@/context/StudentShellDataContex
 import { useFeatureTracking } from '@/hooks/useFeatureTracking';
 import { FEATURE_IDS } from '@/config/featureRegistry';
 import { toast } from '@/components/modern/ToastNotification';
+import { resolveExternalAudioOrigin } from '@/services/externalAudioClient';
+import { TeacherProfileView } from './TeacherProfileView';
 
 /* ─── SVG Icon Helpers (replacing @tabler/icons-react) ─── */
 
@@ -624,10 +626,27 @@ function renderFieldGrid(
 /* ═══════════════════════════════════════════════════════════════ */
 
 export function ProfilePage() {
-    const { user, studentId, setupStudentCredentials } = useAuth();
+    const { user, profile: authProfile, studentId, setupStudentCredentials, logout } = useAuth();
     const { trackAction } = useFeatureTracking(FEATURE_IDS.profile);
+    const audioOrigin = user && authProfile?.uid === user.uid ? resolveExternalAudioOrigin(authProfile) : null;
+    const getAudioIdToken = useCallback(() => user?.getIdToken() ?? Promise.resolve(''), [user]);
     const { navigateTo } = useNavigation('student');
+    const location = useLocation();
     const navigate = useNavigate();
+    const wantsExternalAudioTab = (loc: ReturnType<typeof useLocation>) => {
+        const state = loc.state as { section?: string } | null | undefined;
+        if (state?.section === 'external-audio') return true;
+        if (loc.hash === '#external-audio') return true;
+        return new URLSearchParams(loc.search).get('tab') === 'external-audio';
+    };
+    const [activeSection, setActiveSection] = useState<'profile' | 'external-audio'>(() =>
+        wantsExternalAudioTab(location) ? 'external-audio' : 'profile',
+    );
+    useEffect(() => {
+        if (wantsExternalAudioTab(location)) {
+            setActiveSection('external-audio');
+        }
+    }, [location]);
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [editMode, setEditMode] = useState(false);
@@ -1125,36 +1144,97 @@ export function ProfilePage() {
 
     /* ─── Render ─── */
 
-    return (
-        <StudentLayout
-            mobileTitle="My Profile"
-            sidebar={(
-                <StudentSidebar
-                    user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined}
-                    activePage="profile"
-                    pendingHomeworkCount={notStarted.length}
-                    onViewSwitch={(view) => {
-                        if (view === 'feed') navigate('/student/dashboard');
+    const effectiveRole = authProfile?.uid === user?.uid ? authProfile?.role : profile?.role;
+    const isTeacherSurface = effectiveRole === 'teacher' || effectiveRole === 'super_admin'
+        || profile?.role === 'teacher' || profile?.role === 'super_admin';
+
+    const deletionDialog = (
+        <dialog ref={dialogRef} style={ps.dialog}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <h3 style={ps.dialogTitle}>Delete Account</h3>
+                <div style={{
+                    background: '#fff2f2', borderRadius: 8, padding: '12px 16px',
+                    display: 'flex', alignItems: 'flex-start', gap: 10, color: '#9e3f4e', fontSize: '0.875rem',
+                }}>
+                    <SvgAlertTriangle size={20} />
+                    <span>
+                        Your account will be scheduled for permanent deletion in 30 days.
+                        During this period, you can cancel the deletion.
+                    </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 }}>
+                    <button
+                        type="button"
+                        style={ps.outlineButton}
+                        onClick={() => setDeletionModalOpen(false)}
+                        disabled={deletionProcessing}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="button"
+                        style={{ ...ps.dangerButton, backgroundColor: '#fff2f2' }}
+                        onClick={handleRequestDeletion}
+                        disabled={deletionProcessing}
+                    >
+                        <SvgTrash size={16} /> Confirm Deletion
+                    </button>
+                </div>
+            </div>
+        </dialog>
+    );
+
+    if (isTeacherSurface) {
+        return (
+            <>
+                <TeacherProfileView
+                    userId={user?.uid}
+                    userRole={effectiveRole === 'super_admin' || profile?.role === 'super_admin' ? 'super_admin' : 'teacher'}
+                    userDisplayName={profile?.displayName || user?.displayName || user?.email || undefined}
+                    userEmail={profile?.email || user?.email || undefined}
+                    userAvatarUrl={profile?.avatarUrl || profile?.photoURL || user?.photoURL || undefined}
+                    profile={profile}
+                    loading={loading}
+                    editMode={editMode}
+                    saving={saving}
+                    hasPendingDeletion={hasPending}
+                    daysRemaining={daysRemaining}
+                    deletionProcessing={deletionProcessing}
+                    audioOrigin={audioOrigin}
+                    activeSection={activeSection}
+                    onSelectSection={(next) => {
+                        if (next === 'external-audio' && activeSection !== 'external-audio') {
+                            trackAction('externalAudioOpen');
+                        } else if (next === 'profile' && activeSection === 'external-audio') {
+                            trackAction('externalAudioClose');
+                        }
+                        setActiveSection(next);
                     }}
+                    onEditStart={() => setEditMode(true)}
+                    onEditCancel={() => setEditMode(false)}
+                    onSave={handleSave}
+                    onOpenDeletionModal={() => setDeletionModalOpen(true)}
+                    onCancelDeletion={handleCancelDeletion}
+                    onLogout={async () => {
+                        await logout();
+                        navigateTo('LOGIN', {}, { reason: 'teacher_logout', replace: true });
+                    }}
+                    getAudioIdToken={getAudioIdToken}
+                    trackAction={trackAction}
                 />
-            )}
-            rightPanel={renderRightPanel()}
-        >
+                {deletionDialog}
+            </>
+        );
+    }
+
+    const profileBody = (
+        <>
             <div style={S.feedHeader}>
                 <div style={S.feedHeaderText}>
                     <h2 style={S.feedHeaderTitle}>My Profile</h2>
                     <p style={S.feedHeaderSubtitle}>Manage your academic identity and personal information.</p>
                 </div>
             </div>
-
-            {profile?.role === 'teacher' ? (
-                <div style={ps.teacherBanner}>
-                    <span style={{ fontSize: '0.875rem', fontWeight: 700, color: studentTokens.accentHover, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Teacher Mode Active</span>
-                    <button type="button" style={ps.primaryButton} onClick={() => navigateTo('LOBBY')}>
-                        Return to Lobby
-                    </button>
-                </div>
-            ) : null}
 
             {renderCenterContent()}
             {credentialSetupOpen ? (
@@ -1285,6 +1365,25 @@ export function ProfilePage() {
                     </div>
                 </div>
             </dialog>
+        </>
+    );
+
+    return (
+        <StudentLayout
+            mobileTitle="My Profile"
+            sidebar={(
+                <StudentSidebar
+                    user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined}
+                    activePage="profile"
+                    pendingHomeworkCount={notStarted.length}
+                    onViewSwitch={(view) => {
+                        if (view === 'feed') navigate('/student/dashboard');
+                    }}
+                />
+            )}
+            rightPanel={renderRightPanel()}
+        >
+            {profileBody}
         </StudentLayout>
     );
 }

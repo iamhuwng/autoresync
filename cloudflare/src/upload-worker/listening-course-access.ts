@@ -9,10 +9,10 @@ export async function readListeningCourseAccess(
   studentId: string,
   versionOwnerId: string,
   now: number,
-): Promise<{ course: Row; current: Row } | null> {
+): Promise<{ course: Row; current: Row; settings: readonly unknown[] } | null> {
   if ([scope.testId, scope.courseId, scope.moduleId].some(id => typeof id !== 'string' || !id || /[.#$\[\]\/\u0000-\u001f]/u.test(id))) return null;
   const [course, module, enrollments, materials, current] = await Promise.all([
-    read(`courses/${scope.courseId}`), read(`modules/${scope.moduleId}`),
+    read(`courses/${scope.courseId}`), read(`course_modules/${scope.moduleId}`),
     read('course_enrollments', { orderBy: 'studentId', equalTo: studentId }),
     read('course_materials', { orderBy: 'moduleId', equalTo: scope.moduleId }), read(`tests/${scope.testId}`),
   ]);
@@ -23,5 +23,13 @@ export async function readListeningCourseAccess(
     || !Object.values(materials).some(entry => row(entry) && entry.materialId === scope.testId && entry.courseId === scope.courseId
       && entry.moduleId === scope.moduleId && entry.materialKind !== 'book-delivery')
     || !row(current) || current.ownerId !== versionOwnerId) return null;
-  return { course, current };
+  const [materialSettings, moduleSettings] = await Promise.all([
+    read(`courses/${scope.courseId}/modules/${scope.moduleId}/materials/${scope.testId}/practiceSettings`),
+    read(`courses/${scope.courseId}/modules/${scope.moduleId}/practiceSettings`),
+  ]);
+  const settings = [materialSettings, moduleSettings, course.practiceSettings];
+  const enabled = settings
+    .find(settings => row(settings) && settings.enabled !== undefined && settings.enabled !== 'default')?.enabled;
+  if (enabled !== undefined && enabled !== true) return null;
+  return { course, current, settings };
 }

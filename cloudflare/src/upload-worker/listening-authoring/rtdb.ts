@@ -453,7 +453,7 @@ const withQuery = (
   return encoded ? `${url}?${encoded}` : url;
 };
 
-const PATCH_PATH = /^[A-Za-z0-9_:-]{1,160}(?:\/[A-Za-z0-9_:-]{1,160})*$/u;
+const PATCH_PATH = /^[A-Za-z0-9_:-]{1,256}(?:\/[A-Za-z0-9_:-]{1,256})*$/u;
 
 export class FirebaseRtdbRestClient {
   constructor(

@@ -44,6 +44,7 @@ export interface R2UploadClientContract {
         onProgress?: UploadProgress,
     ): Promise<UploadResult>;
     move(key: string): Promise<MoveResult>;
+    promoteDraftImage(key: string): Promise<MoveResult>;
 }
 
 export interface AssetGrantUploadAuthorization {
@@ -316,6 +317,26 @@ export class R2UploadClient implements R2UploadClientContract {
         }
         this.moveGrants.delete(key);
         return moved;
+    }
+
+    async promoteDraftImage(key: string): Promise<MoveResult> {
+        const token = await this.requireToken();
+        let response: Response;
+        try {
+            response = await this.fetchImpl(`${this.endpoint}/thcs/draft-images/promote`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sourceKey: key }),
+            });
+        } catch {
+            throw new R2UploadClientError('network_error', 'Image promotion request failed. Try again.', true);
+        }
+        this.assertHttpSuccess(response, 'draft_image_promotion_failed');
+        const image = await readJson<MoveResult>(response);
+        if (!image.success || image.newKey !== key.slice('temp/'.length) || !assertString(image.newUrl)) {
+            throw new R2UploadClientError('invalid_response', 'Upload service returned an invalid image response');
+        }
+        return image;
     }
 
     private async authorize(

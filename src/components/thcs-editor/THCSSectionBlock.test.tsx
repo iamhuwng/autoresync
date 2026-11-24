@@ -3,6 +3,8 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { THCSSection } from '../../types/thcs-test.types';
 import THCSSectionBlock from './THCSSectionBlock';
 
+vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: null, profile: null }) }));
+
 vi.mock('../modern/ToastNotification', () => ({ toast: { success: vi.fn() } }));
 vi.mock('./THCSBulkPasteModal', () => ({ THCSBulkPasteModal: () => null }));
 vi.mock('./THCSQuestionBlock', () => ({

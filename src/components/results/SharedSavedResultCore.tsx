@@ -32,6 +32,11 @@ import {
   createListeningResultReviewDeliveryIssuer,
 } from '../../features/assessment/listening/adapters/listeningResultReviewDeliveryClient';
 import { WritingSpeakingPlaceholder } from '../test/WritingSpeakingPlaceholder';
+import { SavedSectionAudio } from './SavedSectionAudio';
+import { FEATURE_IDS } from '../../config/featureRegistry';
+import { useFeatureTracking } from '../../hooks/useFeatureTracking';
+import { useAuth } from '../../hooks/useAuth';
+import { createExternalAudioClient, resolveThcsAudioOrigin, type ExternalAudioClient } from '../../services/externalAudioClient';
 import {
   isSourceMaterialRemovedResult,
   ORIGINAL_MATERIAL_REMOVED_LABEL,
@@ -110,6 +115,62 @@ interface ListeningResultReviewAudioRecord {
 }
 
 const defaultListeningResultReviewDeliveryIssuer = createListeningResultReviewDeliveryIssuer();
+type TrackReviewAction = React.ComponentProps<typeof SavedSectionAudio>['onAction'];
+
+function ListeningSavedSectionAudio({ resultId, versionId, viewer, section, issuer, onAction }: {
+  resultId: string;
+  versionId: string;
+  viewer: string;
+  section: { sectionNumber: number; assetId: string };
+  issuer: ListeningResultReviewAudioDeliveryIssuer;
+  onAction: TrackReviewAction;
+}) {
+  const issue = useCallback((handle?: string, signal?: AbortSignal) => issuer.issue({
+    assetId: section.assetId,
+    context: { runtime: 'trusted-server', callerUserId: viewer },
+    now: Date.now(),
+    resultScope: { resultId, versionId },
+  }, handle, signal), [issuer, resultId, section.assetId, versionId, viewer]);
+  return <SavedSectionAudio sectionNumber={section.sectionNumber} issue={issue} onAction={onAction} />;
+}
+
+type ThcsReviewSections = Awaited<ReturnType<ExternalAudioClient['readThcsResult']>>;
+function ThcsSavedSectionAudio({ client, testId, resultId, versionId, section, onAction }: {
+  client: ExternalAudioClient;
+  testId: string;
+  resultId: string;
+  versionId: string;
+  section: ThcsReviewSections['sections'][number];
+  onAction: TrackReviewAction;
+}) {
+  const { assetId, sectionId, sectionNumber } = section;
+  const issue = useCallback((handle?: string, signal?: AbortSignal) => client.playThcs({
+    testId, resultId, versionId, assetId, sectionId,
+  }, signal, handle), [assetId, client, resultId, sectionId, testId, versionId]);
+  return <SavedSectionAudio sectionNumber={sectionNumber} issue={issue} onAction={onAction} />;
+}
+
+function ThcsSavedAudio({ testId, resultId, onAction }: { testId: string; resultId: string; onAction: TrackReviewAction }) {
+  const { user } = useAuth();
+  const origin = resolveThcsAudioOrigin();
+  const client = useMemo(() => user && origin
+    ? createExternalAudioClient(origin, () => user.getIdToken()) : null, [origin, user]);
+  const [recordings, setRecordings] = useState<ThcsReviewSections | null>(null);
+  const [error, setError] = useState(false);
+  useEffect(() => {
+    if (!client) return;
+    const controller = new AbortController();
+    client.readThcsResult(testId, resultId, controller.signal).then((data) => {
+      if (!controller.signal.aborted) setRecordings(data);
+    }, () => { if (!controller.signal.aborted) setError(true); });
+    return () => controller.abort();
+  }, [client, resultId, testId]);
+  if (!client) return null;
+  if (error) return <p role="alert">The saved recordings are unavailable.</p>;
+  if (!recordings) return <p role="status">Loading saved recordings…</p>;
+  return recordings.sections.map((section) => <ThcsSavedSectionAudio key={section.sectionId} client={client}
+    testId={testId} resultId={resultId} versionId={recordings.versionId} section={section} onAction={onAction} />);
+}
 
 /* ─── Helpers ────────────────────────────────────────────────────────────── */
 
@@ -216,6 +277,7 @@ export const SharedSavedResultCore: React.FC<SharedSavedResultCoreProps> = ({
   listeningResultReviewDeliveryIssuer,
   listeningResultReviewNow,
 }) => {
+  const { trackAction } = useFeatureTracking(FEATURE_IDS.results);
   const sections = useMemo(
     () => ({ ...DEFAULT_SECTIONS, ...sectionsProp }),
     [sectionsProp],
@@ -365,6 +427,13 @@ export const SharedSavedResultCore: React.FC<SharedSavedResultCoreProps> = ({
           />
         </div>
       )}
+      {showQuestionReview && !sourceMaterialRemoved && result.materialVersionId && (result.listeningReviewSections ?? []).map((section) =>
+        <ListeningSavedSectionAudio key={`${result.resultId}:${section.sectionNumber}`} resultId={result.resultId}
+          versionId={result.materialVersionId!} viewer={result.studentId} section={section}
+          issuer={listeningResultReviewDeliveryIssuer ?? defaultListeningResultReviewDeliveryIssuer} onAction={trackAction} />
+      )}
+      {showQuestionReview && !sourceMaterialRemoved && result.testType === 'THCS-THPT' && result.materialVersionId &&
+        <ThcsSavedAudio key={result.resultId} testId={result.testId} resultId={result.resultId} onAction={trackAction} />}
 
       {/* ── Question Review ── */}
       {showQuestionReview && (

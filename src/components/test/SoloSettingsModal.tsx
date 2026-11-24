@@ -1,7 +1,5 @@
-import React from 'react';
-import { Modal, Switch, Select, Button, Group, Text, Box } from '@mantine/core';
-import { Slider } from '@mantine/core';
-
+import React, { useEffect, useId, useRef, useState } from 'react';
+import { Button } from '@/components/modern/Button';
 import type { ResolvedPracticeSettings, StudentSoloPreferences } from '../../types/practice.types';
 
 interface SoloSettingsModalProps {
@@ -14,6 +12,8 @@ interface SoloSettingsModalProps {
     onExit?: () => void;
 }
 
+const SPEED_OPTIONS = ['0.75', '1.0', '1.25', '1.5', '2.0'] as const;
+
 export const SoloSettingsModal: React.FC<SoloSettingsModalProps> = ({
     opened,
     onClose,
@@ -23,22 +23,37 @@ export const SoloSettingsModal: React.FC<SoloSettingsModalProps> = ({
     onPrefsChange,
     onExit,
 }) => {
-    const [localPrefs, setLocalPrefs] = React.useState<StudentSoloPreferences>(studentPrefs);
+    const titleId = useId();
+    const speedSelectId = useId();
+    const fontSizeId = useId();
+    const lineSpacingId = useId();
+    const [localPrefs, setLocalPrefs] = useState<StudentSoloPreferences>(studentPrefs);
+    const panelRef = useRef<HTMLDivElement>(null);
 
-    React.useEffect(() => {
+    useEffect(() => {
         setLocalPrefs(studentPrefs);
     }, [studentPrefs, opened]);
+
+    useEffect(() => {
+        if (!opened) return;
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') onClose();
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [opened, onClose]);
+
+    if (!opened) return null;
 
     const handleSave = () => {
         onPrefsChange(localPrefs);
         onClose();
     };
 
-    const updatePref = (key: keyof StudentSoloPreferences, value: any) => {
-        setLocalPrefs(prev => ({ ...prev, [key]: value }));
+    const updatePref = <K extends keyof StudentSoloPreferences>(key: K, value: StudentSoloPreferences[K]) => {
+        setLocalPrefs((prev) => ({ ...prev, [key]: value }));
     };
 
-    // Check if teacher locked settings (not from default = teacher set it)
     const isTimerLocked = resolvedSettings._sources?.['reading.showTimer'] !== undefined
         && resolvedSettings._sources?.['reading.showTimer'] !== 'material_owner_default';
     const isReplayLocked = !resolvedSettings.listening.allowReplay;
@@ -50,177 +65,234 @@ export const SoloSettingsModal: React.FC<SoloSettingsModalProps> = ({
     const showReading = normalizedTestSkill === 'reading';
     const showListening = normalizedTestSkill === 'listening';
 
-    return (
-        <Modal
-            opened={opened}
-            onClose={onClose}
-            title={<Text fw={700} size="lg">Practice Settings</Text>}
-            size="md"
-            radius="md"
-            padding="xl"
-        >
-            <Box mb="xl">
-                {showReading && (
-                    <Box mb="xl">
-                        <Text fw={600} size="md" mb="md" c="blue.7">Reading & Display</Text>
+    const badgeStyle = (allowed: boolean): React.CSSProperties => ({
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '3px 10px',
+        borderRadius: 999,
+        fontSize: 12,
+        fontWeight: 600,
+        whiteSpace: 'nowrap',
+        background: allowed ? '#e8f7ee' : '#fef3c7',
+        color: allowed ? '#166534' : '#92400e',
+    });
 
-                        <Box mb="md">
-                            <Group justify="space-between" mb="xs">
-                                <Text size="sm" fw={500}>Font Size ({localPrefs.fontSize}px)</Text>
-                            </Group>
-                            <Slider
-                                value={localPrefs.fontSize}
-                                onChange={(v) => updatePref('fontSize', v)}
+    const rowStyle: React.CSSProperties = {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        padding: '10px 0',
+        borderBottom: '1px solid #e2e8f0',
+    };
+
+    return (
+        <div
+            role="presentation"
+            onClick={(event) => {
+                if (event.target === event.currentTarget) onClose();
+            }}
+            style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 1000,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 16,
+                background: 'rgba(15, 23, 42, 0.45)',
+            }}
+        >
+            <div
+                ref={panelRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={titleId}
+                style={{
+                    width: '100%',
+                    maxWidth: 460,
+                    maxHeight: '90dvh',
+                    overflowY: 'auto',
+                    background: '#fff',
+                    borderRadius: 12,
+                    padding: 24,
+                    boxShadow: '0 20px 50px rgba(15, 23, 42, 0.2)',
+                    color: '#0f172a',
+                    display: 'grid',
+                    gap: 20,
+                }}
+            >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                    <h2 id={titleId} style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Practice Settings</h2>
+                    <button
+                        type="button"
+                        aria-label="Close settings"
+                        onClick={onClose}
+                        style={{
+                            border: 'none',
+                            background: 'transparent',
+                            color: '#64748b',
+                            fontSize: 20,
+                            lineHeight: 1,
+                            cursor: 'pointer',
+                            padding: 4,
+                        }}
+                    >
+                        ×
+                    </button>
+                </div>
+
+                {showReading && (
+                    <section style={{ display: 'grid', gap: 12 }}>
+                        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#1d4ed8' }}>Reading &amp; Display</h3>
+
+                        <label htmlFor={fontSizeId} style={{ display: 'grid', gap: 6, fontSize: 14, fontWeight: 500 }}>
+                            <span>Font Size ({localPrefs.fontSize}px)</span>
+                            <input
+                                id={fontSizeId}
+                                type="range"
                                 min={12}
                                 max={24}
                                 step={1}
-                                marks={[
-                                    { value: 12, label: '12' },
-                                    { value: 16, label: '16' },
-                                    { value: 20, label: '20' },
-                                    { value: 24, label: '24' },
-                                ]}
-                                pb="xl"
+                                value={localPrefs.fontSize}
+                                onChange={(event) => updatePref('fontSize', Number(event.currentTarget.value))}
                             />
-                        </Box>
+                        </label>
 
-                        <Box mb="md">
-                            <Group justify="space-between" mb="xs">
-                                <Text size="sm" fw={500}>Line Spacing ({localPrefs.lineSpacing})</Text>
-                            </Group>
-                            <Slider
-                                value={localPrefs.lineSpacing}
-                                onChange={(v) => updatePref('lineSpacing', v)}
+                        <label htmlFor={lineSpacingId} style={{ display: 'grid', gap: 6, fontSize: 14, fontWeight: 500 }}>
+                            <span>Line Spacing ({localPrefs.lineSpacing})</span>
+                            <input
+                                id={lineSpacingId}
+                                type="range"
                                 min={1.0}
                                 max={2.5}
                                 step={0.1}
-                                marks={[
-                                    { value: 1.0, label: '1.0' },
-                                    { value: 1.5, label: '1.5' },
-                                    { value: 2.0, label: '2.0' },
-                                    { value: 2.5, label: '2.5' },
-                                ]}
-                                pb="xl"
+                                value={localPrefs.lineSpacing}
+                                onChange={(event) => updatePref('lineSpacing', Number(event.currentTarget.value))}
                             />
-                        </Box>
+                        </label>
 
-                        <Group justify="space-between" mt="md" mb="md">
-                            <Box>
-                                <Text size="sm" fw={500}>Highlighter Tool</Text>
-                                <Text size="xs" c="dimmed">Enable text highlighting on passages</Text>
-                            </Box>
-                            <Switch
+                        <label style={rowStyle}>
+                            <span>
+                                <strong style={{ display: 'block', fontSize: 14 }}>Highlighter Tool</strong>
+                                <span style={{ fontSize: 12, color: '#64748b' }}>Enable text highlighting on passages</span>
+                            </span>
+                            <input
+                                type="checkbox"
                                 checked={localPrefs.highlighterEnabled}
-                                onChange={(e) => updatePref('highlighterEnabled', e.currentTarget.checked)}
+                                onChange={(event) => updatePref('highlighterEnabled', event.currentTarget.checked)}
                             />
-                        </Group>
+                        </label>
 
-                        <Group justify="space-between" mb="md" title={isTimerLocked ? "Set by teacher" : ""}>
-                            <Box>
-                                <Text size="sm" fw={500} c={isTimerLocked ? "dimmed" : undefined}>Show Timer</Text>
-                                <Text size="xs" c="dimmed">
-                                    Display the countdown clock
-                                    {isTimerLocked && <span style={{ color: '#f59e0b', marginLeft: 4 }}>🔒 Teacher locked</span>}
-                                </Text>
-                            </Box>
-                            <Switch
+                        <label style={rowStyle} title={isTimerLocked ? 'Set by teacher' : undefined}>
+                            <span>
+                                <strong style={{ display: 'block', fontSize: 14, color: isTimerLocked ? '#64748b' : undefined }}>Show Timer</strong>
+                                <span style={{ fontSize: 12, color: '#64748b' }}>
+                                    Display the countdown clock{isTimerLocked ? ' · Locked by teacher' : ''}
+                                </span>
+                            </span>
+                            <input
+                                type="checkbox"
                                 checked={localPrefs.showTimer}
-                                onChange={(e) => updatePref('showTimer', e.currentTarget.checked)}
                                 disabled={isTimerLocked}
+                                onChange={(event) => updatePref('showTimer', event.currentTarget.checked)}
                             />
-                        </Group>
+                        </label>
 
-                        <Group justify="space-between" mb="xl">
-                            <Box>
-                                <Text size="sm" fw={500}>Dark Mode</Text>
-                                <Text size="xs" c="dimmed">Use dark theme for reading</Text>
-                            </Box>
-                            <Switch
+                        <label style={{ ...rowStyle, borderBottom: 'none' }}>
+                            <span>
+                                <strong style={{ display: 'block', fontSize: 14 }}>Dark Mode</strong>
+                                <span style={{ fontSize: 12, color: '#64748b' }}>Use dark theme for reading</span>
+                            </span>
+                            <input
+                                type="checkbox"
                                 checked={localPrefs.darkMode}
-                                onChange={(e) => updatePref('darkMode', e.currentTarget.checked)}
+                                onChange={(event) => updatePref('darkMode', event.currentTarget.checked)}
                             />
-                        </Group>
-                    </Box>
+                        </label>
+                    </section>
                 )}
 
                 {showListening && (
-                    <Box>
-                        <Text fw={600} size="md" mb="md" c="blue.7">Listening Audio</Text>
+                    <section style={{ display: 'grid', gap: 12 }}>
+                        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#1d4ed8' }}>Listening Audio</h3>
 
-                        {/* Audio Speed */}
-                        <Box mb="md" title={isSpeedLocked ? "Disabled by teacher" : ""}>
-                            <Select
-                                label="Audio Speed"
-                                description={isSpeedLocked ? "Speed control disabled by teacher" : "Adjust playback speed"}
-                                data={['0.75', '1.0', '1.25', '1.5', '2.0']}
-                                value={localPrefs.audioSpeed.toString()}
-                                onChange={(v) => updatePref('audioSpeed', parseFloat(v || '1.0'))}
+                        <label htmlFor={speedSelectId} style={{ display: 'grid', gap: 6 }}>
+                            <span style={{ fontSize: 14, fontWeight: 600 }}>Audio Speed</span>
+                            <span style={{ fontSize: 12, color: '#64748b' }}>
+                                {isSpeedLocked ? 'Speed control disabled by teacher' : 'Adjust playback speed'}
+                            </span>
+                            <select
+                                id={speedSelectId}
+                                value={localPrefs.audioSpeed.toFixed(localPrefs.audioSpeed % 1 === 0 ? 1 : localPrefs.audioSpeed === 0.75 || localPrefs.audioSpeed === 1.25 ? 2 : 1)}
                                 disabled={isSpeedLocked}
-                            />
-                        </Box>
+                                onChange={(event) => updatePref('audioSpeed', parseFloat(event.currentTarget.value) || 1.0)}
+                                style={{
+                                    width: '100%',
+                                    height: 38,
+                                    padding: '6px 12px',
+                                    borderRadius: 8,
+                                    border: '1px solid #cbd5e1',
+                                    background: isSpeedLocked ? '#f1f5f9' : '#fff',
+                                    color: '#0f172a',
+                                    fontSize: 14,
+                                }}
+                            >
+                                {SPEED_OPTIONS.map((option) => (
+                                    <option key={option} value={option}>{option}x</option>
+                                ))}
+                            </select>
+                        </label>
 
-                        {/* Replay Audio — uses the resolved allowReplay setting */}
-                        <Group justify="space-between" mb="md">
-                            <Box>
-                                <Text size="sm" fw={500} c={isReplayLocked ? "dimmed" : undefined}>Replay Audio</Text>
-                                <Text size="xs" c="dimmed">
+                        <div style={rowStyle}>
+                            <div>
+                                <div style={{ fontSize: 14, fontWeight: 500 }}>Replay Audio</div>
+                                <div style={{ fontSize: 12, color: '#64748b' }}>
                                     Allow replaying audio sections
-                                    {isReplayLocked && <span style={{ color: '#f59e0b', marginLeft: 4 }}>🔒 Teacher locked</span>}
-                                    {!isReplayLocked && resolvedSettings.listening.maxReplays != null && (
-                                        <span style={{ color: '#6b7280', marginLeft: 4 }}>
-                                            (max {resolvedSettings.listening.maxReplays} replays)
-                                        </span>
-                                    )}
-                                </Text>
-                            </Box>
-                            <Switch
-                                checked={resolvedSettings.listening.allowReplay}
-                                disabled={true} // Teacher controls this, student cannot toggle
-                            />
-                        </Group>
+                                    {!isReplayLocked && resolvedSettings.listening.maxReplays != null
+                                        ? ` (max ${resolvedSettings.listening.maxReplays})`
+                                        : ''}
+                                </div>
+                            </div>
+                            <span style={badgeStyle(!isReplayLocked)}>
+                                {isReplayLocked ? 'Locked by teacher' : 'Allowed'}
+                            </span>
+                        </div>
 
-                        {/* Skip to Section */}
-                        <Group justify="space-between" mb="md">
-                            <Box>
-                                <Text size="sm" fw={500} c={isSkipLocked ? "dimmed" : undefined}>Skip to Section</Text>
-                                <Text size="xs" c="dimmed">
-                                    Jump between audio sections
-                                    {isSkipLocked && <span style={{ color: '#f59e0b', marginLeft: 4 }}>🔒 Teacher locked</span>}
-                                </Text>
-                            </Box>
-                            <Switch
-                                checked={resolvedSettings.listening.allowSkipSection}
-                                disabled={true} // Teacher controls this
-                            />
-                        </Group>
+                        <div style={rowStyle}>
+                            <div>
+                                <div style={{ fontSize: 14, fontWeight: 500 }}>Skip to Section</div>
+                                <div style={{ fontSize: 12, color: '#64748b' }}>Jump between audio sections</div>
+                            </div>
+                            <span style={badgeStyle(!isSkipLocked)}>
+                                {isSkipLocked ? 'Locked by teacher' : 'Allowed'}
+                            </span>
+                        </div>
 
-                        {/* Pause Audio */}
-                        <Group justify="space-between" mb="md">
-                            <Box>
-                                <Text size="sm" fw={500} c={isPauseAudioLocked ? "dimmed" : undefined}>Pause Audio</Text>
-                                <Text size="xs" c="dimmed">
-                                    Pause during playback
-                                    {isPauseAudioLocked && <span style={{ color: '#f59e0b', marginLeft: 4 }}>🔒 Teacher locked</span>}
-                                </Text>
-                            </Box>
-                            <Switch
-                                checked={resolvedSettings.listening.allowPauseAudio}
-                                disabled={true} // Teacher controls this
-                            />
-                        </Group>
-                    </Box>
+                        <div style={{ ...rowStyle, borderBottom: 'none' }}>
+                            <div>
+                                <div style={{ fontSize: 14, fontWeight: 500 }}>Pause Audio</div>
+                                <div style={{ fontSize: 12, color: '#64748b' }}>Pause during playback</div>
+                            </div>
+                            <span style={badgeStyle(!isPauseAudioLocked)}>
+                                {isPauseAudioLocked ? 'Locked by teacher' : 'Allowed'}
+                            </span>
+                        </div>
+                    </section>
                 )}
-            </Box>
 
-            <Group justify={onExit ? "space-between" : "flex-end"}>
-                {onExit && (
-                    <Button variant="outline" color="red" onClick={onExit}>Exit</Button>
-                )}
-                <Group gap="sm">
-                <Button variant="subtle" onClick={onClose} color="gray">Cancel</Button>
-                <Button onClick={handleSave} color="blue">Save Settings</Button>
-                </Group>
-            </Group>
-        </Modal>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: onExit ? 'space-between' : 'flex-end', gap: 12, paddingTop: 4 }}>
+                    {onExit && (
+                        <Button type="button" variant="outline" size="sm" onClick={onExit} style={{ borderColor: '#fca5a5', color: '#b91c1c' }}>
+                            Exit
+                        </Button>
+                    )}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        <Button type="button" variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+                        <Button type="button" size="sm" onClick={handleSave}>Save Settings</Button>
+                    </div>
+                </div>
+            </div>
+        </div>
     );
 };

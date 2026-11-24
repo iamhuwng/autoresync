@@ -9,8 +9,14 @@ import { stripAnswerKeys } from '../../../../src/utils/answerKeyHelper';
 export const buildListeningStudentSafeDocument = (document: ListeningPublishedVersionRecord['document']) => {
   const { transcript, ...metadata } = document.metadata;
   void transcript;
-  return { ...document, metadata, questions: stripAnswerKeys([...document.questions]).map(question => {
-    const { acceptableAnswers, explanation, ...studentQuestion } = question as Record<string, unknown>;
+  const audioSections = document.audioSections.map((section) => {
+    if (!section.externalAudio) return section;
+    const { externalAudio, streamUrl, ...studentAudio } = section;
+    void streamUrl;
+    return { ...studentAudio, assetId: externalAudio.assetId, audioUrl: '' };
+  });
+  return { ...document, metadata, audioSections, questions: stripAnswerKeys([...document.questions]).map(question => {
+    const { acceptableAnswers, explanation, ...studentQuestion } = question;
     void acceptableAnswers;
     void explanation;
     return studentQuestion;
@@ -26,6 +32,7 @@ export const buildListeningPublishedMaterialUpdates = (
     throw new Error('Listening runtime owner does not match published version owner.');
   }
   const archived = version.archive.state === 'archived';
+  const hasExternalAudio = version.document.audioSections.some((section) => section.externalAudio);
   const runtime: Record<string, unknown> = {
     ...buildListeningStudentSafeDocument(version.document),
     id: version.testId,
@@ -34,11 +41,13 @@ export const buildListeningPublishedMaterialUpdates = (
     createdAt: previousRuntime?.createdAt ?? version.publishedAt,
     updatedAt: archived ? version.archive.archivedAt ?? version.publishedAt : version.publishedAt,
     isPublished: !archived,
+    isPublic: version.document.isPublic && !(archived && hasExternalAudio),
     state: archived ? 'archived' : 'active',
     visibility: version.document.isPublic ? 'public' : 'private',
     versionId: version.versionId,
     publishedSnapshotVersionId: version.versionId,
     deliveryProjectionReady: !archived,
+    requiresAudioAttempt: hasExternalAudio || null,
     hasStudentSafeProjection: !archived,
   };
   const summary = { ...createLegacyTestMaterialSummary(
@@ -50,6 +59,7 @@ export const buildListeningPublishedMaterialUpdates = (
     ...runtime,
     ...buildListeningStudentSafeDocument(version.document),
   };
+  const studentSafePath = `student_safe_tests/${version.testId}`;
   const runtimePath = `tests/${version.testId}`;
   const runtimeUpdates = Object.fromEntries(Object.entries({
     // Legacy version pointers outrank versionId in delivery adapters.
@@ -65,8 +75,12 @@ export const buildListeningPublishedMaterialUpdates = (
     .map(([key, value]) => [`${runtimePath}/${key}`, value]));
   return {
     ...runtimeUpdates,
-    // Existing homework retains its delivery copy after the source is archived.
-    ...(archived ? {} : { [`student_safe_tests/${version.testId}`]: studentSafe }),
+    // External Homework uses its authorized immutable version rather than the public projection.
+    ...(archived
+      ? (hasExternalAudio && version.document.isPublic ? { [studentSafePath]: null } : {})
+      : { [studentSafePath]: hasExternalAudio && !version.document.isPublic
+        ? { id: version.testId, questionCount: version.document.questionCount, updatedAt: version.publishedAt }
+        : studentSafe }),
     ...buildMaterialSummaryUpdatePayload(summary, previousSummary),
   };
 };

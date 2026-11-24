@@ -153,6 +153,10 @@ class R2StorageService {
         return Promise.all(tempKeys.map((key) => this.moveToPermanent(key)));
     }
 
+    promoteDraftImage(tempKey: string): Promise<MoveResult> {
+        return this.client.promoteDraftImage(tempKey);
+    }
+
     getKeyFromUrl(url: string): string | null {
         const publicPrefix = `${R2_PUBLIC_URL}/`;
         if (!url.startsWith(publicPrefix)) return null;

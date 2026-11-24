@@ -28,6 +28,7 @@ export interface ListeningSoloDeliveryInput {
   readonly studentId?: string;
   readonly now: number;
   readonly scopeContext: SoloProgressScopeContext;
+  readonly courseAttempt?: ListeningDeliverySoloScope['courseAttempt'];
   readonly section: ListeningSoloDeliveryAudioSection;
   readonly deliveryIssuer?: ListeningSoloDeliveryIssuer;
 }
@@ -61,6 +62,7 @@ export interface RefreshListeningSoloAudioDeliveryInput {
   readonly studentId?: string;
   readonly now: number;
   readonly scopeContext: SoloProgressScopeContext;
+  readonly courseAttempt?: ListeningDeliverySoloScope['courseAttempt'];
   readonly deliveryIssuer: ListeningSoloDeliveryIssuer;
 }
 
@@ -100,6 +102,7 @@ const buildSoloScope = (input: {
   readonly versionId: string;
   readonly studentId: string;
   readonly scopeContext: SoloProgressScopeContext;
+  readonly courseAttempt?: ListeningDeliverySoloScope['courseAttempt'];
 }): ListeningDeliverySoloScope => {
   if (input.scopeContext.mode === 'homework') {
     return {
@@ -120,6 +123,7 @@ const buildSoloScope = (input: {
       mode: 'course_material',
       courseId: input.scopeContext.courseId,
       moduleId: input.scopeContext.moduleId,
+      ...(input.courseAttempt ? { courseAttempt: input.courseAttempt } : {}),
     };
   }
 
@@ -173,6 +177,7 @@ export async function resolveListeningSoloAudioSection(
       versionId,
       studentId: input.studentId,
       scopeContext: input.scopeContext,
+      courseAttempt: input.courseAttempt,
     }),
   });
 
@@ -214,6 +219,7 @@ export async function refreshListeningSoloAudioDelivery(
       versionId: input.materialVersionId,
       studentId: input.studentId,
       scopeContext: input.scopeContext,
+      courseAttempt: input.courseAttempt,
     }),
   });
 }

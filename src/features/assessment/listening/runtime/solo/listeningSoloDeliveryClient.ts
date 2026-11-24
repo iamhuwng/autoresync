@@ -48,7 +48,7 @@ const readErrorMessage = (body: unknown, fallback: string): string => {
     return body.message;
   }
   if (isRecord(body) && typeof body.code === 'string' && body.code.trim()) {
-    return body.code;
+    return body.code === 'external_audio_unavailable' ? 'The recording is unavailable. Ask your teacher to check the recording.' : body.code;
   }
   return fallback;
 };
@@ -132,16 +132,20 @@ export function createListeningSoloDeliveryIssuer(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(stripUndefined({
-        assetId: input.assetId,
+        assetId: previous?.assetId ?? input.assetId,
         testId: input.soloScope.testId,
         versionId: input.soloScope.versionId,
         mode: input.soloScope.mode,
         courseId: input.soloScope.courseId,
         moduleId: input.soloScope.moduleId,
+        operationId: input.soloScope.courseAttempt?.operationId,
+        courseAttemptHandle: input.soloScope.courseAttempt?.handle,
         homeworkId: input.soloScope.homeworkId,
         submissionId: input.soloScope.submissionId,
-        previous,
+        ...(previous?.refreshHandle ? { refreshHandle: previous.refreshHandle } : { previous }),
       })),
+      cache: 'no-store',
+      referrerPolicy: 'no-referrer',
     });
     const responseBody = await readJsonBody(response);
 

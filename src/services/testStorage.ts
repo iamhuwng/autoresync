@@ -17,6 +17,8 @@ import type {
 } from '../types/document.types';
 import type { MaterialSoloConfig } from '../types/solo.types';
 import type { QuestionGroupsField } from '../types/tableCompletion';
+import type { DraftSectionAudio } from '../types/assessmentAudio.types';
+import type { AudioControlsConfig } from '../types/listening.types';
 import { isReadingV2Payload } from '../config/readingV2FeatureFlags';
 import { stripAnswerKeys } from '../utils/answerKeyHelper';
 import {
@@ -47,6 +49,7 @@ export interface AudioSection {
   audioUrl: string;
   streamUrl?: string;
   assetId?: string;
+  externalAudio?: DraftSectionAudio;
   versionId?: string;
   startQuestion: number;
   endQuestion: number;
@@ -68,6 +71,7 @@ export interface ContextResource {
   // Audio specific
   audioUrl?: string;
   assetId?: string;
+  externalAudio?: DraftSectionAudio;
   uploadSessionId?: string;
   streamUrl?: string;
   // Image specific
@@ -82,6 +86,7 @@ export interface TestData {
   id: string;
   versionId?: string;
   publishedSnapshotVersionId?: string;
+  requiresAudioAttempt?: boolean;
   title: string;
   type: 'IELTS' | 'TOEFL' | 'Custom' | 'College Entrance' | 'THCS-THPT';
   skill: 'Reading' | 'Listening' | 'Writing' | 'Speaking' | 'Mixed';
@@ -180,6 +185,7 @@ export interface TestData {
     showResults: 'immediate' | 'after-submission' | 'never';
     allowReview: boolean;
     passingScore: number;
+    audioControls?: AudioControlsConfig;
   };
 
   statistics: {

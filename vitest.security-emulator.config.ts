@@ -8,6 +8,8 @@ export default defineConfig({
       'src/__tests__/security/notificationFirebaseRules.emulator.test.ts',
       'src/__tests__/security/teacher-writing-homework-access.emulator.test.ts',
       'src/__tests__/security/student-private-thcs-homework-current-rules.emulator.test.ts',
+      'src/__tests__/security/externalAudioCredentialRules.emulator.test.ts',
+      'src/__tests__/security/externalAudioPublishRules.emulator.test.ts',
     ],
     fileParallelism: false,
     maxWorkers: 1,

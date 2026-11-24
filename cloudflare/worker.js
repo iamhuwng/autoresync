@@ -3,6 +3,7 @@ import { createFirebaseVerifier } from './src/upload-worker/firebase-verificatio
 import {
   corsResponseHeaders,
   handleCorsPreflight,
+  isApprovedLocalAppOrigin,
   rejectDisallowedActualOrigin,
 } from './src/upload-worker/cors-policy.js';
 import {
@@ -17,15 +18,18 @@ import {
   handleAuthorizeUpload,
   handleGrantMove,
   handleGrantUpload,
+  handlePromoteDraftImage,
 } from './src/upload-worker/request-handlers.js';
 import { handleListeningUploadSessionGrant } from './src/upload-worker/listening-upload-session-grant.ts';
 import { createListeningAuthoringWorkerHandlers } from './src/upload-worker/listening-authoring.ts';
 import { createListeningUploadSessionHandlers } from './src/upload-worker/listening-upload-session.ts';
-import { createListeningDeliveryWorkerHandlers } from './src/upload-worker/listening-delivery.ts';
+import { createListeningDeliveryWorkerHandlers, readListeningDatabaseValue } from './src/upload-worker/listening-delivery.ts';
 import { createListeningSubmitWorkerHandlers } from './src/upload-worker/listening-submit.ts';
 import { createBookRouter } from './src/upload-worker/book-router.ts';
 import { createProductionBookAssemblyRouteOptions } from './src/upload-worker/book-assembly/production-composition.ts';
 import { createStudentAuthWorkerHandlers } from './src/upload-worker/student-auth/worker.ts';
+import { handleExternalAudioRoute, resolveExternalAudioRoute } from './src/upload-worker/external-audio/route.ts';
+import { externalAudioDraftsEnabled, externalAudioThcsEnabled } from './src/upload-worker/external-audio/draft-assets.ts';
 
 /**
  * R2 Upload Worker with Smart Cleanup Support
@@ -147,14 +151,37 @@ export function createUploadWorker({
       const bookResponse = await canonicalBookRouter.fetch(request, env, ctx);
       if (bookResponse) return bookResponse;
 
+      let externalAudio;
+      if (url.pathname.startsWith('/external-audio/')) {
+        externalAudio = resolveExternalAudioRoute(url.pathname);
+        if (!externalAudio || env.EXTERNAL_AUDIO_ROUTES_ENABLED !== 'enabled'
+          || (externalAudio.draftOnly && !externalAudioDraftsEnabled(env, request))
+          || (externalAudio.thcsOnly && !externalAudioThcsEnabled(env, request))) {
+          return new Response(null, { status: 404, headers: { 'Cache-Control': 'no-store' } });
+        }
+        const origin = request.headers.get('Origin');
+        if (origin && !isApprovedLocalAppOrigin(origin, env)) {
+          return new Response(null, { status: 403, headers: { Vary: 'Origin' } });
+        }
+        const method = request.method === 'OPTIONS' ? request.headers.get('Access-Control-Request-Method') : request.method;
+        if (method?.toUpperCase() !== 'POST') {
+          return new Response(null, { status: 405, headers: { ...corsResponseHeaders(request, env), Allow: 'OPTIONS, POST' } });
+        }
+      }
+
       if (request.method === 'OPTIONS') {
-        return handleCorsPreflight(request, env);
+        const preflight = handleCorsPreflight(request, env);
+        if (externalAudio && preflight.ok) preflight.headers.set('Access-Control-Allow-Methods', 'OPTIONS, POST');
+        return preflight;
       }
 
       const corsRejection = rejectDisallowedActualOrigin(request, env);
       if (corsRejection) return corsRejection;
 
       const corsHeaders = corsResponseHeaders(request, env);
+      if (externalAudio && corsHeaders['Access-Control-Allow-Methods']) {
+        corsHeaders['Access-Control-Allow-Methods'] = 'OPTIONS, POST';
+      }
       const json = (body, init = {}) => jsonResponse(body, withHeaders(init, corsHeaders));
       const text = (body, init = {}) => textResponse(body, withHeaders(init, corsHeaders));
       const respond = ({ body, init = {} }) => json(body, init);
@@ -191,7 +218,17 @@ export function createUploadWorker({
         const auth = await authenticate(request, env, firebaseVerifier, corsHeaders);
         if (auth.response) return auth.response;
         const { uid } = auth;
-        await enforceRateLimit({ env, uid, request });
+        const playbackGroup = ['/listening-delivery/solo', '/listening-delivery/result-review', '/listening-delivery/course-open'].includes(url.pathname)
+          && externalAudioDraftsEnabled(env, request)
+          ? 'external-audio:playback' : undefined;
+        await enforceRateLimit({ env, uid, request, group: externalAudio?.limiterGroup ?? playbackGroup });
+
+        if (externalAudio) {
+          return respond(await handleExternalAudioRoute({
+            request, env, uid, action: externalAudio.action, now,
+            readAppValue: (path) => readListeningDatabaseValue(env, path),
+          }));
+        }
 
         if (url.pathname === '/thcs/gemma' && request.method === 'POST') {
           return handleThcsGemma(request, env, uid, json);
@@ -204,6 +241,10 @@ export function createUploadWorker({
             uid,
             now,
           }));
+        }
+
+        if (url.pathname === '/thcs/draft-images/promote' && request.method === 'POST') {
+          return respond(await handlePromoteDraftImage({ request, env, uid }));
         }
 
         if (
@@ -285,6 +326,9 @@ export function createUploadWorker({
 
         if (request.method === 'POST' && url.pathname === '/listening-delivery/homework-document') {
           return respond(await listeningDeliveryHandlers.homeworkDocument({ request, env, uid, now }));
+        }
+        if (request.method === 'POST' && url.pathname === '/listening-delivery/course-open') {
+          return respond(await listeningDeliveryHandlers.courseOpen({ request, env, uid, now }));
         }
         if (request.method === 'POST' && url.pathname === '/listening-delivery/submit') {
           return respond(await listeningSubmitHandlers.submit({ request, env, uid, now }));

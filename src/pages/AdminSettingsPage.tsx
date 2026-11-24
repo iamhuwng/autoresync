@@ -46,6 +46,8 @@ import { createMaterialBooksRepository } from '../services/materialCatalog/mater
 import { refreshPublicBookReadiness } from '../services/materialCatalog/publicBookReadiness.client';
 import { resolveBookDeliveryWorkerOrigin } from '../services/book-delivery/bookDelivery.browser';
 import AIMaintenanceBanner from '../components/ai/AIMaintenanceBanner';
+import { ExternalAudioImpactCounts } from '../components/external-audio/ExternalAudioStorage';
+import { createExternalAudioClient, externalAudioHealth, type AdminAudioConnection, type ExternalAudioImpact } from '../services/externalAudioClient';
 
 // ============================================================================
 // Types
@@ -78,7 +80,90 @@ interface ReportingCategories {
     diagnostics: boolean;
 }
 
-type AdminSettingsSection = 'api_keys' | 'tags' | 'reporting' | 'test_types' | 'public_book_reviews';
+type AdminSettingsSection = 'api_keys' | 'tags' | 'reporting' | 'test_types' | 'public_book_reviews' | 'external_audio';
+
+const ExternalAudioHealthSection: React.FC<{
+    user: NonNullable<ReturnType<typeof useAuth>['user']>;
+    track: (action: string, metadata?: Record<string, unknown>) => void;
+}> = ({ user, track }) => {
+    const [rows, setRows] = useState<AdminAudioConnection[]>([]);
+    const [error, setError] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [impact, setImpact] = useState<Record<string, ExternalAudioImpact | 'checking' | 'unavailable'>>({});
+    const client = useMemo(() => {
+        const origin = import.meta.env.VITE_R2_UPLOAD_WORKER_URL as string | undefined;
+        return origin ? createExternalAudioClient(origin, () => user.getIdToken()) : null;
+    }, [user]);
+    const load = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            if (!client) throw new Error('External audio health is unavailable.');
+            const result = await client.adminHealth();
+            const order = { active: 0, archived: 1, revoked: 2 };
+            setRows(result.connections.sort((a, b) => order[a.state] - order[b.state] || b.checkedAt - a.checkedAt));
+        } catch { setError('External audio health is unavailable.'); }
+        finally { setLoading(false); }
+    }, [client]);
+    useEffect(() => { void load(); }, [load]);
+
+    async function loadImpact(row: AdminAudioConnection) {
+        track('viewExternalAudioAdminImpact');
+        setImpact((current) => ({ ...current, [row.id]: 'checking' }));
+        try {
+            if (!client) throw new Error('External audio health is unavailable.');
+            const counts = await client.adminImpact(row.ownerId, row.id);
+            setImpact((current) => ({ ...current, [row.id]: counts }));
+        } catch {
+            setImpact((current) => ({ ...current, [row.id]: 'unavailable' }));
+        }
+    }
+
+    return <Card variant="glass" style={{ padding: '1.5rem' }}>
+        <div className="external-audio-row">
+            <h2 style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0 }}>External audio source health</h2>
+            <Button variant="outline" onClick={() => {
+                track('refreshExternalAudioHealth');
+                void load();
+            }} disabled={loading}>Refresh health</Button>
+        </div>
+        {error && <p role="alert">{error}</p>}
+        {loading && <p role="status">Checking source health…</p>}
+        {!loading && !error && rows.length === 0 && <p>No connected external audio sources.</p>}
+        {rows.length > 0 && <>
+            {(['active', 'archived'] as const).map((group) => {
+                const groupRows = rows.filter((row) => group === 'active' ? row.state === 'active' : row.state !== 'active');
+                if (groupRows.length === 0) return null;
+                return <section key={group} aria-labelledby={`external-audio-${group}-heading`} style={{ marginTop: 20 }}>
+                    <div className="external-audio-row">
+                        <h3 id={`external-audio-${group}-heading`} style={{ margin: 0, fontSize: '0.95rem' }}>{group === 'active' ? 'Active sources' : 'Archived sources'}</h3>
+                        <span className="external-audio-state" aria-label={`${groupRows.length} ${group} sources`}>{groupRows.length}</span>
+                    </div>
+                    <ul className="external-audio-list" aria-label={`${group === 'active' ? 'Active' : 'Archived'} audio source health`} style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 10 }}>
+                        {groupRows.map((row) => {
+                            const counts = impact[row.id];
+                            return <li key={row.id} className="external-audio-connection" style={{ padding: 14, border: '1px solid #d8dfe1', borderRadius: 8, background: '#fff' }}>
+                                <div className="external-audio-row">
+                                    <strong className="external-audio-filename">{row.bucketName} · {row.prefix || 'Whole bucket'}</strong>
+                                    <span className="external-audio-state" data-state={row.state} style={{ padding: '3px 8px', borderRadius: 999, background: row.state === 'active' ? '#e8f7ee' : '#f1f4f6', color: row.state === 'active' ? '#176b3a' : '#586064', fontSize: '0.75rem', fontWeight: 700 }}>{row.state === 'active' ? 'Active' : row.state === 'revoked' ? 'Revoked' : 'Archived'}</span>
+                                </div>
+                                <p>Owner {row.ownerId}</p>
+                                <p>{externalAudioHealth(row.health)}</p>
+                                <p className="external-audio-hint">Last successful check {row.lastSuccessfulAt !== undefined
+                                    ? new Date(row.lastSuccessfulAt).toLocaleString() : 'unavailable'}</p>
+                                <div><Button variant="outline" size="sm" disabled={counts === 'checking'} onClick={() => void loadImpact(row)}>
+                                    {counts === 'checking' ? 'Checking linked use…' : 'Check linked use'}
+                                </Button></div>
+                                {counts === 'unavailable' && <p role="alert">Could not check linked use. Try again.</p>}
+                                {counts && typeof counts !== 'string' && <ExternalAudioImpactCounts counts={counts} />}
+                            </li>;
+                        })}
+                    </ul>
+                </section>;
+            })}
+        </>}
+    </Card>;
+};
 
 // ============================================================================
 // Sub-components
@@ -904,6 +989,13 @@ const AdminSettingsPage: React.FC = () => {
                     >
                         Book Reviews
                     </Button>
+                    <Button
+                        variant={activeSection === 'external_audio' ? 'primary' : 'glass'}
+                        aria-label="Show external audio settings section"
+                        onClick={() => handleSectionChange('external_audio')}
+                    >
+                        External Audio
+                    </Button>
                 </div>
 
                 {loading ? (
@@ -934,6 +1026,8 @@ const AdminSettingsPage: React.FC = () => {
                         repository={materialBooksRepository}
                         onTrackAction={trackAdminAction}
                     />
+                ) : activeSection === 'external_audio' && user ? (
+                    <ExternalAudioHealthSection user={user} track={trackAdminAction} />
                 ) : (
                     <>
                         {/* Gemini API Keys */}

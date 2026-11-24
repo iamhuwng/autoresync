@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ToastContainer, toast } from './ToastNotification';
+import { ToastContainer, toast, useDialogToastTarget } from './ToastNotification';
 
 describe('ToastNotification shared announcement system', () => {
   beforeEach(() => {
@@ -40,6 +40,19 @@ describe('ToastNotification shared announcement system', () => {
     });
 
     expect(screen.getByRole('alert')).toHaveTextContent('Failed to save changes.');
+  });
+
+  it('moves the shared announcement to the dialog and restores it after close', () => {
+    function Surface({ open }: { open: boolean }) {
+      const target = React.useRef<HTMLDivElement>(null);
+      useDialogToastTarget(target, open);
+      return <><div data-testid="dialog-announcements" ref={target} /><ToastContainer /></>;
+    }
+    const { rerender } = render(<Surface open />);
+    act(() => { toast.success('Connected.'); });
+    expect(screen.getByTestId('dialog-announcements')).toContainElement(screen.getByRole('status'));
+    rerender(<Surface open={false} />);
+    expect(screen.getByTestId('dialog-announcements')).not.toContainElement(screen.getByRole('status'));
   });
 
   it('keeps the toast visible through the readable duration before fading out', () => {

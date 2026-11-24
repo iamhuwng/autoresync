@@ -12,6 +12,7 @@ import type { THCSSection } from '../../types/thcs-test.types';
 export interface THCSQuestionsStepProps {
     sections: THCSSection[];
     draftId: string | null;
+    onEnsureAudioDraft?: (sectionId: string) => Promise<string | null>;
     onSectionUpdate: (index: number, section: THCSSection) => void;
     onSectionDelete: (index: number) => void;
     onSectionMove: (index: number, direction: -1 | 1) => void;
@@ -23,6 +24,7 @@ export interface THCSQuestionsStepProps {
 const THCSQuestionsStep: React.FC<THCSQuestionsStepProps> = ({
     sections,
     draftId,
+    onEnsureAudioDraft,
     onSectionUpdate,
     onSectionDelete,
     onSectionMove,
@@ -196,6 +198,8 @@ const THCSQuestionsStep: React.FC<THCSQuestionsStepProps> = ({
                             totalSections={sections.length}
                             globalQuestionOffset={globalQuestionOffset}
                             draftId={draftId}
+                            allowDraftAudio={Boolean(onEnsureAudioDraft)}
+                            onEnsureAudioDraft={onEnsureAudioDraft}
                             onUpdate={(section) => onSectionUpdate(selectedIndex, section)}
                             onDelete={() => onSectionDelete(selectedIndex)}
                             onMoveUp={() => onSectionMove(selectedIndex, -1)}

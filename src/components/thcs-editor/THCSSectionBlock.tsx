@@ -11,7 +11,10 @@ import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } 
 import { restrictToParentElement } from '@dnd-kit/modifiers';
 import { CSS } from '@dnd-kit/utilities';
 import type { THCSSection, THCSQuestion, MCQIntent, THCSQuestionType } from '../../types/thcs-test.types';
-import { ALL_INSTRUCTION_TEMPLATES } from '../../types/thcs-test.types';
+import { DraftAudioChooser } from '../external-audio/DraftAudioChooser';
+import { EXTERNAL_AUDIO_REPLACEMENT_REQUIRED } from '../../types/assessmentAudio.types';
+import { ALL_INSTRUCTION_TEMPLATES, DEFAULT_THCS_AUDIO_PLAYBACK, THCS_AUDIO_DELAY_LIMIT_SECONDS,
+    THCS_AUDIO_REPLAY_LIMIT, type THCSAudioPlayback } from '../../types/thcs-test.types';
 import THCSQuestionBlock from './THCSQuestionBlock';
 import { THCSBulkPasteModal } from './THCSBulkPasteModal';
 import { Button } from '../modern';
@@ -60,6 +63,8 @@ interface THCSSectionBlockProps {
     totalSections: number;
     globalQuestionOffset: number;
     draftId: string | null;
+    allowDraftAudio?: boolean;
+    onEnsureAudioDraft?: (sectionId: string) => Promise<string | null>;
     onUpdate: (section: THCSSection) => void;
     onDelete: () => void;
     onMoveUp: () => void;
@@ -70,7 +75,7 @@ interface THCSSectionBlockProps {
 const READING_INTENTS: THCSQuestionType[] = ['reading-cloze-mcq', 'reading-comprehension', 'reading-announcement', 'reading-cloze-wordbank'];
 
 const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
-    section, sectionIndex, totalSections, globalQuestionOffset, draftId,
+    section, sectionIndex, totalSections, globalQuestionOffset, draftId, allowDraftAudio, onEnsureAudioDraft,
     onUpdate, onDelete, onMoveUp, onMoveDown, onTrackAction,
 }) => {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -98,6 +103,11 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
     }, [section.id, revealedQuestionCount]);
 
     const visibleQuestions = section.questions.slice(0, revealedQuestionCount);
+    const playback = section.audioPlayback ?? DEFAULT_THCS_AUDIO_PLAYBACK;
+    const updatePlayback = (settings: Partial<THCSAudioPlayback>) => {
+        onTrackAction?.('thcsAudioSettingsChanged');
+        onUpdate({ ...section, audioPlayback: { ...playback, ...settings } });
+    };
 
     const handleQuestionListScroll = (event: React.UIEvent<HTMLDivElement>) => {
         const list = event.currentTarget;
@@ -282,6 +292,31 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
             {/* Section Body */}
             <div style={{ padding: '1rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 {/* Task 11.2: Mixed question type warning */}
+                {allowDraftAudio && onTrackAction && <DraftAudioChooser testType="thcs-thpt" draftId={draftId}
+                    sectionId={section.id} value={section.externalAudio} track={onTrackAction}
+                    onEnsureDraft={onEnsureAudioDraft && (() => onEnsureAudioDraft(section.id))}
+                    onChange={(externalAudio) => onUpdate({ ...section, externalAudio })} />}
+                {section.externalAudioRequired && !section.externalAudio && <p>{EXTERNAL_AUDIO_REPLACEMENT_REQUIRED}</p>}
+                {section.externalAudio && <fieldset className="external-audio external-audio-playback">
+                    <legend>Section audio playback</legend>
+                    <label>Start delay (seconds)
+                        <input type="number" min={0} max={THCS_AUDIO_DELAY_LIMIT_SECONDS} value={playback.delaySeconds}
+                            onChange={(event) => updatePlayback({
+                                delaySeconds: Math.min(THCS_AUDIO_DELAY_LIMIT_SECONDS, Math.max(0, Math.trunc(event.currentTarget.valueAsNumber || 0))),
+                            })} />
+                    </label>
+                    <label>Allowed replays
+                        <input type="number" min={0} max={THCS_AUDIO_REPLAY_LIMIT} value={playback.maxReplays}
+                            onChange={(event) => updatePlayback({
+                                maxReplays: Math.min(THCS_AUDIO_REPLAY_LIMIT, Math.max(0, Math.trunc(event.currentTarget.valueAsNumber || 0))),
+                            })} />
+                    </label>
+                    <label>
+                        <input type="checkbox" checked={playback.allowSeek}
+                            onChange={(event) => updatePlayback({ allowSeek: event.target.checked })} />
+                        Allow seeking
+                    </label>
+                </fieldset>}
                 {(() => {
                     const uniqueTypes = new Set(section.questions.map(q => q.type));
                     if (uniqueTypes.size > 1 && !section.isCustomInstruction) {
