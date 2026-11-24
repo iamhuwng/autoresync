@@ -68,6 +68,8 @@ interface ContentResolution {
     materialType: 'test' | 'thcs-test' | 'reading-passage' | 'reading-passage-set';
     materialSkill: 'reading' | 'listening' | 'writing' | 'speaking';
     listeningAssetIds?: string[];
+    /** Homework playback is recipient-only, even if the source test is public. */
+    privateListeningPlayback?: true;
     studentSafeAssignmentPayload?: Record<string, unknown>;
     readingPassageSnapshot?: Record<string, unknown>;
     readingPassageSet?: Record<string, unknown>;
@@ -652,6 +654,12 @@ function requiresLegacyStudentSafeProjection(kind: HomeworkContentKind): boolean
     return kind === 'ielts_reading' || kind === 'ielts_listening';
 }
 
+function isExternalAudioHomeworkEnvironment(env: WorkerEnv): boolean {
+    return isLocalHomeworkEmulator(env)
+        || env.FIREBASE_PROJECT_ID === 'temp-a1437'
+        || env.FIREBASE_PROJECT_ID === 'luyentap-pdf-qa-20261021';
+}
+
 async function assertLegacyStudentSafeProjection(
     env: WorkerEnv,
     accessToken: string,
@@ -702,24 +710,45 @@ async function resolveStandardTestContent(
             (contentRef.version !== undefined && contentRef.version !== versionId)) {
             return assignmentError('CONTENT_NOT_ASSIGNABLE', 'Listening content has no matching active immutable version.');
         }
-        const canonical = { ...version.document, ownerId: version.ownerId };
+        const canonical = { ...version.document, ownerId: version.ownerId } as Record<string, unknown>;
         const accessError = assertContentAccess(canonical, uid, role);
         if (accessError) return accessError;
         if (assertPublishedAssignable(canonical) || !kindMatchesRecord('ielts_listening', canonical)) {
             return assignmentError('CONTENT_NOT_ASSIGNABLE', 'Listening version cannot be assigned.');
         }
         const sections = Array.isArray(version.document.audioSections) ? version.document.audioSections : [];
-        const assetIds = [...new Set<string>(sections.map((section: any) => section?.assetId))];
+        const externalSections = sections.filter((section: any) => section?.externalAudio !== undefined);
+        if (externalSections.length) {
+            const eligible = canonical.isPublic === true
+                ? env.EXTERNAL_AUDIO_PUBLIC_LISTENING_ENABLED === 'enabled' &&
+                    record.isPublic === true && record.isPublished === true && record.state === 'active'
+                : canonical.isPublic === false && version.ownerId === uid &&
+                    env.EXTERNAL_AUDIO_PRIVATE_HOMEWORK_ENABLED === 'enabled';
+            if (canonical.type !== 'IELTS' || record.ownerId !== version.ownerId ||
+                !eligible || !isExternalAudioHomeworkEnvironment(env)) {
+                return assignmentError('CONTENT_NOT_ASSIGNABLE', 'External Listening audio requires an eligible homework assignment.');
+            }
+        }
+        const assetIds = [...new Set<string>(sections.map((section: any) => section?.externalAudio?.assetId ?? section?.assetId))];
         if (!assetIds.length || assetIds.some(assetId => typeof assetId !== 'string' || !assetId ||
             version.assetIds?.[assetId] !== true)) {
             return assignmentError('CONTENT_NOT_ASSIGNABLE', 'Listening version is missing canonical audio references.');
         }
         const assets = await Promise.all(assetIds.map(assetId =>
             readRtdb<Record<string, any>>(env, accessToken, 'media_assets/' + assetId)));
-        if (assets.some((asset, index) => !asset || asset.ownerId !== version.ownerId ||
-            asset.assetId !== assetIds[index] || asset.state !== 'committed' ||
-            asset.references?.versions?.[versionId] !== true ||
-            typeof asset.durableKey !== 'string' || !asset.durableKey.startsWith('assessment-assets/listening/'))) {
+        if (assets.some((asset, index) => {
+            const assetId = assetIds[index];
+            if (!asset || asset.ownerId !== version.ownerId || asset.assetId !== assetId ||
+                asset.state !== 'committed' || asset.references?.versions?.[versionId] !== true) return true;
+            const section = externalSections.find((candidate: any) => candidate.externalAudio?.assetId === assetId);
+            if (section) {
+                return asset.storageProvider !== 'b2' || section.externalAudio.scope !== 'section' ||
+                    asset.canonicalAssetId !== assetId || asset.sourceDraftId !== version.sourceDraftId ||
+                    asset.sectionNumber !== section.number || asset.references?.tests?.[version.testId] !== true;
+            }
+            return asset.storageProvider === 'b2' || typeof asset.durableKey !== 'string' ||
+                !asset.durableKey.startsWith('assessment-assets/listening/');
+        })) {
             return assignmentError('CONTENT_NOT_ASSIGNABLE', 'Listening audio is not committed to this version.');
         }
         const title = String(version.document.title ?? 'Untitled Listening Test');
@@ -730,6 +759,7 @@ async function resolveStandardTestContent(
             materialType: 'test',
             materialSkill: 'listening',
             listeningAssetIds: assetIds,
+            ...(externalSections.length ? { privateListeningPlayback: true } : {}),
         };
     }
 
@@ -751,6 +781,12 @@ async function resolveStandardTestContent(
     if (projectionError) {
         return projectionError;
     }
+    const thcsAudioVersion = contentRef.contentKind === 'thcs_test' && typeof record.externalAudioVersionId === 'string'
+        ? record.externalAudioVersionId : undefined;
+    if (thcsAudioVersion && (env.EXTERNAL_AUDIO_THCS_ENABLED !== 'enabled' || !isExternalAudioHomeworkEnvironment(env) ||
+        (!isPublicRecord(record) && record.ownerId !== uid))) {
+        return assignmentError('CONTENT_NOT_ASSIGNABLE', 'This external-audio THCS test is unavailable for assignment.');
+    }
 
     const title = String(
         record.testType === 'THCS-THPT'
@@ -762,7 +798,7 @@ async function resolveStandardTestContent(
         contentRef: stripUndefined({
             contentKind: contentRef.contentKind,
             contentId: contentRef.contentId,
-            version: contentRef.version,
+            version: thcsAudioVersion ?? contentRef.version,
             title,
             source: contentRef.source,
         }),
@@ -1054,6 +1090,7 @@ function buildHomeworkRecord(input: {
         materialType: input.content.materialType,
         materialSkill: input.content.materialSkill,
         contentRef: input.content.contentRef,
+        privateListeningPlayback: input.content.privateListeningPlayback,
         target: input.target.target,
         scheduling: {
             availableFrom,
@@ -1141,6 +1178,9 @@ export async function handleCreateHomeworkAssignment(
         }
         if (isAssignmentError(content)) {
             return errorResponse(content);
+        }
+        if (content.privateListeningPlayback && target.target.type !== 'students') {
+            return errorResponse(assignmentError('TARGET_NOT_ALLOWED', 'Select individual students for homework with external audio.', 403));
         }
 
         const assignmentId = 'homework-' + crypto.randomUUID();

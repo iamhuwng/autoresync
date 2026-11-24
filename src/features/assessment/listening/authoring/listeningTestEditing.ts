@@ -28,6 +28,7 @@ interface EditSource {
 }
 
 type EditableTest = TestData & { listeningAudioPreviewUrls?: Record<string, string>; listeningAudioPreviewWarnings?: string[]; listeningEditSource?: EditSource };
+export const getListeningEditDraftId = (test: TestData) => (test as EditableTest).listeningEditSource?.draftId;
 
 const read = async (path: string) => (await get(ref(database, path))).val();
 const changed = () => new Error('This Listening test has newer or unpublished changes. Reopen it before saving.');
@@ -91,7 +92,7 @@ export async function loadListeningTestForEditing(test: TestData): Promise<TestD
   if (source.document.questions.some(question => hasUnsupportedListeningStructure(question))) {
     throw new Error('Editing this Listening form structure is under construction. Its published content has been kept.');
   }
-  const previewSections = source.document.audioSections.filter(section => section.assetId);
+  const previewSections = source.document.audioSections.filter(section => section.assetId && !section.externalAudio);
   const previews = await Promise.allSettled(previewSections.map(async section => {
     const result = await new WorkerListeningUploadSessionApi().probeAsset({ assetId: section.assetId!,
       ...(section.uploadSessionId ? { uploadSessionId: section.uploadSessionId } : {}) });
@@ -126,14 +127,18 @@ function applyEdits(source: ListeningAuthoringDocumentV1, edits: ListeningEdits)
   }
   const audioSections = edits.resources.filter(resource => resource.type === 'audio').map((resource, index) => {
     const original = source.audioSections.find(section => resource.id === `audio-${section.number}`);
+    if (resource.externalAudio && original?.number !== index + 1) {
+      throw new Error('Remove external audio before changing this section’s position, then choose it again.');
+    }
     const unchanged = original && original.audioUrl === resource.audioUrl && original.assetId === resource.assetId;
     if (!unchanged && resource.audioUrl && (!resource.assetId || !resource.uploadSessionId)) {
       throw new Error('Upload replacement audio using the Listening upload workflow before saving.');
     }
     return {
-      ...Object.fromEntries(Object.entries(original ?? {}).filter(([field]) => field !== 'assetId')),
+      ...Object.fromEntries(Object.entries(original ?? {}).filter(([field]) => field !== 'assetId' && field !== 'externalAudio')),
       audioUrl: resource.audioUrl ?? '',
       ...(resource.assetId ? { assetId: resource.assetId } : {}),
+      ...(resource.externalAudio ? { externalAudio: resource.externalAudio } : {}),
       streamUrl: resource.streamUrl ?? resource.audioUrl ?? '',
       ...(resource.duration !== undefined ? { duration: resource.duration } : {}),
       number: index + 1,

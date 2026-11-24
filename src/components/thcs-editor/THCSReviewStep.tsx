@@ -305,6 +305,7 @@ const THCSReviewStep: React.FC<THCSReviewStepProps> = ({
                             <label style={{ position: 'relative', display: 'inline-block', width: 36, height: 20, cursor: 'pointer' }}>
                                 <input
                                     type="checkbox"
+                                    aria-label="Share in Public Library"
                                     checked={isPublic}
                                     onChange={(e) => onIsPublicChange(e.target.checked)}
                                     style={{ opacity: 0, width: 0, height: 0 }}
@@ -410,6 +411,7 @@ const THCSReviewStep: React.FC<THCSReviewStepProps> = ({
             {/* Publish Warnings Dialog */}
             <dialog
                 ref={publishWarningsDialog}
+                className="external-audio-dialog"
                 aria-label="Publish with Warnings?"
                 onClose={() => onSetShowPublishWarnings(false)}
                 onCancel={(event) => {
@@ -443,7 +445,7 @@ const THCSReviewStep: React.FC<THCSReviewStepProps> = ({
                     ))}
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1rem' }}>
-                    <Button variant="glass" onClick={() => onSetShowPublishWarnings(false)}>Cancel</Button>
+                    <button type="button" className="modern-btn btn-glass btn-md" onClick={() => onSetShowPublishWarnings(false)} autoFocus>Cancel</button>
                     <Button variant="primary" onClick={onPublish} disabled={isPublishing}>Proceed Anyway</Button>
                 </div>
             </dialog>

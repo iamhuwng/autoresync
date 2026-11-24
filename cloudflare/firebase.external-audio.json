@@ -1,0 +1,14 @@
+{
+  "database": {
+    "rules": "external-audio.database.rules.json"
+  },
+  "emulators": {
+    "database": {
+      "host": "localhost",
+      "port": 9015
+    },
+    "ui": {
+      "enabled": false
+    }
+  }
+}

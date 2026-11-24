@@ -1,12 +1,20 @@
+import type { PublishBlocker } from '../../../../functions/src/listening-authoring/repository.types.ts';
 import {
   LISTENING_AUTHORING_IDEMPOTENCY_SECRET_NAME,
   LISTENING_AUTHORING_RESTORE_IN_PROGRESS_FLAG_PATH,
   LISTENING_AUTHORING_WRITES_ENABLED_FLAG_PATH,
 } from '../../../../functions/src/listening-authoring/constants.ts';
+import { createAudioCredentialStore } from '../external-audio/credential-store.ts';
+import { BackblazeAudioSource } from '../external-audio/b2-source.ts';
+import { createExternalAudioConnections } from '../external-audio/connections.ts';
+import { externalAudioDraftsEnabled, externalAudioPrivateHomeworkEnabled, externalAudioPublicListeningEnabled, readDraftAudioAsset, type DraftAudioEnv } from '../external-audio/draft-assets.ts';
+import { ExternalAudioError } from '../external-audio/protocol.ts';
 import {
   mutateListeningAuthoringLifecycleCore,
   publishListeningDraftCore,
   saveListeningDraftCore,
+  type PublishListeningDraftCoreInput,
+  type SaveListeningDraftCoreInput,
 } from '../../../../functions/src/listening-authoring/service.ts';
 import {
   type ListeningAuthoringRepository,
@@ -21,6 +29,7 @@ import { isApprovedLocalAppOrigin } from '../cors-policy.js';
 
 
 type AuthoringMutationName = 'save-draft' | 'publish' | 'lifecycle';
+type AuthoringEnv = RepositoryEnv & DraftAudioEnv;
 
 class ListeningAuthoringError extends Error {
   constructor(
@@ -92,6 +101,8 @@ const assertProfileCanMutate = (profile: unknown): void => {
     );
   }
   if (
+    record.disabled === true ||
+    record.status === 'disabled' ||
     record.status === 'blocked' ||
     record.status === 'inactive' ||
     record.status === 'suspended'
@@ -208,12 +219,14 @@ const runMutation = async (
   body: unknown,
   repo: ListeningAuthoringRepository,
   idempotencySecret: string,
+  verifyDraftAudio: SaveListeningDraftCoreInput['verifyDraftAudio'],
+  verifyPublishAudio: PublishListeningDraftCoreInput['verifyDraftAudio'],
 ): Promise<Record<string, unknown>> => {
   switch (mutation) {
     case 'save-draft':
-      return saveListeningDraftCore({ auth, body, repo, idempotencySecret });
+      return saveListeningDraftCore({ auth, body, repo, idempotencySecret, verifyDraftAudio });
     case 'publish':
-      return publishListeningDraftCore({ auth, body, repo, idempotencySecret });
+      return publishListeningDraftCore({ auth, body, repo, idempotencySecret, verifyDraftAudio: verifyPublishAudio });
     case 'lifecycle':
       return mutateListeningAuthoringLifecycleCore({ auth, body, repo, idempotencySecret });
   }
@@ -226,7 +239,7 @@ export const createListeningAuthoringWorkerHandlers = (options: {
 } = {}) => {
   const handle = (mutation: AuthoringMutationName) => async (input: {
     request: Request;
-    env: RepositoryEnv;
+    env: AuthoringEnv;
     uid: string;
   }) => {
     const repository = options.repository ?? new FirebaseRestListeningAuthoringRepository({
@@ -253,13 +266,66 @@ export const createListeningAuthoringWorkerHandlers = (options: {
     const auth = await resolveAuthContext(input.uid, readValue);
     await assertWritesAllowed(readValue, input.request, input.env);
     const body = normalizeBody(await readJsonBody(input.request), input.request);
-    const result = await runMutation(mutation, auth, body, repository, secret);
+    const verifyDraftAudio: SaveListeningDraftCoreInput['verifyDraftAudio'] = externalAudioDraftsEnabled(input.env, input.request)
+      ? async (draftId, sections) => {
+          try {
+            const store = createAudioCredentialStore(input.env);
+            const service = createExternalAudioConnections({ store, source: new BackblazeAudioSource(), now: options.now ?? Date.now });
+            for (const section of sections) {
+              if (!section.externalAudio) continue;
+              if (sections.filter(({ number }) => number === section.number).length !== 1) {
+                throw new Error('duplicate_section');
+              }
+              const asset = await readDraftAudioAsset(store, auth.uid, {
+                testType: 'ielts-listening', draftId, sectionId: String(section.number),
+              }, section.externalAudio.assetId);
+              await service.verifyPinnedAsset(asset);
+            }
+            await assertWritesAllowed(readValue, input.request, input.env);
+          } catch (error) {
+            if (error instanceof ListeningAuthoringError) throw error;
+            throw new ListeningAuthoringError('invalid_draft_audio', 422, {
+              code: 'invalid_draft_audio',
+              message: 'Verify the external audio connection or choose a replacement before saving.',
+            });
+          }
+        }
+      : undefined;
+    const allowPrivateAudio = externalAudioPrivateHomeworkEnabled(input.env, input.request);
+    const allowPublicAudio = externalAudioPublicListeningEnabled(input.env, input.request);
+    const verifyPublishAudio: PublishListeningDraftCoreInput['verifyDraftAudio'] =
+      allowPrivateAudio || allowPublicAudio ? async (draft) => {
+        if (draft.document.type !== 'IELTS' || !(draft.document.isPublic ? allowPublicAudio : allowPrivateAudio)) return undefined;
+        const assets = draft.document.audioSections.flatMap((section, index) =>
+          section.externalAudio ? [{ index, sectionNumber: section.number, assetId: section.externalAudio.assetId }] : []);
+        if (!assets.length) return undefined;
+        const store = createAudioCredentialStore(input.env);
+        const service = createExternalAudioConnections({ store, source: new BackblazeAudioSource(), now: options.now ?? Date.now });
+        const blockers: PublishBlocker[] = [];
+        for (const { index, sectionNumber, assetId } of assets) {
+          try {
+            const asset = await readDraftAudioAsset(store, auth.uid, {
+              testType: 'ielts-listening', draftId: draft.draftId, sectionId: String(sectionNumber),
+            }, assetId);
+            await service.signPlayback(asset);
+          } catch (error) {
+            const guidance = error instanceof ExternalAudioError && ['object_missing', 'object_changed'].includes(error.code)
+              ? 'Restore the selected recording version in Backblaze or choose a replacement in this section.'
+              : 'Recheck the external audio connection in your profile, or choose a replacement recording in this section.';
+            blockers.push({ field: `audioSections[${index}].externalAudio`, severity: 'blocker', guidance });
+          }
+        }
+        await assertWritesAllowed(readValue, input.request, input.env);
+        return { assetIds: assets.map(({ assetId }) => assetId), blockers,
+          ...(draft.document.isPublic ? { allowPublic: true as const } : {}) };
+      } : undefined;
+    const result = await runMutation(mutation, auth, body, repository, secret, verifyDraftAudio, verifyPublishAudio);
     return { body: result, init: { status: statusForResult(result) } };
   };
 
   const wrap = (mutation: AuthoringMutationName) => async (input: {
     request: Request;
-    env: RepositoryEnv;
+    env: AuthoringEnv;
     uid: string;
   }) => {
     try {

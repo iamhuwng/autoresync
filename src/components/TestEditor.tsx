@@ -22,11 +22,12 @@ import { ResourceManager } from './test/editor/ResourceManager';
 import { adaptTestToResources, linkQuestionsToResources } from './test/editor/resourceAdapters';
 import { useAuth } from '../hooks/useAuth';
 import { PracticeSettingsModal } from './PracticeSettingsModal';
-import { createListeningTestEditSession, uploadListeningEditorAudio, hasUnsupportedListeningStructure } from '../features/assessment/listening/authoring/listeningTestEditing';
+import { createListeningTestEditSession, getListeningEditDraftId, uploadListeningEditorAudio, hasUnsupportedListeningStructure } from '../features/assessment/listening/authoring/listeningTestEditing';
 import { ListeningQuestionContextEditor } from '../features/assessment/listening/authoring/ListeningQuestionContextEditor';
 import { renumberListeningContextQuestions, syncListeningQuestionUpdate } from '../skills/listening/utils/listeningQuestionContext';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { FEATURE_IDS } from '../config/featureRegistry';
+import { PublicListeningAudioWarning } from './external-audio/PublicListeningAudioWarning';
 
 interface TestEditorProps {
   test: TestData;
@@ -195,6 +196,7 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
   const [showSingleCreator, setShowSingleCreator] = useState(false);
   const [showBulkCreator, setShowBulkCreator] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showPublicAudioWarning, setShowPublicAudioWarning] = useState(false);
   const [pendingAudioUploads, setPendingAudioUploads] = useState(0);
   const [audioPreviewUrls, setAudioPreviewUrls] = useState<Record<string, string>>((test as any).listeningAudioPreviewUrls ?? {});
   const previewWarningShown = useRef<string | undefined>(undefined);
@@ -585,7 +587,7 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
     || editedDuration !== initialEditorState.current.duration
     || JSON.stringify(resources) !== initialEditorState.current.resources;
 
-  const performSave = async () => {
+  const performSave = async (confirmedPublicAudio = false) => {
     // Guard: read-only users must never reach the database write path
     if (isReadOnly) {
       console.warn('[TestEditor] Save blocked — current user is not the test owner.');
@@ -595,6 +597,12 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
     if (test && test.id) {
       if (!hasUnsavedChanges()) {
         handleClose();
+        return;
+      }
+      if (!confirmedPublicAudio && test.skill === 'Listening' && editedIsPublic
+          && resources.some((resource) => resource.externalAudio)) {
+        trackAction('publicExternalAudioPublishWarning', { outcome: 'shown' });
+        setShowPublicAudioWarning(true);
         return;
       }
 
@@ -719,6 +727,7 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
       skill={(test as any).skill || 'Reading'}
       totalQuestions={test.questions.length}
       readOnly={isReadOnly || isSaving}
+      listeningDraftId={test.skill === 'Listening' ? getListeningEditDraftId(test) : undefined}
       audioPreviewUrls={audioPreviewUrls}
       uploadAudio={test.skill === 'Listening' ? async (file, onProgress) => {
         if (isSaving) throw new Error('Wait for the test save to finish before uploading audio.');
@@ -891,6 +900,11 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
         inner: { padding: 0 }
       }}
     >
+      {showPublicAudioWarning && <PublicListeningAudioWarning onClose={(confirmed) => {
+        setShowPublicAudioWarning(false);
+        trackAction('publicExternalAudioPublishWarning', { outcome: confirmed ? 'confirmed' : 'cancelled' });
+        if (confirmed) void performSave(true);
+      }} />}
         <ListeningEditorLayout
           {...frameProps}
           questionList={questionListPanel}

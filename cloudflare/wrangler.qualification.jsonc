@@ -26,6 +26,11 @@
     { "tag": "v4-prd0062-prd0062b-retirement" }
   ],
   "vars": {
+    // Opt in only with the isolated credential project, database, service account, and versioned keyring.
+    "EXTERNAL_AUDIO_ROUTES_ENABLED": "disabled",
+    "EXTERNAL_AUDIO_ENVIRONMENT": "qualification",
+    "EXTERNAL_AUDIO_UPLOAD_ROLLOUT": "disabled",
+    "EXTERNAL_AUDIO_UPLOAD_ROLLBACK": "enabled",
     "FIREBASE_PROJECT_ID": "luyentap-pdf-qa-20261021",
     "BOOK_HOMEWORK_SERVICE_IDENTITY": "book-homework@luyentap-pdf-qa-20261021.iam.gserviceaccount.com",
     "FIREBASE_DB_URL": "https://luyentap-pdf-qa-20261021-default-rtdb.asia-southeast1.firebasedatabase.app",

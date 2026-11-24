@@ -1,5 +1,9 @@
 # Result View FR Closure Matrix
 
+## 2026-11-25 Shared external audio (BYO Backblaze B2) rollout
+
+PR #326 adds `SavedSectionAudio.tsx` inside `SharedSavedResultCore.tsx` and registers external-audio actions in `src/config/featureRegistry.ts`. No PRD-0040/PRD-0041 FR closure status changes; all verified rows below remain verified. Coverage anchors include `SharedSavedResultCore.test.tsx`, `externalAudioClient.test.ts`, `cloudflare/test/external-audio.test.ts`, and `r2-backup-worker/src/homework/assignments.test.ts`.
+
 ## 2026-11-04 Writing homework access correction
 
 No parent PRD-0040/0041 milestone or FR closure status changes. The existing

@@ -111,7 +111,7 @@ const makeFetchMock = (records: Map<string, unknown>, failures: { firestoreStatu
         const url = new URL(String(input));
         const method = init?.method ?? 'GET';
 
-        if (url.hostname === 'db.example.test') {
+        if (url.hostname === 'db.example.test' || url.origin === 'http://localhost:9000') {
             const path = decodeURIComponent(url.pathname.replace(/^\//, '').replace(/\.json$/, ''));
             if (method === 'GET') {
                 return json(records.has(path) ? records.get(path) : null);
@@ -125,7 +125,7 @@ const makeFetchMock = (records: Map<string, unknown>, failures: { firestoreStatu
             }
         }
 
-        if (url.hostname === 'firestore.googleapis.com') {
+        if (url.hostname === 'firestore.googleapis.com' || url.origin === 'http://localhost:8080') {
             expect(method).toBe('POST');
             firestoreWrites.push(init?.body ? JSON.parse(String(init.body)) : null);
             if (failures.firestoreStatus) {
@@ -205,6 +205,86 @@ describe('homework assignment Worker route', () => {
             ])),
         } }]);
         expect(firestoreFields(firestoreWrites[0]).contentRef.mapValue.fields.version.stringValue).toBe('version-1');
+    });
+
+    it('retains an opaque B2 asset for an owner’s private local Listening homework', async () => {
+        const records = nativeListeningRecords();
+        records.set('classes', { 'class-1': classRecord });
+        Object.assign(records.get('tests/native-listening'), { ownerId: 'teacher-1' });
+        const version = records.get('listening_authoring/versions/version-1');
+        version.sourceDraftId = 'draft-1';
+        version.document.type = 'IELTS';
+        version.document.audioSections = [{ number: 1, externalAudio: { assetId: 'asset-1', scope: 'section' } }];
+        records.set('media_assets/asset-1', {
+            assetId: 'asset-1', canonicalAssetId: 'asset-1', ownerId: 'teacher-1', state: 'committed',
+            storageProvider: 'b2', sourceDraftId: 'draft-1', sectionNumber: 1,
+            references: { versions: { 'version-1': true }, tests: { 'native-listening': true } },
+        });
+        const fixture = makeFetchMock(records);
+        const local = { ...env, EXTERNAL_AUDIO_PRIVATE_HOMEWORK_ENABLED: 'enabled', LOCAL_EMULATOR_AUTH: 'true',
+            FIREBASE_PROJECT_ID: 'demo-luyentap-local', FIREBASE_DB_URL: 'http://localhost:9000?ns=demo-luyentap-local',
+            FIRESTORE_EMULATOR_HOST: 'localhost:8080' };
+        expect((await handleCreateHomeworkAssignment(requestFor(nativeListeningBody()), env)).status).toBe(400);
+        expect(fixture.rtdbWrites).toEqual([]);
+        const individual = assignmentBody({ ...nativeListeningBody(),
+            target: { type: 'students', studentIds: ['student-1'], studentNames: ['Student One'] } });
+        const response = await handleCreateHomeworkAssignment(requestFor(individual), local);
+        expect(response.status).toBe(201);
+        const { assignmentId } = await response.json() as { assignmentId: string };
+        expect(fixture.rtdbWrites[0].body).toMatchObject({
+            [`media_assets/asset-1/references/assignments/${assignmentId}`]: true,
+            [`homework_test_access/native-listening/student-1/${assignmentId}`]: { assetIds: ['asset-1'], versionId: 'version-1' },
+        });
+        expect(JSON.stringify(fixture.firestoreWrites)).not.toContain('storageProvider');
+        expect(firestoreFields(fixture.firestoreWrites[0]).privateListeningPlayback).toEqual({ booleanValue: true });
+        version.document.isPublic = true;
+        expect((await handleCreateHomeworkAssignment(requestFor(nativeListeningBody()), local)).status).toBe(400);
+        expect(fixture.rtdbWrites).toHaveLength(1);
+    });
+
+    it('retains the publisher’s public B2 pin under a different assigning teacher’s recipient grant', async () => {
+        const records = nativeListeningRecords();
+        records.set('classes', { 'class-1': classRecord });
+        Object.assign(records.get('tests/native-listening'), {
+            ownerId: 'publisher', isPublic: true, isPublished: true, state: 'active',
+        });
+        const version = records.get('listening_authoring/versions/version-1');
+        Object.assign(version, { ownerId: 'publisher', sourceDraftId: 'draft-1' });
+        Object.assign(version.document, { type: 'IELTS', isPublic: true,
+            audioSections: [{ number: 1, externalAudio: { scope: 'section', assetId: 'asset-1' } }] });
+        const asset = records.get('media_assets/asset-1');
+        Object.assign(asset, { ownerId: 'publisher', storageProvider: 'b2', sourceDraftId: 'draft-1',
+            canonicalAssetId: 'asset-1', sectionNumber: 1 });
+        asset.references.tests = { 'native-listening': true };
+        const fixture = makeFetchMock(records);
+        const local = { ...env, EXTERNAL_AUDIO_PUBLIC_LISTENING_ENABLED: 'enabled', LOCAL_EMULATOR_AUTH: 'true',
+            FIREBASE_PROJECT_ID: 'demo-luyentap-local', FIREBASE_DB_URL: 'http://localhost:9000?ns=demo-luyentap-local',
+            FIRESTORE_EMULATOR_HOST: 'localhost:8080' };
+        const classAssignment = await handleCreateHomeworkAssignment(requestFor(nativeListeningBody()), local);
+        expect(classAssignment.status).toBe(403);
+        expect(await classAssignment.json()).toMatchObject({
+            reasonCode: 'TARGET_NOT_ALLOWED',
+            message: 'Select individual students for homework with external audio.',
+        });
+        expect(fixture.rtdbWrites).toEqual([]);
+        const individual = assignmentBody({ ...nativeListeningBody(),
+            target: { type: 'students', studentIds: ['student-1'], studentNames: ['Student One'] } });
+        const response = await handleCreateHomeworkAssignment(requestFor(individual), local);
+        expect(response.status).toBe(201);
+        const { assignmentId } = await response.json() as { assignmentId: string };
+        expect(fixture.rtdbWrites[0].body).toMatchObject({
+            [`media_assets/asset-1/references/assignments/${assignmentId}`]: true,
+            [`homework_test_access/native-listening/student-1/${assignmentId}`]: {
+                teacherId: 'teacher-1', assetIds: ['asset-1'], versionId: 'version-1',
+            },
+        });
+        expect(firestoreFields(fixture.firestoreWrites[0]).privateListeningPlayback).toEqual({ booleanValue: true });
+        expect((await handleCreateHomeworkAssignment(requestFor(individual), {
+            ...local, EXTERNAL_AUDIO_PUBLIC_LISTENING_ENABLED: 'disabled',
+        })).status).toBe(400);
+        version.document.isPublic = false;
+        expect((await handleCreateHomeworkAssignment(requestFor(individual), local)).status).toBe(403);
+        expect(fixture.rtdbWrites).toHaveLength(1);
     });
 
     it.each(['version-mismatch', 'archived', 'foreign-owner', 'uncommitted', 'missing-version-reference', 'missing-audio'])
@@ -505,6 +585,24 @@ describe('homework assignment Worker route', () => {
             path: 'homework_test_access/thcs-1',
             body: { [`student-linked/${assignmentId}`]: true },
         }]);
+    });
+
+    it('accepts the current external THCS version only in local QA and stores the canonical version with Homework', async () => {
+        const records = recordsForTestContent({
+            ...makeTestRecord({ id: 'thcs-1', skill: 'Reading', testType: 'THCS-THPT' }),
+            externalAudioVersionId: 'thcs-version-published',
+        });
+        const { rtdbWrites, firestoreWrites } = makeFetchMock(records);
+        const input = assignmentBody({ contentRef: { contentKind: 'thcs_test', contentId: 'thcs-1', version: 'browser-value' } });
+        expect((await handleCreateHomeworkAssignment(requestFor(input), env)).status).toBe(400);
+        expect(rtdbWrites).toEqual([]);
+        const local = { ...env, EXTERNAL_AUDIO_THCS_ENABLED: 'enabled', LOCAL_EMULATOR_AUTH: 'true',
+            FIREBASE_PROJECT_ID: 'demo-luyentap-local', FIREBASE_DB_URL: 'http://localhost:9000?ns=demo-luyentap-local',
+            FIRESTORE_EMULATOR_HOST: 'localhost:8080' };
+        const response = await handleCreateHomeworkAssignment(requestFor(input), local);
+        expect(response.status).toBe(201);
+        expect(firestoreFields(firestoreWrites[0]).contentRef.mapValue.fields.version.stringValue).toBe('thcs-version-published');
+        expect(rtdbWrites[0].path).toBe('homework_test_access/thcs-1');
     });
 
     it('does not grant THCS access for an unauthorized target', async () => {

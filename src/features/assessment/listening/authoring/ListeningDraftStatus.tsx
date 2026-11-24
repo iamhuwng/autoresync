@@ -61,8 +61,8 @@ function formatSavedAge(lastSavedAt: number) {
 function deriveStatus(input: ListeningDraftStatusProps): DerivedStatus {
   const warningDetails = (input.warnings ?? []).map(formatIssue);
   const blockerDetails = (input.blockers ?? []).map(formatIssue);
-  const hasAudioWarning = (input.warnings ?? []).some((issue) => issue.field === 'audioUrl');
-  const hasAudioBlocker = (input.blockers ?? []).some((issue) => issue.field === 'audioUrl');
+  const hasAudioWarning = (input.warnings ?? []).some((issue) => issue.field === 'audioUrl' || issue.field === 'externalAudio');
+  const hasAudioBlocker = (input.blockers ?? []).some((issue) => issue.field === 'audioUrl' || issue.field === 'externalAudio');
 
   switch (input.mode) {
     case 'saving-draft':

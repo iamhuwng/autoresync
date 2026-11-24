@@ -14,6 +14,7 @@ import type { THCSSection, THCSTestMetadata, THCSTest, QuestionResult } from '..
 import { markThcsTest, thcsResultToTestMarkingResult } from '../../services/thcsAutoMarking.service';
 import { Button } from '../modern';
 import { plog } from './previewLogCollector';
+import { SavedSectionAudio } from '../results/SavedSectionAudio';
 
 // ─── Question type renderers (imported from student components) ───
 import THCSQuestionRenderer from '../thcs-student/THCSQuestionRenderer';
@@ -24,6 +25,22 @@ interface THCSPreviewOverlayProps {
     sections: THCSSection[];
     metadata: THCSTestMetadata;
     onClose: () => void;
+    issueRecording?: (sectionId: string, assetId: string, signal?: AbortSignal) => Promise<{ url: string; expiresAt: number }>;
+    onAudioAction?: () => void;
+}
+
+function PreviewRecording({ sectionId, assetId, number, issueRecording, onAudioAction }: {
+    sectionId: string;
+    assetId: string;
+    number: number;
+    issueRecording: NonNullable<THCSPreviewOverlayProps['issueRecording']>;
+    onAudioAction: () => void;
+}) {
+    const issue = useCallback(async (_handle?: string, signal?: AbortSignal) => {
+        const grant = await issueRecording(sectionId, assetId, signal);
+        return { ...grant, refreshAfter: grant.expiresAt - 15_000, crossOrigin: 'anonymous' as const };
+    }, [assetId, issueRecording, sectionId]);
+    return <SavedSectionAudio sectionNumber={number} issue={issue} onAction={onAudioAction} />;
 }
 
 const READING_INTENTS = ['reading-cloze-mcq', 'reading-comprehension', 'reading-announcement', 'reading-cloze-wordbank'];
@@ -75,6 +92,8 @@ export const THCSPreviewOverlay: React.FC<THCSPreviewOverlayProps> = ({
     sections,
     metadata,
     onClose,
+    issueRecording,
+    onAudioAction,
 }) => {
     // ─── Mode toggle ────────────────────────────────────────────
     const [interactive, setInteractive] = useState(false);
@@ -427,6 +446,12 @@ export const THCSPreviewOverlay: React.FC<THCSPreviewOverlayProps> = ({
                                         </p>
                                     )}
                                 </div>
+
+                                {currentSection.externalAudio && issueRecording && onAudioAction && (
+                                    <PreviewRecording key={currentSection.id} sectionId={currentSection.id}
+                                        assetId={currentSection.externalAudio.assetId} number={currentSectionIndex + 1}
+                                        issueRecording={issueRecording} onAudioAction={onAudioAction} />
+                                )}
 
                                 {/* Two-column layout for reading */}
                                 <div style={{

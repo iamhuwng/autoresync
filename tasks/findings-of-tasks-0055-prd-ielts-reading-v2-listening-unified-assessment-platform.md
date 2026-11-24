@@ -8420,12 +8420,27 @@ Human decision: iamhuwng explicitly approved recording iamhuwng as the human arc
 
 The earlier 4,634-line agent review is retained under a historical marker. It does not satisfy the named-human requirement recorded in Packet 3B Task 3.4 and reaffirmed by the October 18 review. This new human approval supersedes that record for this exact path and count only; it does not approve future growth, change the 400-line budget, or qualify a live release.
 
-<!-- assessment-line-budget-exception
+<!-- historical-assessment-line-budget-exception
 path: src/skills/listening/builders/ListeningTestBuilder.tsx
 line-count: 4651
 responsibilities: Listening wizard composition and section question editing; parser adaptation and strict native question serialization preserving context image explanation acceptable answers timer and option labels; authorized audio preview and upload coordination; trusted draft publish conflict-token discard restore archive and recovery orchestration
 split-alternatives: extract native question serialization and parser adaptation into a bounded Listening question adapter; extract audio preview and upload state into a bounded Listening audio controller; extract draft publish and recovery lifecycle into a Listening authoring controller
 rejection-reason: extract native question serialization and parser adaptation into a bounded Listening question adapter => this is a valid future seam but relocates parser fallbacks section assignment defaults and the preservation contract across another interface without bringing the inherited wizard near the soft budget or resolving the uploader dependency; extract audio preview and upload state into a bounded Listening audio controller => this would move section state ownership pending-upload counters and stale-completion cancellation boundaries while the CI correction only needs the existing uploader injected by its editor caller; extract draft publish and recovery lifecycle into a Listening authoring controller => this would relocate fingerprints conflict tokens idempotency announcements and recovery across callbacks and broaden the bounded native-field correction into a lifecycle refactor
+approver: iamhuwng
+approver-role: Human Architecture Reviewer
+status: superseded
+-->
+
+## Shared External Audio (BYO Backblaze B2) Line-Budget Exception - 2026-11-25
+
+PR #326 integrates the shared `DraftAudioChooser` and `PublicListeningAudioWarning` into `src/skills/listening/builders/ListeningTestBuilder.tsx` (replacing new direct R2 audio uploads with BYO Backblaze B2 external-audio selection while preserving legacy R2 asset visibility and playback). The builder grew from 4,651 to 4,779 lines; extracting the surrounding wizard during this production rollout would risk regressing draft save, publish readiness, and conflict-token handling.
+
+<!-- assessment-line-budget-exception
+path: src/skills/listening/builders/ListeningTestBuilder.tsx
+line-count: 4779
+responsibilities: Listening wizard composition and section question editing; parser adaptation and strict native question serialization preserving context image explanation acceptable answers timer and option labels; shared BYO Backblaze B2 DraftAudioChooser and legacy R2 audio preview coordination; trusted draft publish conflict-token discard restore archive and recovery orchestration
+split-alternatives: extract native question serialization and parser adaptation into a bounded Listening question adapter; extract audio chooser and preview state into a bounded Listening audio controller; extract draft publish and recovery lifecycle into a Listening authoring controller
+rejection-reason: extract native question serialization and parser adaptation into a bounded Listening question adapter => this is a valid future seam but relocates parser fallbacks section assignment defaults and the preservation contract across another interface without bringing the inherited wizard near the soft budget; extract audio chooser and preview state into a bounded Listening audio controller => DraftAudioChooser is already extracted as a reusable component and moving the remaining section-level attachment and publish-readiness glue out of the wizard during production rollout risks regressing draft save and publish readiness; extract draft publish and recovery lifecycle into a Listening authoring controller => this would relocate fingerprints conflict tokens idempotency announcements and recovery across callbacks and broaden the bounded external-audio rollout into a lifecycle refactor
 approver: iamhuwng
 approver-role: Human Architecture Reviewer
 status: approved

@@ -486,7 +486,7 @@ export const createListeningUploadSessionHandlers = (options: {
         : new FirebaseRtdbRestClient({ env: input.env, fetchImpl: globalThis.fetch }).readValue(`media_assets/${request.assetId}`));
       if (record && typeof record === 'object' && 'state' in record && record.state === 'committed') {
         const asset = record as Record<string, unknown>;
-        if (asset.ownerId !== input.uid || asset.assetId !== request.assetId
+        if (asset.storageProvider === 'b2' || asset.ownerId !== input.uid || asset.assetId !== request.assetId
           || asset.canonicalAssetId !== request.assetId) {
           throw new ListeningUploadSessionError('asset_not_found', 404);
         }

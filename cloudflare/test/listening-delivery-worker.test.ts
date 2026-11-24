@@ -645,7 +645,7 @@ describe('native Listening canonical solo authorization', () => {
     Object.assign(fixture.values, {
       'tests/test-1': { ownerId: 'teacher-1', versionId: 'later-version' },
       'courses/course-1': { ownerId: 'course-teacher' },
-      'modules/module-1': { courseId: 'course-1' },
+      'course_modules/module-1': { courseId: 'course-1' },
       course_enrollments: { enrolled: { studentId: 'student-1', courseId: 'course-1', status: 'active', expiresAt: 0 } },
       course_materials: { linked: { courseId: 'course-1', moduleId: 'module-1', materialId: 'test-1' } },
     });

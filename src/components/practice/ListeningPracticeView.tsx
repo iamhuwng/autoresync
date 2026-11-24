@@ -1,3 +1,4 @@
+import './SectionRecording.css';
 /**
  * ListeningPracticeView — PRD-0045 Phase 5.0
  *
@@ -81,6 +82,8 @@ import { useBeforeUnloadWarning } from '../../hooks/test/useBeforeUnloadWarning'
 
 // Feature tracking
 import { useFeatureTracking } from '../../hooks/useFeatureTracking';
+import { openListeningCourseAttempt } from '../../features/assessment/listening/runtime/listeningSubmissionClient';
+import { resolveAudioCourseOrigin } from '../../services/externalAudioClient';
 import { FEATURE_IDS } from '../../config/featureRegistry';
 
 // Shared components
@@ -379,7 +382,31 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
     // ═══════════════════════════════════════════════════════════════
     const [isPlaying, setIsPlaying] = useState(false);
     const [audioError, setAudioError] = useState<string | null>(null);
-    const [soloDeliveryError, setSoloDeliveryError] = useState<string | null>(null);
+    const [unavailableAudioSections, setUnavailableAudioSections] = useState<ReadonlySet<number>>(() => new Set());
+    const [audioRetry, setAudioRetry] = useState(0);
+    const [courseAttempt, setCourseAttempt] = useState<{ scopeKey: string; operationId: string; handle: string }>();
+    const courseOperationId = soloAttemptIdentity?.submissionOperationId;
+    const { courseId, moduleId } = practiceContext;
+    const requiresCourseAttempt = practiceContext.type === 'course_material' &&
+        testData?.requiresAudioAttempt === true;
+    const [courseAttemptUnavailable, setCourseAttemptUnavailable] = useState(false);
+    const courseScopeKey = JSON.stringify([materialId, materialVersionId, courseId, moduleId, courseOperationId, user?.uid]);
+    const activeCourseAttempt = requiresCourseAttempt && courseAttempt?.scopeKey === courseScopeKey ? courseAttempt : undefined;
+
+    useEffect(() => {
+        if (!requiresCourseAttempt || activeCourseAttempt || resumeDecision === 'pending' || !courseOperationId || !materialVersionId || !courseId || !moduleId) return;
+        const endpoint = resolveAudioCourseOrigin();
+        if (!endpoint) {
+            setCourseAttemptUnavailable(true);
+            return;
+        }
+        let cancelled = false;
+        setCourseAttemptUnavailable(false);
+        openListeningCourseAttempt({ testId: materialId, versionId: materialVersionId, courseId, moduleId, operationId: courseOperationId }, { endpoint })
+            .then((handle) => { if (!cancelled) setCourseAttempt({ scopeKey: courseScopeKey, operationId: courseOperationId, handle }); },
+                () => { if (!cancelled) setCourseAttemptUnavailable(true); });
+        return () => { cancelled = true; };
+    }, [activeCourseAttempt, audioRetry, courseId, courseOperationId, courseScopeKey, materialId, materialVersionId, moduleId, requiresCourseAttempt, resumeDecision]);
     const [audioPositionSeconds, setAudioPositionSeconds] = useState(0);
     const [volume, setVolume] = useState(1);
     const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -394,20 +421,21 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
     const [soloAudioResolutions, setSoloAudioResolutions] = useState<Record<number, ListeningSoloAudioResolution>>({});
 
     useEffect(() => {
-        if (!testData || sourceAudioSections.length === 0) {
+        if (!testData || sourceAudioSections.length === 0 || (requiresCourseAttempt && !activeCourseAttempt)) {
             setSoloAudioResolutions({});
-            setSoloDeliveryError(null);
+            setUnavailableAudioSections(new Set());
             return;
         }
 
         let cancelled = false;
-        Promise.all(sourceAudioSections.map(async (section) => {
+        Promise.allSettled(sourceAudioSections.map(async (section) => {
             const resolution = await resolveListeningSoloAudioSection({
                 materialId,
                 materialVersionId,
                 studentId: user?.uid,
                 now: getDeliveryNow?.() ?? Date.now(),
                 scopeContext: progressScopeContext,
+                courseAttempt: activeCourseAttempt,
                 section,
                 deliveryIssuer: resolvedSoloDeliveryIssuer,
             });
@@ -415,19 +443,19 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
         }))
             .then((entries) => {
                 if (cancelled) return;
-                setSoloAudioResolutions(Object.fromEntries(entries));
-                setSoloDeliveryError(null);
-            })
-            .catch((err) => {
-                if (cancelled) return;
-                setSoloAudioResolutions({});
-                setSoloDeliveryError(err instanceof Error ? err.message : 'listening_solo_delivery_failed');
+                setSoloAudioResolutions(Object.fromEntries(entries.flatMap(entry =>
+                    entry.status === 'fulfilled' ? [entry.value] : [])));
+                setUnavailableAudioSections(new Set(entries.flatMap((entry, index) =>
+                    entry.status === 'rejected' ? [sourceAudioSections[index]!.number] : [])));
             });
 
         return () => {
             cancelled = true;
         };
     }, [
+        activeCourseAttempt,
+        requiresCourseAttempt,
+        audioRetry,
         getDeliveryNow,
         materialId,
         materialVersionId,
@@ -471,7 +499,24 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
 
     const currentAudioSection = audioSections[currentAudioIndex] || audioSections[0];
     const playingPartNumber = currentAudioSection?.number || 1;
-    const effectiveAudioError = audioError || soloDeliveryError;
+    const effectiveAudioError = audioError || (courseAttemptUnavailable || unavailableAudioSections.has(playingPartNumber)
+        ? 'This section’s recording is unavailable.' : null);
+    function retryRecording() {
+        trackAction('retryListeningRecording', { sectionNumber: playingPartNumber });
+        setAudioError(null);
+        if (courseAttemptUnavailable || unavailableAudioSections.has(playingPartNumber)
+            || soloAudioResolutions[playingPartNumber]?.kind === 'authorized-asset-delivery') {
+            setIsPlaying(false);
+            setAudioRetry((previous) => previous + 1);
+        } else {
+            setIsPlaying(true);
+        }
+    }
+
+    const audioRecovery = effectiveAudioError && <div className="section-recording-error">
+        <p role="alert">{effectiveAudioError}</p>
+        <button className="section-recording-retry" type="button" onClick={retryRecording}>Retry</button>
+    </div>;
     const currentSoloAuthorizedDelivery = useMemo<AuthorizedDeliveryConfig | undefined>(() => {
         const sectionNumber = currentAudioSection?.number;
         if (!sectionNumber) return undefined;
@@ -486,6 +531,7 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
             audioReplaced: Object.values(soloAudioResolutions).some(item => item.kind === 'authorized-asset-delivery' && item.delivery.audioReplaced),
             expiresAt: resolution.delivery.expiresAt,
             refreshAfter: resolution.delivery.refreshAfter,
+            crossOrigin: resolution.delivery.refreshHandle ? 'anonymous' : undefined,
             now: getDeliveryNow,
             refreshSource: async () => {
                 const previous = soloDeliveryRef.current[sectionNumber] ?? resolution.delivery;
@@ -496,6 +542,7 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
                     studentId: user?.uid,
                     now: getDeliveryNow?.() ?? Date.now(),
                     scopeContext: progressScopeContext,
+                    courseAttempt: activeCourseAttempt,
                     deliveryIssuer: resolvedSoloDeliveryIssuer,
                 });
                 soloDeliveryRef.current = {
@@ -511,6 +558,7 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
             },
         };
     }, [
+        activeCourseAttempt,
         currentAudioSection?.number,
         getDeliveryNow,
         materialId,
@@ -519,6 +567,18 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
         soloAudioResolutions,
         testData?.updatedAt,
         user?.uid,
+    ]);
+    const soloAudioControls = useMemo(() => ({
+        showPlayPause: true,
+        showProgressBar: true,
+        showSeekControl: resolvedSettings?.listening?.allowReplay !== false,
+        showSpeedControl: resolvedSettings?.listening?.allowSpeedControl !== false,
+        showVolumeControl: true,
+        showSkipSection: resolvedSettings?.listening?.allowSkipSection !== false,
+    }), [
+        resolvedSettings?.listening?.allowReplay,
+        resolvedSettings?.listening?.allowSkipSection,
+        resolvedSettings?.listening?.allowSpeedControl,
     ]);
 
     const handlePartChange = useCallback((partNumber: number) => {
@@ -533,16 +593,16 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
         if (targetSection) {
             setCurrentQuestionNumber(targetSection.startQuestion);
             const targetAudioIndex = audioSections.findIndex(s => s.number === partNumber);
-            if (targetAudioIndex >= 0) {
+            if (targetAudioIndex >= 0 && resolvedSettings?.listening?.allowSkipSection !== false) {
                 setCurrentAudioIndex(targetAudioIndex);
                 setAudioPositionSeconds(0);
                 setPendingSeekPosition(0);
                 setAudioError(null);
-                setIsPlaying(Boolean(targetSection.audioUrl || targetSection.streamUrl));
+                setIsPlaying(Boolean(targetSection.audioUrl || targetSection.streamUrl || targetSection.assetId));
             }
         }
         mobileStateDirtyRef.current = true;
-    }, [audioSections, practiceContext.type, trackAction, viewedPartNumber]);
+    }, [audioSections, practiceContext.type, resolvedSettings?.listening?.allowSkipSection, trackAction, viewedPartNumber]);
 
     const handleImageNavigate = useCallback((image: QuestionImage) => {
         const targetSection = audioSections.find(s => s.number === image.sectionNumber);
@@ -561,16 +621,21 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
         setViewedPartNumber(image.sectionNumber);
         setCurrentQuestionNumber(targetQuestion);
 
-        if (targetSection && targetAudioIndex >= 0 && targetAudioIndex !== currentAudioIndex) {
+        if (
+            targetSection
+            && targetAudioIndex >= 0
+            && targetAudioIndex !== currentAudioIndex
+            && resolvedSettings?.listening?.allowSkipSection !== false
+        ) {
             setCurrentAudioIndex(targetAudioIndex);
             setAudioPositionSeconds(0);
             setPendingSeekPosition(0);
             setAudioError(null);
-            setIsPlaying(Boolean(targetSection.audioUrl || targetSection.streamUrl));
+            setIsPlaying(Boolean(targetSection.audioUrl || targetSection.streamUrl || targetSection.assetId));
         }
 
         mobileStateDirtyRef.current = true;
-    }, [audioSections, currentAudioIndex, currentQuestionNumber, practiceContext.type, trackAction, viewedPartNumber]);
+    }, [audioSections, currentAudioIndex, currentQuestionNumber, practiceContext.type, resolvedSettings?.listening?.allowSkipSection, trackAction, viewedPartNumber]);
 
     // ═══════════════════════════════════════════════════════════════
     // AUDIO HANDLERS — PRD-0045 Fix: solo/homework audio playback
@@ -580,6 +645,9 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
         setAudioError(null);
         mobileStateDirtyRef.current = true;
         setIsPlaying(prev => {
+            if (prev && resolvedSettings?.listening?.allowPauseAudio === false) {
+                return prev;
+            }
             const next = !prev;
             listeningDiagnostics.info('[ListeningPractice] Toggled play state', {
                 audioPositionSeconds,
@@ -590,7 +658,7 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
             });
             return next;
         });
-    }, [audioPositionSeconds, currentAudioIndex, viewedPartNumber]);
+    }, [audioPositionSeconds, currentAudioIndex, resolvedSettings?.listening?.allowPauseAudio, viewedPartNumber]);
 
     const handleTimeUpdate = useCallback((current: number, _duration: number) => {
         setAudioPositionSeconds(current);
@@ -639,9 +707,11 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
     }, []);
 
     const handlePlaybackSpeedChange = useCallback((nextSpeed: number) => {
+        if (resolvedSettings?.listening?.allowSpeedControl === false) return;
         setPlaybackSpeed(nextSpeed);
+        handlePrefsChange({ ...studentPrefs, audioSpeed: nextSpeed });
         mobileStateDirtyRef.current = true;
-    }, []);
+    }, [handlePrefsChange, resolvedSettings?.listening?.allowSpeedControl, studentPrefs]);
 
     const handleSeekConsumed = useCallback(() => {
         setPendingSeekPosition(null);
@@ -678,7 +748,7 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
 
     const [isLocked, setIsLocked] = useState(false);
 
-    const { timeRemaining, formatTime, isPaused, togglePause: _togglePause, showTimeUpOverlay, gracePeriodRemaining, hasTimer } = useSoloTimer({
+    const { timeRemaining, elapsedSeconds, formatTime, isPaused, togglePause: _togglePause, showTimeUpOverlay, gracePeriodRemaining, hasTimer } = useSoloTimer({
         durationMinutes: resolvedSettings?.timerMinutes ?? null,
         allowPause: resolvedSettings?.allowPause === true,
         testSubmitted: false,
@@ -766,6 +836,7 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
         studentId: user?.uid,
         studentName,
         timeRemaining,
+        elapsedSeconds,
         resolvedSettings,
         context: {
             type: isHomework ? 'homework' : (practiceContext.courseId ? 'course_material' : 'self_study'),
@@ -782,6 +853,7 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
         progressScopeContext,
         attemptId: soloAttemptIdentity?.attemptId,
         submissionOperationId: soloAttemptIdentity?.submissionOperationId,
+        courseAttemptHandle: activeCourseAttempt?.handle,
         homeworkId: practiceContext.homeworkId,
         submissionId: practiceContext.submissionId,
         questionsWithAnswersRef,
@@ -808,10 +880,8 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
 
     const timeElapsedRef = useRef(0);
     useEffect(() => {
-        if (hasTimer && isFinite(timeRemaining) && resolvedSettings?.timerMinutes) {
-            timeElapsedRef.current = (resolvedSettings.timerMinutes * 60) - timeRemaining;
-        }
-    }, [timeRemaining, hasTimer, resolvedSettings?.timerMinutes]);
+        timeElapsedRef.current = elapsedSeconds;
+    }, [elapsedSeconds]);
 
     const autoSaveStatus = useSoloAutoSave({
         materialId,
@@ -905,13 +975,17 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
 
     /** Desktop section change handler */
     const handleDesktopSectionChange = useCallback((sectionNumber: number) => {
+        if (testData?.requiresAudioAttempt) {
+            handlePartChange(sectionNumber);
+            return;
+        }
         setViewedPartNumber(sectionNumber);
         const section = audioSections.find(s => s.number === sectionNumber);
         if (section) {
             setCurrentQuestionNumber(section.startQuestion);
         }
         mobileStateDirtyRef.current = true;
-    }, [audioSections]);
+    }, [audioSections, handlePartChange, testData?.requiresAudioAttempt]);
 
     /** Desktop submit (triggers the same submitTestRef) */
     const handleDesktopSubmit = useCallback(async () => {
@@ -976,6 +1050,11 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
     useEffect(() => {
         setFontSize(studentPrefs.fontSize);
     }, [studentPrefs.fontSize]);
+
+    useEffect(() => {
+        const allowSpeed = resolvedSettings?.listening?.allowSpeedControl !== false;
+        setPlaybackSpeed(allowSpeed ? (studentPrefs.audioSpeed || 1) : 1);
+    }, [studentPrefs.audioSpeed, resolvedSettings?.listening?.allowSpeedControl]);
 
     // ═══════════════════════════════════════════════════════════════
     // VIEWED PART: DERIVED STATE
@@ -1372,18 +1451,16 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
                 data-surface="review"
                 style={{ minHeight: '100dvh', background: '#f8fafc' }}
             >
-                <MobileStartScreen
-                    mode={isHomework ? 'homework' : 'solo'}
-                    testTitle={`Test Completed — ${testResults.correctAnswers}/${testResults.totalQuestions}`}
-                    testSkill="Listening"
-                    passageCount={audioSections.length}
-                    questionCount={testResults.totalQuestions}
-                    timeLimit={null}
-                    onStart={handleBack}
-                    showStartButton={true}
-                    practiceContext={practiceContext}
-                    resolvedSettings={resolvedSettings}
-                />
+                <div className="section-recording-complete" role="status">
+                    <h1>Test completed</h1>
+                    <p>{testResults.correctAnswers} of {testResults.totalQuestions} correct</p>
+                    <button className="section-recording-retry" type="button" onClick={() => {
+                        trackAction('leaveTest', { source: 'completion' });
+                        handleBack();
+                    }}>
+                        {isHomework ? 'Back to Homework' : 'Back to Practice'}
+                    </button>
+                </div>
             </div>
         );
     }
@@ -1420,7 +1497,7 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
                         currentAudioSection?.audioUrl ? (
                             <div style={{ padding: '0 0.5rem' }}>
                                 <AudioPlayer
-                                    key={`solo-audio-${currentAudioIndex}`}
+                                    key={`solo-audio-${currentAudioIndex}-${audioRetry}`}
                                     audioUrl={currentAudioSection.audioUrl}
                                     sectionNumber={currentAudioSection.number}
                                     isPlaying={isPlaying}
@@ -1435,33 +1512,18 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
                                     seekPosition={pendingSeekPosition}
                                     onSeekConsumed={handleSeekConsumed}
                                     authorizedDelivery={currentSoloAuthorizedDelivery}
+                                    audioControls={soloAudioControls}
                                     allowReplay={resolvedSettings?.listening?.allowReplay !== false}
                                     maxReplays={resolvedSettings?.listening?.maxReplays ?? 2}
                                     playerMode="solo"
                                     minimal
                                     mobileLayout
                                 />
-                                {effectiveAudioError && (
-                                    <div style={{
-                                        padding: '0.25rem 0.5rem',
-                                        fontSize: '0.75rem',
-                                        color: '#ef4444',
-                                        textAlign: 'center',
-                                    }}>
-                                        Audio error: {effectiveAudioError}
-                                    </div>
-                                )}
+                                {audioRecovery}
                             </div>
-                        ) : (
-                            <div style={{
-                                padding: '0.375rem 0.5rem',
-                                fontSize: '0.8125rem',
-                                color: '#94a3b8',
-                                textAlign: 'center',
-                            }}>
-                                No audio for this section
-                            </div>
-                        )
+                        ) : audioRecovery || (currentAudioSection?.assetId
+                            ? <p className="section-recording-hint" role="status">Loading audio…</p>
+                            : <p className="section-recording-hint">No audio for this section</p>)
                     }
                     mainContent={
                         displayMode === 'image' && questionImages && questionImages.length > 0 ? (
@@ -1732,55 +1794,7 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
                 </div>
             )}
 
-            {/* Audio Error Notification */}
-            {effectiveAudioError && (
-                <div style={{
-                    position: 'fixed',
-                    top: '80px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    zIndex: 9999,
-                    background: '#fef2f2',
-                    border: '2px solid #fecaca',
-                    borderRadius: '0.75rem',
-                    padding: '1rem 1.5rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '1rem',
-                    boxShadow: '0 4px 20px rgba(220, 38, 38, 0.2)',
-                    maxWidth: '500px',
-                }}>
-                    <span style={{ fontSize: '1.5rem' }}>🔇</span>
-                    <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: '600', color: '#dc2626', fontSize: '0.9375rem', marginBottom: '0.25rem' }}>
-                            Audio Error
-                        </div>
-                        <div style={{ fontSize: '0.8125rem', color: '#991b1b' }}>
-                            {effectiveAudioError}
-                        </div>
-                    </div>
-                    <button
-                        onClick={() => {
-                            setAudioError(null);
-                            setSoloDeliveryError(null);
-                            setIsPlaying(true);
-                        }}
-                        style={{
-                            padding: '0.5rem 1rem',
-                            background: '#dc2626',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '0.375rem',
-                            fontSize: '0.8125rem',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
-                        }}
-                    >
-                        Retry
-                    </button>
-                </div>
-            )}
+            {audioRecovery && <div className="section-recording-floating">{audioRecovery}</div>}
 
             {/* IELTS-Style Header with Compact Audio */}
             <ListeningHeader
@@ -1790,7 +1804,7 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
                 isPaused={isPaused}
                 testSubmitted={testSubmitted}
                 audioUrl={currentAudioSection?.audioUrl}
-                hasAudio={!!currentAudioSection?.audioUrl}
+                hasAudio={!!(currentAudioSection?.audioUrl || currentAudioSection?.assetId)}
                 sectionNumber={currentAudioSection?.number || 1}
                 isPlaying={isPlaying}
                 volume={volume}
@@ -1800,6 +1814,7 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
                 onSectionComplete={handleSectionComplete}
                 onError={handleAudioError}
                 authorizedDelivery={currentSoloAuthorizedDelivery}
+                audioControls={soloAudioControls}
                 allowReplay={resolvedSettings?.listening?.allowReplay !== false}
                 maxReplays={resolvedSettings?.listening?.maxReplays ?? 2}
                 playerMode="solo"

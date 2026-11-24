@@ -251,6 +251,9 @@ export async function cloneFromPublicTest(
         }
 
         const testData = testSnap.val();
+        if (testData.testType !== 'THCS-THPT' || testData.isPublic !== true) {
+            return { success: false, error: 'This test is unavailable for public cloning.' };
+        }
 
         // Create draft metadata with "Copy of" prefix
         const metadata = {
@@ -267,20 +270,21 @@ export async function cloneFromPublicTest(
         const draftId = createResult.data.draftId;
 
         // Clone sections with new unique question IDs
-        const sections = (testData.sections || []).map((s: any) => ({
+        const sections = copyThcsSectionsWithoutAudio(testData.sections ?? []).map((s) => ({
             ...s,
-            questions: (s.questions || []).map((q: any) => ({
+            questions: s.questions.map((q) => ({
                 ...q,
                 id: crypto.randomUUID(), // New unique IDs for cloned questions
             })),
         }));
 
-        await updateThcsDraft(draftId, {
+        const saved = await updateThcsDraft(draftId, {
             sections,
             questionCount: testData.questionCount || 0,
             totalPoints: testData.totalPoints || 0,
             clonedFrom: originalTestId,
-        } as any);
+        } as Partial<THCSDraft>);
+        if (!saved.success) return { success: false, error: saved.error };
 
         console.log(`✅ [thcsDraftService] Cloned test ${originalTestId} → draft ${draftId}`);
         return { success: true, data: { draftId } };
@@ -291,4 +295,11 @@ export async function cloneFromPublicTest(
             error: error instanceof Error ? error.message : 'Failed to clone test',
         };
     }
+}
+
+export function copyThcsSectionsWithoutAudio(sections: readonly THCSSection[]): THCSSection[] {
+    return sections.map(({ externalAudio, ...section }) => ({
+        ...section,
+        ...(externalAudio ? { externalAudioRequired: true as const } : {}),
+    }));
 }

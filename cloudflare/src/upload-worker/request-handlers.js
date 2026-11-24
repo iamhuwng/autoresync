@@ -230,3 +230,33 @@ export const handleGrantMove = async ({ request, env, uid, now }) => {
     },
   };
 };
+
+export const handlePromoteDraftImage = async ({ request, env, uid }) => {
+  const body = await parseJsonBody(request);
+  const sourceKey = body?.sourceKey;
+  const tempPrefix = 'temp/';
+  if (typeof sourceKey !== 'string' || !sourceKey.startsWith('temp/images/') || Object.keys(body).length !== 1) {
+    throw new PathAuthorityError('invalid_draft_image');
+  }
+  const move = deriveCanonicalMove({ sourceKey, destKey: sourceKey.slice(tempPrefix.length), uid });
+  const bucket = env.R2_BUCKET;
+
+  // The destination is immutable. A retry can reuse it after the temp object expires.
+  if (!await bucket.head(move.destKey)) {
+    const source = await bucket.get(move.sourceKey);
+    if (source) {
+      await bucket.put(move.destKey, source.body, {
+        onlyIf: new Headers({ 'If-None-Match': '*' }),
+        httpMetadata: source.httpMetadata,
+        customMetadata: source.customMetadata,
+      });
+    } else if (!await bucket.head(move.destKey)) {
+      return { body: { error: 'Source file not found' }, init: { status: 404 } };
+    }
+  }
+
+  // Keep the original readable until the draft save references the copy. R2 expires temp/ objects.
+  return {
+    body: { success: true, newKey: move.destKey, newUrl: `${env.PUBLIC_URL}/${move.destKey}` },
+  };
+};

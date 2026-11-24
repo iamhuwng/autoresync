@@ -1,3 +1,5 @@
+import type { DraftSectionAudio } from '@/types/assessmentAudio.types';
+
 export type ListeningAuthoringPath =
   | 'listening_authoring/drafts'
   | 'listening_authoring/revision_drafts'
@@ -23,6 +25,7 @@ export interface ListeningAuthoringAudioSection {
   readonly audioUrl: string;
   readonly streamUrl?: string;
   readonly assetId?: string;
+  readonly externalAudio?: DraftSectionAudio;
   readonly startQuestion: number;
   readonly endQuestion: number;
   readonly playLimit?: number;

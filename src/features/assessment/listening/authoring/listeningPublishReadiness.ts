@@ -122,6 +122,7 @@ export async function validateListeningPublishReadiness(
   const fetchImpl = dependencies.fetchImpl ?? globalThis.fetch?.bind(globalThis);
 
   for (const section of document.audioSections) {
+    if (section.externalAudio) continue; // The trusted publish mutation checks the pinned provider version.
     if (!section.assetId?.trim()) {
       blockers.push(blocker(
         section.number,

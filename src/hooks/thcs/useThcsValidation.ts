@@ -3,6 +3,7 @@
  */
 import { useMemo } from 'react';
 import type { THCSTestMetadata, THCSSection } from '../../types/thcs-test.types';
+import { EXTERNAL_AUDIO_REPLACEMENT_REQUIRED } from '../../types/assessmentAudio.types';
 
 interface ValidationResult {
     metadataErrors: string[];
@@ -39,6 +40,9 @@ export function useThcsValidation({
 
         // Section-level
         sections.forEach((section) => {
+            if (section.externalAudioRequired && !section.externalAudio) {
+                errors.push(`${section.name}: ${EXTERNAL_AUDIO_REPLACEMENT_REQUIRED}`);
+            }
             if (section.importSourceNeedsReview) {
                 errors.push(`Review the preserved source in Build Test before publishing section "${section.name}".`);
             }

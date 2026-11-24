@@ -1,9 +1,11 @@
+import { EXTERNAL_AUDIO_DRAFT_ONLY, EXTERNAL_AUDIO_PRIVATE_ONLY } from '../../../src/types/assessmentAudio.types';
 import { requestHash } from './canonical';
 import { LISTENING_AUTHORING_SCHEMA_VERSION } from './constants';
 import {
   createFailedOperationRecord,
   createOperationScopeKey,
   createSucceededOperationRecord,
+  deriveAssetIds,
 } from './repository.operationRecords';
 import {
   cloneDraftRecord,
@@ -77,8 +79,16 @@ const imageCoversQuestion = (
   });
 };
 
-const findPublishBlockers = (draft: ListeningAuthoringDraftRecord): readonly PublishBlocker[] => {
+const findPublishBlockers = (
+  draft: ListeningAuthoringDraftRecord,
+  validation?: PublishDraftTransactionInput['externalAudioValidation'],
+): readonly PublishBlocker[] => {
   const blockers: PublishBlocker[] = [];
+  const externalIds = draft.document.audioSections.flatMap((section) => section.externalAudio ? [section.externalAudio.assetId] : []);
+  const verified = Boolean(externalIds.length && validation && validation.assetIds.length === externalIds.length
+    && new Set(externalIds).size === externalIds.length
+    && externalIds.every((assetId, index) => validation.assetIds[index] === assetId));
+  if (verified && validation) blockers.push(...validation.blockers);
   if (draft.document.audioSections.length === 0) {
     blockers.push({
       field: 'audioSections',
@@ -101,6 +111,14 @@ const findPublishBlockers = (draft: ListeningAuthoringDraftRecord): readonly Pub
     });
   }
   draft.document.audioSections.forEach((section, index) => {
+    if (section.externalAudio !== undefined) {
+      if (!verified || (draft.document.isPublic && validation?.allowPublic !== true) || draft.document.type !== 'IELTS') blockers.push({
+        field: `audioSections[${index}].externalAudio`,
+        severity: 'blocker',
+        guidance: draft.document.isPublic ? EXTERNAL_AUDIO_PRIVATE_ONLY : EXTERNAL_AUDIO_DRAFT_ONLY,
+      });
+      return;
+    }
     if (typeof section.assetId !== 'string' || section.assetId.length === 0) {
       blockers.push({
         field: `audioSections[${index}].assetId`,
@@ -270,7 +288,7 @@ export const runPublishDraftMutation = (
     return failWithConflict(state, input, currentDraft, input.publishedAt);
   }
 
-  const blockers = findPublishBlockers(currentDraft);
+  const blockers = findPublishBlockers(currentDraft, input.externalAudioValidation);
   if (blockers.length > 0) {
     const operation = createFailedOperationRecord({
       operationId: input.operationId,
@@ -304,6 +322,16 @@ export const runPublishDraftMutation = (
   const versionNumber = (latestExistingVersion?.versionNumber ?? 0) + 1;
   const nextConflictToken = currentDraft.conflictToken + 1;
   const sourceDraftPath = currentDraft.recordType === 'draft' ? 'drafts' : 'revision_drafts';
+  const publishedDocument = {
+    ...currentDraft.document,
+    audioSections: currentDraft.document.audioSections.map((section) => {
+      if (!section.externalAudio) return section;
+      const { assetId, streamUrl, ...externalSection } = section;
+      void assetId;
+      void streamUrl;
+      return { ...externalSection, audioUrl: '' };
+    }),
+  };
   const version = normalizeVersionRecord({
     schemaVersion: LISTENING_AUTHORING_SCHEMA_VERSION,
     recordType: 'published-version',
@@ -316,12 +344,13 @@ export const runPublishDraftMutation = (
       : latestExistingVersion?.versionId ?? currentDraft.createdFromVersionId,
     sourceDraftPath,
     sourceDraftId: currentDraft.draftId,
-    document: cloneRecord(currentDraft.document),
-    assetIds: cloneRecord(currentDraft.assetIds),
+    document: cloneRecord(publishedDocument),
+    assetIds: publishedDocument.audioSections.some((section) => section.externalAudio)
+      ? deriveAssetIds(publishedDocument) : cloneRecord(currentDraft.assetIds),
     publishedAt: input.publishedAt,
     publishedBy: input.ownerId,
     publishOperationId: input.operationId,
-    documentHash: requestHash(currentDraft.document),
+    documentHash: requestHash(publishedDocument),
     archive: {
       state: 'active',
     },

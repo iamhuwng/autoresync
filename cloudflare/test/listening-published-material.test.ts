@@ -101,6 +101,23 @@ describe('Listening published material projection', () => {
       .toThrow('Listening runtime owner does not match published version owner.');
   });
 
+  it('makes active public external audio visible only as an opaque asset and withdraws it on archive', () => {
+    const external: ListeningPublishedVersionRecord = {
+      ...version,
+      document: {
+        ...version.document,
+        audioSections: [{ ...version.document.audioSections[0], audioUrl: '', streamUrl: '',
+          externalAudio: { assetId: 'opaque-audio', scope: 'section' } }],
+      },
+    };
+    const projection = buildListeningPublishedMaterialUpdates(external)['student_safe_tests/listening-1'];
+    expect(projection).toMatchObject({ audioSections: [{ assetId: 'opaque-audio', audioUrl: '' }] });
+    expect(JSON.stringify(projection)).not.toMatch(/externalAudio|streamUrl/u);
+    const archived = buildListeningPublishedMaterialUpdates({ ...external, archive: { state: 'archived' } });
+    expect(archived['student_safe_tests/listening-1']).toBeNull();
+    expect(archived['tests/listening-1/isPublic']).toBe(false);
+  });
+
   it('keeps answers and teacher review notes out of student delivery', () => {
     const withTeacherNotes = { ...version, document: {
       ...version.document,

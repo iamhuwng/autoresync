@@ -2,6 +2,7 @@ import type {
   ListeningAuthoringDocumentV1,
   ListeningAuthoringIssue,
 } from '../types/listeningAuthoring.types';
+import { EXTERNAL_AUDIO_DRAFT_ONLY, EXTERNAL_AUDIO_PRIVATE_ONLY } from '@/types/assessmentAudio.types';
 
 const emptyAnswer = (answer: string | string[] | Record<string, string>): boolean => {
   if (typeof answer === 'string') return answer.trim() === '';
@@ -12,14 +13,17 @@ const emptyAnswer = (answer: string | string[] | Record<string, string>): boolea
 const audioIssues = (
   document: ListeningAuthoringDocumentV1,
   severity: ListeningAuthoringIssue['severity'],
+  allowExternalAudio = false,
 ): ListeningAuthoringIssue[] =>
   document.audioSections
-    .filter(section => !section.audioUrl)
+    .filter(section => section.externalAudio
+      ? severity === 'blocker' && !allowExternalAudio
+      : !section.audioUrl)
     .map(section => ({
       sectionNumber: section.number,
-      field: 'audioUrl',
+      field: section.externalAudio ? 'externalAudio' : 'audioUrl',
       severity,
-      guidance: severity === 'warning'
+      guidance: section.externalAudio ? (document.isPublic ? EXTERNAL_AUDIO_PRIVATE_ONLY : EXTERNAL_AUDIO_DRAFT_ONLY) : severity === 'warning'
         ? 'Add audio before publishing.'
         : 'Publish requires audio for every section.',
     }));
@@ -90,9 +94,10 @@ export function validateListeningDraft(
 
 export function validateListeningPublish(
   document: ListeningAuthoringDocumentV1,
+  allowExternalAudio = false,
 ): readonly ListeningAuthoringIssue[] {
   return [
-    ...audioIssues(document, 'blocker'),
+    ...audioIssues(document, 'blocker', allowExternalAudio),
     ...questionIssues(document, 'blocker'),
   ];
 }

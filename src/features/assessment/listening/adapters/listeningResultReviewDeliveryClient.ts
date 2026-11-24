@@ -62,7 +62,7 @@ export function createListeningResultReviewDeliveryIssuer(
   dependencies: ListeningResultReviewDeliveryClientDependencies = {},
 ): ListeningResultReviewAudioDeliveryIssuer {
   return {
-    async issue(input) {
+    async issue(input, refreshHandle, signal) {
       const endpoint = trimTrailingSlashes(
         dependencies.endpoint?.trim() || resolveListeningResultReviewDeliveryEndpoint(),
       );
@@ -93,7 +93,11 @@ export function createListeningResultReviewDeliveryIssuer(
           assetId: input.assetId,
           resultId: input.resultScope.resultId,
           versionId: input.resultScope.versionId,
+          refreshHandle,
         }),
+        signal,
+        cache: 'no-store',
+        referrerPolicy: 'no-referrer',
       });
       const responseBody = await readJsonBody(response);
 

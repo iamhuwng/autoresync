@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { HomeworkCreateModal, type BookHomeworkRecoveryState } from './HomeworkCreateModal';
 import { createHomework } from '../../services/homeworkManager';
-import { createBookHomeworkAssignmentViaWorker } from '../../services/homeworkAssignmentClient';
+import { createBookHomeworkAssignmentViaWorker, createHomeworkAssignmentViaWorker } from '../../services/homeworkAssignmentClient';
 import type { BookHomeworkPreviewSource } from '../../services/book-homework/bookHomeworkPreview.service';
 
 const mockGetAllTests = vi.fn();
@@ -94,6 +94,7 @@ vi.mock('../../contexts/AuthContext', () => ({
             uid: 'teacher-1',
             email: 'teacher@test.com',
         },
+        profile: { role: 'teacher' },
     }),
 }));
 
@@ -113,6 +114,7 @@ vi.mock('../../services/homeworkManager', () => ({
 
 vi.mock('../../services/homeworkAssignmentClient', () => ({
     createBookHomeworkAssignmentViaWorker: vi.fn(),
+    createHomeworkAssignmentViaWorker: vi.fn(),
     createBookHomeworkPreviewSource: (...args: any[]) => mockLoadBookHomeworkPreviewSource(...args),
 }));
 
@@ -218,6 +220,60 @@ describe('HomeworkCreateModal', () => {
         });
 
         expect(screen.getByText('Public Library')).toBeInTheDocument();
+    });
+
+    it('uses the trusted Listening assignment path with only public audio QA enabled', async () => {
+        vi.stubEnv('DEV', true);
+        vi.stubEnv('VITE_EXTERNAL_AUDIO_LOCAL_QA', 'enabled');
+        vi.stubEnv('VITE_EXTERNAL_AUDIO_AUTHORING_LOCAL_QA', 'enabled');
+        vi.stubEnv('VITE_EXTERNAL_AUDIO_PRIVATE_HOMEWORK_LOCAL_QA', 'disabled');
+        vi.stubEnv('VITE_EXTERNAL_AUDIO_PUBLIC_LISTENING_LOCAL_QA', 'enabled');
+        vi.stubEnv('VITE_FIREBASE_LOCAL_ONLY', 'true');
+        vi.stubEnv('VITE_FIREBASE_PROJECT_ID', 'demo-luyentap-local');
+        vi.stubEnv('VITE_R2_UPLOAD_WORKER_URL', 'http://localhost:8787');
+        vi.stubEnv('VITE_BACKUP_WORKER_URL', 'http://localhost:8787');
+        vi.mocked(createHomeworkAssignmentViaWorker).mockResolvedValueOnce('homework-public-listening');
+
+        try {
+            render(
+                <HomeworkCreateModal
+                    isOpen
+                    onClose={vi.fn()}
+                    onSuccess={vi.fn()}
+                    preselectedTarget={{ type: 'students', studentIds: ['student-1'] }}
+                    skipTargetSelection
+                    preselectedMaterial={{
+                        id: 'public-listening',
+                        title: 'Public Listening test',
+                        type: 'test',
+                        skill: 'listening',
+                        isPublicLibrary: true,
+                        listeningVersionId: 'version-1',
+                    }}
+                />
+            );
+
+            fireEvent.change(await screen.findByLabelText(/Due Date/i), {
+                target: { value: '2027-01-15T10:00' },
+            });
+            fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+            fireEvent.click(screen.getByRole('button', { name: /Create Homework/i }));
+
+            await waitFor(() => {
+                expect(createHomeworkAssignmentViaWorker).toHaveBeenCalledWith(expect.objectContaining({
+                    contentRef: {
+                        contentKind: 'ielts_listening',
+                        contentId: 'public-listening',
+                        version: 'version-1',
+                        title: 'Public Listening test',
+                    },
+                    target: expect.objectContaining({ type: 'students', studentIds: ['student-1'] }),
+                }));
+            });
+            expect(createHomework).not.toHaveBeenCalled();
+        } finally {
+            vi.unstubAllEnvs();
+        }
     });
 
     it('uses a direct preselected Teacher Lobby material and normalized Worker writer', async () => {

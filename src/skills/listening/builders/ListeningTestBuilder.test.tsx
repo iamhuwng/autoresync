@@ -4,6 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '../../../test/test-utils';
 import ListeningTestBuilder from './ListeningTestBuilder';
 
+vi.mock('../../../services/firebase', () => ({ database: {} }));
+vi.mock('../../../contexts/AuthContext', () => ({ useAuth: () => ({ user: null, profile: null }) }));
+
 const testState = vi.hoisted(() => ({
   seedAudioMetadata: true,
 }));
@@ -401,7 +404,7 @@ describe('ListeningTestBuilder', () => {
 
     await user.click(screen.getByRole('button', { name: 'Next →' }));
 
-    expect(screen.getByText('Upload one audio file per section.')).toBeInTheDocument();
+    expect(screen.getByText('Choose one audio source per section.')).toBeInTheDocument();
     expect(screen.getByText(/MP3 or M4A recommended/i)).toBeInTheDocument();
     expect(screen.getByText(/1 audio file planned/i)).toBeInTheDocument();
     expect(screen.queryByText(/questions total/i)).not.toBeInTheDocument();

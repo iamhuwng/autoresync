@@ -1269,7 +1269,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
     }
 
     // Loading state
-    if (isLoading || (materialLoading && !material)) {
+    if (isLoading || (homework && materialLoading && !material)) {
         return (
             <StudentLayout sidebar={sidebar} mobileTitle="Homework Details">
                 <Center style={{ minHeight: '60vh' }}>
@@ -1437,11 +1437,11 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                                 {homework.title || homework.materialTitle}
                                             </h1>
                                             <Group gap="xs" style={{ flexWrap: 'wrap' }}>
-                                                <Badge color="blue" variant="light" size="lg">
-                                                    {homework.materialSkill}
-                                                </Badge>
+                                                {homework.materialType !== 'thcs-test' && <Badge color="blue" variant="light" size="lg">
+                                                    {homework.contentRef?.contentKind === 'ielts_listening' ? 'Listening' : homework.materialSkill}
+                                                </Badge>}
                                                 <Badge color="gray" variant="light" size="lg">
-                                                    {readingPassageSummary?.label ?? homework.materialType}
+                                                    {homework.materialType === 'thcs-test' ? 'THCS' : readingPassageSummary?.label ?? homework.materialType}
                                                 </Badge>
                                                 {isOverdue && (
                                                     <Badge color="red" variant="filled" size="lg">

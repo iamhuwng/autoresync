@@ -39,7 +39,13 @@ import {
 import {
     createBookHomeworkAssignmentViaWorker,
     createBookHomeworkPreviewSource,
+    createHomeworkAssignmentViaWorker,
 } from '../../services/homeworkAssignmentClient';
+import {
+    externalAudioPrivateHomeworkOptedIn,
+    externalAudioPublicListeningOptedIn,
+    resolveExternalAudioOrigin,
+} from '../../services/externalAudioClient';
 import { resolvePreset, getContextDefaults } from '../../utils/antiCheatPresets';
 // @ts-ignore - JS service
 import queryOptimizer from '../../services/firebaseQueryOptimizer';
@@ -120,6 +126,7 @@ interface Material {
     testType?: string;
     gradeLevel?: number;
     isPublicLibrary?: boolean;
+    listeningVersionId?: string;
     readingPassageSnapshot?: ReadingPassageHomeworkSnapshot;
     readingPassageSet?: ReadingPassageHomeworkSet;
 }
@@ -162,6 +169,9 @@ const mapMaterialRecord = (material: any, isPublicLibrary: boolean): Material =>
     testType: material.testType,
     gradeLevel: material.metadata?.gradeLevel,
     isPublicLibrary,
+    listeningVersionId: String(material.skill).toLowerCase() === 'listening'
+        ? material.versionId ?? material.publishedSnapshotVersionId
+        : undefined,
 });
 
 const READING_PASSAGE_SET_PRESELECTED_ID = 'reading-passage-set:selected';
@@ -237,7 +247,7 @@ export function HomeworkCreateModal({
     bookHomeworkRecovery,
     onBookHomeworkRecoveryChange,
 }: HomeworkCreateModalProps) {
-    const { user } = useAuth();
+    const { user, profile } = useAuth();
     const { tags: availableTags } = useHomeworkTags();
     const { trackAction } = useFeatureTracking(FEATURE_IDS.homework);
 
@@ -707,6 +717,15 @@ export function HomeworkCreateModal({
                 await onSubmitHomework(assignmentInput);
             } else if (createHomeworkAssignment) {
                 await createHomeworkAssignment(assignmentInput);
+            } else if (selectedMaterial.listeningVersionId
+                && (externalAudioPrivateHomeworkOptedIn() || externalAudioPublicListeningOptedIn())
+                && resolveExternalAudioOrigin(profile)) {
+                await createHomeworkAssignmentViaWorker({
+                    ...assignmentInput,
+                    contentRef: { contentKind: 'ielts_listening', contentId: selectedMaterial.id,
+                        version: selectedMaterial.listeningVersionId, title: selectedMaterial.title },
+                });
+                toast.success('Homework assignment created.');
             } else {
                 await createHomework(homeworkInput);
             }

@@ -8,7 +8,7 @@ const row = (value: unknown): value is Row => Boolean(value && typeof value === 
 export class ListeningAudioReplacementError extends Error {
   constructor() { super('listening_audio_replacement_invalid'); }
 }
-const fail = (): never => { throw new ListeningAudioReplacementError(); };
+function fail(): never { throw new ListeningAudioReplacementError(); }
 const key = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9_-]{1,160}$/u.test(value);
 const section = (version: Row, number: number): Row | undefined =>
   version.document?.audioSections?.find((audio: Row) => audio.number === number);
@@ -45,6 +45,7 @@ export async function readListeningAudioReplacementWarning(read: Reader, version
 
 export function assertListeningPhysicalAsset(asset: unknown, assetId: string, ownerId: string): asserts asset is Row {
   if (!key(assetId) || !key(ownerId) || !row(asset) || !key(asset.uploadSessionId)
+    || asset.storageProvider === 'b2'
     || asset.assetId !== assetId || asset.canonicalAssetId !== assetId || asset.ownerId !== ownerId
     || asset.state !== 'committed' || !Number.isSafeInteger(asset.sizeBytes) || asset.sizeBytes <= 0
     || typeof asset.checksum !== 'string' || !/^[a-f0-9]{64}$/u.test(asset.checksum)
@@ -79,11 +80,23 @@ export async function resolveListeningAudioReplacement(read: Reader, assetId: st
     : await read(`listening_authoring/versions/${receipt.targetVersionId}`);
   if (!validVersion(firstTarget, receipt.testId, original.ownerId) || firstTarget.versionId !== receipt.targetVersionId
     || section(firstTarget, receipt.sectionNumber)?.assetId !== receipt.assetId) fail();
-  const targetAssetId = section(target, receipt.sectionNumber)?.assetId;
-  if (!targetAssetId || targetAssetId === assetId || target.assetIds?.[targetAssetId] !== true) fail();
+  // A private external version keeps the preceding R2 publication's bytes available.
+  let physicalVersion = target;
+  let hops = 0;
+  while (section(physicalVersion, receipt.sectionNumber)?.externalAudio) {
+    if (hops++ >= 32) fail();
+    const previousId = physicalVersion.previousVersionId;
+    if (!key(previousId)) fail();
+    const previous = await read(`listening_authoring/versions/${previousId}`);
+    if (!validVersion(previous, receipt.testId, original.ownerId) || previous.versionId !== previousId
+      || !Number.isSafeInteger(previous.versionNumber) || previous.versionNumber >= physicalVersion.versionNumber) fail();
+    physicalVersion = previous;
+  }
+  const targetAssetId = section(physicalVersion, receipt.sectionNumber)?.assetId;
+  if (!targetAssetId || targetAssetId === assetId || physicalVersion.assetIds?.[targetAssetId] !== true) fail();
   const physical = await read(`media_assets/${targetAssetId}`);
   assertListeningPhysicalAsset(physical, targetAssetId, original.ownerId);
-  if (physical.replacement || physical.references?.versions?.[target.versionId] !== true) fail();
+  if (physical.replacement || physical.references?.versions?.[physicalVersion.versionId] !== true) fail();
   return { original, physical, audioReplaced: true, audioReplacedAt: receipt.replacedAt };
 }
 
@@ -102,7 +115,7 @@ export async function replaceListeningPublishedAudio(input: {
     || current.versionNumber <= previous.versionNumber || current.archive.state !== 'active') fail();
   const replacements = previous.document.audioSections.flatMap(old => {
     const next = current.document.audioSections.find(audio => audio.number === old.number);
-    return old.assetId && next?.assetId && old.assetId !== next.assetId ? [{ old, next }] : [];
+    return !old.externalAudio && !next?.externalAudio && old.assetId && next?.assetId && old.assetId !== next.assetId ? [{ old, next }] : [];
   });
   if (!replacements.length) return;
   if (!input.bucket) fail();
@@ -111,6 +124,7 @@ export async function replaceListeningPublishedAudio(input: {
     const [original, physical] = await Promise.all([
       rtdb.readValue(`media_assets/${old.assetId}`), rtdb.readValue(`media_assets/${next.assetId}`),
     ]);
+    if ((row(original) && original.storageProvider === 'b2') || (row(physical) && physical.storageProvider === 'b2')) continue;
     assertListeningPhysicalAsset(original, old.assetId!, current.ownerId);
     assertListeningPhysicalAsset(physical, next.assetId!, current.ownerId);
     if (physical.replacement || physical.references?.versions?.[current.versionId] !== true

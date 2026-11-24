@@ -21,6 +21,7 @@ export interface ListeningDeliverySoloScope {
   readonly moduleId?: string;
   readonly homeworkId?: string;
   readonly submissionId?: string;
+  readonly courseAttempt?: { readonly operationId: string; readonly handle: string };
 }
 
 export interface ListeningDeliveryLiveScope {
@@ -113,6 +114,7 @@ export interface ListeningDeliveryIssuedUrl {
   readonly expiresAt: number;
   readonly refreshAfter: number;
   readonly ttlMs: number;
+  readonly refreshHandle?: string;
   readonly deliveryReady: true;
   readonly range: ListeningDeliveryRangeProof;
   readonly audioReplaced?: true;

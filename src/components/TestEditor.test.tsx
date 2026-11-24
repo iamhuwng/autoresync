@@ -94,6 +94,7 @@ vi.mock('../hooks/useAuth', () => ({
 vi.mock('../hooks/useFeatureTracking', () => ({ useFeatureTracking: () => ({ trackAction: vi.fn() }) }));
 vi.mock('../features/assessment/listening/authoring/listeningTestEditing', () => ({
   createListeningTestEditSession: () => mockListeningSave,
+  getListeningEditDraftId: () => undefined,
   uploadListeningEditorAudio: mockUploadAudio,
   hasUnsupportedListeningStructure: (question: any) => Boolean(question?.items),
 }));

@@ -22,6 +22,11 @@ import {
 } from '../config/readingV2FeatureFlags';
 import { listActiveMaterialSummaries } from './materialCatalog/materialSummaryPort.service';
 
+function librarySkill(test: TestData): LibraryMaterial['skill'] {
+    const skill = test.skillType ?? test.skill?.toLowerCase();
+    return skill === 'listening' || skill === 'writing' || skill === 'speaking' ? skill : 'reading';
+}
+
 type StudentMaterialHistory = NonNullable<LibraryMaterial['studentHistory']>;
 
 interface MaterialDiscoveryOptions {
@@ -241,7 +246,7 @@ export async function getLibraryMaterials(
             }
 
             // Apply skill filter
-            if (filters.skill && test.skillType !== filters.skill) {
+            if (filters.skill && librarySkill(test) !== filters.skill) {
                 return false;
             }
 
@@ -284,7 +289,7 @@ export async function getLibraryMaterials(
             title: test.title || (test as any).metadata?.title || 'Untitled Test',
             type: (test as any).testType === 'THCS-THPT' ? 'thcs-test'
                 : test.type === 'Custom' ? 'quiz' : 'test',
-            skill: test.skillType || 'reading',
+            skill: librarySkill(test),
             difficulty: test.difficulty?.toLowerCase() as 'easy' | 'medium' | 'hard' | undefined,
             estimatedDuration: test.duration || (test as any).metadata?.duration || undefined,
             questionCount: test.questionCount || (test as any).metadata?.questionCount || 0,
@@ -354,7 +359,7 @@ export async function getCourseMaterials(
             id: test.id,
             title: test.title,
             type: test.type === 'Custom' ? 'quiz' : 'test',
-            skill: test.skillType || 'reading',
+            skill: librarySkill(test),
             difficulty: test.difficulty?.toLowerCase() as 'easy' | 'medium' | 'hard' | undefined,
             estimatedDuration: test.duration,
             questionCount: test.questionCount,

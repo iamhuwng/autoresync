@@ -187,4 +187,25 @@ describe('listeningSoloDeliveryClient', () => {
       },
     })).rejects.toThrow('delivery_not_authorized');
   });
+
+  it('refreshes a private external recording using only the opaque handle and attempt scope', async () => {
+    const external = { ...deliveryResponse, refreshHandle: 'fixture-opaque-handle',
+      url: 'https://s3.us-west-004.backblazeb2.com/pinned.wav?X-Amz-Signature=fixture' };
+    const fetchImpl = vi.fn(async (_url: string, _init: RequestInit) => jsonResponse(external));
+    const issuer = createListeningSoloDeliveryIssuer({
+      endpoint: 'https://upload.example', getIdToken: async () => 'id-token', fetchImpl,
+    });
+    await issuer.refresh?.({
+      previous: external, now: external.refreshAfter,
+      context: { runtime: 'trusted-server', callerUserId: 'student-1' },
+      soloScope: { testId: 'test-1', versionId: 'version-1', studentId: 'student-1',
+        mode: 'homework', homeworkId: 'homework-1', submissionId: 'attempt-1' },
+    });
+    const [, init] = fetchImpl.mock.calls[0];
+    expect(init.cache).toBe('no-store');
+    expect(JSON.parse(String(init.body))).toEqual({
+      assetId: external.assetId, testId: 'test-1', versionId: 'version-1', mode: 'homework',
+      homeworkId: 'homework-1', submissionId: 'attempt-1', refreshHandle: external.refreshHandle,
+    });
+  });
 });

@@ -2,7 +2,8 @@ import { listeningMakerStyles, listeningMakerTokens } from '../../../../skills/l
 
 interface ListeningUploadGuidanceProps {
   readonly plannedAudioFiles: number;
-  readonly uploadedAudioFiles: number;
+  readonly configuredAudioFiles: number;
+  readonly externalOnly: boolean;
 }
 
 function formatAudioFileCount(count: number, suffix: string) {
@@ -11,7 +12,8 @@ function formatAudioFileCount(count: number, suffix: string) {
 
 export function ListeningUploadGuidance({
   plannedAudioFiles,
-  uploadedAudioFiles,
+  configuredAudioFiles,
+  externalOnly,
 }: ListeningUploadGuidanceProps) {
   return (
     <div
@@ -22,10 +24,10 @@ export function ListeningUploadGuidance({
     >
       <div style={{ display: 'grid', gap: '0.15rem', minWidth: 0 }}>
         <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: listeningMakerTokens.ink }}>
-          Upload one audio file per section.
+          Choose one audio source per section.
         </div>
         <div style={{ fontSize: '0.75rem', color: listeningMakerTokens.muted }}>
-          MP3 or M4A recommended. Re-upload any missing section before publishing.
+          {externalOnly ? 'Choose a recording from connected Backblaze B2 storage.' : 'MP3 or M4A recommended.'}
         </div>
       </div>
 
@@ -54,11 +56,11 @@ export function ListeningUploadGuidance({
         <span
           style={{
             ...listeningMakerStyles.pill,
-            background: uploadedAudioFiles === plannedAudioFiles ? listeningMakerTokens.successTint : listeningMakerTokens.warningTint,
-            color: uploadedAudioFiles === plannedAudioFiles ? listeningMakerTokens.success : listeningMakerTokens.warning,
+            background: configuredAudioFiles === plannedAudioFiles ? listeningMakerTokens.successTint : listeningMakerTokens.warningTint,
+            color: configuredAudioFiles === plannedAudioFiles ? listeningMakerTokens.success : listeningMakerTokens.warning,
           }}
         >
-          {`${uploadedAudioFiles}/${plannedAudioFiles} audio files uploaded`}
+          {`${configuredAudioFiles}/${plannedAudioFiles} audio sections configured`}
         </span>
       </div>
     </div>

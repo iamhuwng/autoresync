@@ -1,3 +1,4 @@
+import { DRAFT_AUDIO_ASSET_ID } from '../../../src/types/assessmentAudio.types';
 import type { ListeningAuthoringDocumentV1 } from './contracts';
 import { parseQuestion } from './validation.questions';
 import { parseSettings, parseStatistics } from './validation.settings';
@@ -94,6 +95,7 @@ const parseAudioSection = (
     'number',
     'name',
     'assetId',
+    'externalAudio',
     'audioUrl',
     'streamUrl',
     'startQuestion',
@@ -113,6 +115,16 @@ const parseAudioSection = (
   const assetId = optionalString(section.assetId, `${fieldName}.assetId`);
   if (assetId !== undefined) {
     parsed.assetId = assetId;
+  }
+  if (section.externalAudio !== undefined) {
+    const ref = section.externalAudio;
+    const field = `${fieldName}.externalAudio`;
+    if (!isPlainObject(ref)) throw new Error(`${field} must be a record.`);
+    assertAllowedFields(ref, field, ['assetId', 'scope']);
+    if (ref.scope !== 'section' || typeof ref.assetId !== 'string' || !DRAFT_AUDIO_ASSET_ID.test(ref.assetId)) {
+      throw new Error(`${field} must be an opaque section audio reference.`);
+    }
+    parsed.externalAudio = { assetId: ref.assetId, scope: ref.scope };
   }
   const streamUrl = optionalText(section.streamUrl, `${fieldName}.streamUrl`);
   if (streamUrl !== undefined) {

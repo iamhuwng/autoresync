@@ -54,6 +54,7 @@ export interface AuthorizedDeliveryConfig {
   audioReplaced?: boolean;
   expiresAt?: number;
   refreshAfter?: number;
+  crossOrigin?: 'anonymous';
   refreshSource?: (context: AuthorizedDeliveryRefreshContext) => Promise<AuthorizedDeliveryRefreshResult | string>;
   prepareReplacementSource?: (url: string) => Promise<void>;
   retryBackoffMs?: readonly number[];
@@ -128,6 +129,7 @@ function sanitizeAudioUrlForDiagnostics(value: string | undefined): string | nul
 
   try {
     const parsed = new URL(value);
+    if (parsed.searchParams.has('X-Amz-Signature')) return '[redacted-audio-url]';
     if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
       return `${parsed.origin}/[redacted-audio-url]`;
     }
@@ -280,6 +282,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     expiresAt?: number;
     refreshAfter?: number;
   } | null>(null);
+  const [authorizedRefreshTick, setAuthorizedRefreshTick] = useState(0);
   const [refreshWarning, setRefreshWarning] = useState<string | null>(null);
   const [audioReplaced, setAudioReplaced] = useState(false);
 
@@ -561,7 +564,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         listeningDiagnostics.log('AudioPlayer using direct audio URL', sanitizeAudioUrlForDiagnostics(audioUrl));
 
         // PROACTIVE CHECK: Detect legacy temp paths that may have been deleted
-        const isLegacyTempPath = audioUrl.includes('-temp/');
+        const isLegacyTempPath = authorizedDelivery?.crossOrigin !== 'anonymous' && audioUrl.includes('-temp/');
         if (isLegacyTempPath) {
           listeningDiagnostics.warn('[AudioPlayer] Detected legacy temp path in URL', sanitizeAudioUrlForDiagnostics(audioUrl));
           listeningDiagnostics.warn('⚠️ This file may have been auto-deleted by R2 lifecycle rules.');
@@ -601,7 +604,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     if (audioUrl) {
       processAudio();
     }
-  }, [audioUrl, onError]);
+  }, [audioUrl, authorizedDelivery?.crossOrigin, onError]);
 
   useEffect(() => {
     setAudioReplaced(authorizedDelivery?.audioReplaced === true);
@@ -624,6 +627,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     clearRefreshRetry,
   ]);
 
+  const refreshPositionTick = authorizedDelivery?.crossOrigin ? undefined : currentTime;
   useEffect(() => {
     const refreshSource = authorizedDelivery?.refreshSource;
     if (!authorizedDelivery || !refreshSource || !audioSource?.url || audioSource.type === 'error') {
@@ -646,6 +650,10 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       : expiresInMs <= AUTHORIZED_REFRESH_THRESHOLD_MS;
 
     if (!refreshDue) {
+      if (authorizedDelivery.crossOrigin && typeof activeMeta.refreshAfter === 'number') {
+        const id = setTimeout(() => setAuthorizedRefreshTick((tick) => tick + 1), Math.max(1, activeMeta.refreshAfter - now));
+        return () => clearTimeout(id);
+      }
       if (expiresInMs <= AUTHORIZED_REFRESH_RISK_MS) {
         setSafeRefreshWarning('Audio source expires soon. Playback continues while a replacement source is prepared.');
       }
@@ -673,8 +681,11 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
           throw new Error('authorized_refresh_missing_url');
         }
 
-        const prepareReplacement = authorizedDelivery.prepareReplacementSource ?? preloadReplacementAudioSource;
-        await prepareReplacement(result.url);
+        if (authorizedDelivery.prepareReplacementSource) {
+          await authorizedDelivery.prepareReplacementSource(result.url);
+        } else {
+          await preloadReplacementAudioSource(result.url);
+        }
 
         if (cancelled || refreshSequenceRef.current !== sequence) {
           return;
@@ -684,7 +695,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         const audio = audioRef.current;
         const position = masterAudioState?.section === sectionNumber
           ? masterAudioState.position
-          : audio?.currentTime ?? currentTime;
+          : audio?.currentTime ?? refreshPositionTick ?? 0;
         const speed = masterAudioState?.speed ?? playbackSpeed;
         const shouldPlay = masterAudioState?.isPlaying ?? effectiveIsPlaying;
 
@@ -726,7 +737,11 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
           return;
         }
 
-        setSafeRefreshWarning('Audio source refresh needs attention. Playback continues on the current source while retrying.');
+        const sourceExpired = authorizedDelivery.crossOrigin
+          && (authorizedDelivery.now?.() ?? Date.now()) >= (activeMeta.expiresAt ?? Infinity);
+        setSafeRefreshWarning(sourceExpired
+          ? 'The recording is unavailable. Ask your teacher to check the recording.'
+          : 'Audio source refresh needs attention. Playback continues on the current source while retrying.');
         listeningDiagnostics.warn('[AudioPlayer] Authorized source refresh failed; keeping current source active', {
           sectionNumber,
           attempt: attemptIndex + 1,
@@ -753,9 +768,10 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     audioSource?.type,
     audioSource?.url,
     authorizedDelivery,
+    authorizedRefreshTick,
     authorizedSourceMeta,
     clearRefreshRetry,
-    currentTime,
+    refreshPositionTick,
     effectiveIsPlaying,
     masterAudioState,
     playbackSpeed,
@@ -1053,17 +1069,15 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
     if (audioSource?.url) {
       audio.volume = effectiveVolume;
-      if (allowSpeedControl) {
-        audio.playbackRate = playbackSpeed;
-      }
+      audio.playbackRate = effectiveAllowSpeedControl ? playbackSpeed : 1;
       void attemptPlay('tap', false);
     }
 
     onPlayPause();
   }, [
-    allowSpeedControl,
     attemptPlay,
     audioSource,
+    effectiveAllowSpeedControl,
     effectiveIsPlaying,
     effectiveVolume,
     onPlayPause,
@@ -1104,13 +1118,12 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     }
   }, [effectiveVolume]);
 
-  // Update playback speed
+  // Update playback speed (never override teacher-controlled session speed)
   useEffect(() => {
     const audio = audioRef.current;
-    if (audio && allowSpeedControl) {
-      audio.playbackRate = playbackSpeed;
-    }
-  }, [playbackSpeed, allowSpeedControl]);
+    if (!audio || typeof masterAudioState?.speed === 'number') return;
+    audio.playbackRate = effectiveAllowSpeedControl ? playbackSpeed : 1;
+  }, [playbackSpeed, effectiveAllowSpeedControl, audioSource?.url, masterAudioState?.speed]);
 
   // Reset state and reload audio when URL or section changes
   useLayoutEffect(() => {
@@ -1221,7 +1234,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
   // Handle seek
   const handleSeek = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!allowRewind && parseFloat(e.target.value) < currentTime) {
+    if (!effectiveAllowRewind && parseFloat(e.target.value) < currentTime) {
       return;
     }
 
@@ -1232,7 +1245,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       setCurrentTime(newTime);
       trackAction('seekListeningAudio', { sectionNumber, position: newTime });
     }
-  }, [allowRewind, currentTime, sectionNumber, trackAction]);
+  }, [effectiveAllowRewind, currentTime, sectionNumber, trackAction]);
 
   // Format time for display
   const formatTime = (seconds: number): string => {
@@ -1522,7 +1535,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             max={duration || 100}
             value={currentTime}
             onChange={handleSeek}
-            disabled={!allowRewind && currentTime > 0}
+            disabled={!effectiveAllowRewind && currentTime > 0}
             aria-label="Audio progress"
             style={{
               width: '100%',

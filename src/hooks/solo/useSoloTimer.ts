@@ -1,7 +1,6 @@
 // File: src/hooks/solo/useSoloTimer.ts
-import { useState, useEffect, useRef, useCallback, createElement } from 'react';
-import { notifications } from '@mantine/notifications';
-import { IconClock } from '@tabler/icons-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { toast } from '../../components/modern/ToastNotification';
 import { useTimerExpiry } from '../test/useTimerExpiry';
 
 interface UseSoloTimerOptions {
@@ -21,6 +20,8 @@ interface UseSoloTimerOptions {
 
 interface UseSoloTimerReturn {
     timeRemaining: number;
+    /** Seconds elapsed in the current attempt, including untimed attempts. */
+    elapsedSeconds: number;
     formatTime: (seconds: number) => string;
     isPaused: boolean;
     togglePause: () => void;
@@ -69,7 +70,7 @@ export const useSoloTimer = ({
 
     // Timer countdown
     useEffect(() => {
-        if (!hasTimer || testSubmitted || isPaused) return;
+        if (testSubmitted || isPaused) return;
 
         const timer = setInterval(() => {
             setElapsedSeconds(prev => {
@@ -77,19 +78,16 @@ export const useSoloTimer = ({
                 const remaining = Math.max(0, totalSeconds - next);
 
                 // 5-minute warning
-                if (remaining === 300 && !hasShownWarningRef.current) {
+                if (hasTimer && remaining === 300 && !hasShownWarningRef.current) {
                     hasShownWarningRef.current = true;
-                    notifications.show({
+                    toast.warning('5 minutes remaining!', {
                         title: 'Time Warning',
-                        message: '⏰ 5 minutes remaining!',
-                        color: 'orange',
-                        icon: createElement(IconClock, { size: 20 }),
-                        autoClose: 10000,
+                        duration: 10000,
                     });
                 }
 
                 // Time up → grace period
-                if (remaining <= 0 && !hasAutoSubmittedRef.current && !hasTriggeredGracePeriodRef.current) {
+                if (hasTimer && remaining <= 0 && !hasAutoSubmittedRef.current && !hasTriggeredGracePeriodRef.current) {
                     hasTriggeredGracePeriodRef.current = true;
                     clearInterval(timer);
                     triggerGracePeriod();
@@ -118,6 +116,7 @@ export const useSoloTimer = ({
 
     return {
         timeRemaining,
+        elapsedSeconds,
         formatTime,
         isPaused,
         togglePause,

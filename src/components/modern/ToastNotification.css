@@ -10,6 +10,16 @@
   pointer-events: none;
 }
 
+/* Keep the shared announcements inside the open dialog's top layer. */
+.toast-container--in-dialog {
+  position: relative;
+  right: auto;
+  bottom: auto;
+  width: min(360px, 100%);
+  margin-inline-start: auto;
+}
+.toast-container--in-dialog:not(:empty) { padding: 4px 12px 8px; }
+
 .toast-container--single {
   z-index: 80;
 }

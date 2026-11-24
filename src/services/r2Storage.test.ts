@@ -28,6 +28,7 @@ const makeClient = () => ({
     upload: vi.fn<(file: File, operationKind: UploadOperationKind, onProgress?: (percent: number, bytes: number, total: number) => void) => Promise<UploadResult>>(),
     uploadWithAssetGrant: vi.fn(),
     move: vi.fn<(key: string) => Promise<MoveResult>>(),
+    promoteDraftImage: vi.fn<(key: string) => Promise<MoveResult>>(),
 }) satisfies R2UploadClientContract;
 
 const makeListeningUploadSessionApi = () => ({

@@ -17,7 +17,15 @@ import {
   IconTrash,
   IconUpload,
 } from '@tabler/icons-react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import { get, ref } from 'firebase/database';
+import { database } from '../../../services/firebase';
+import { useAuth } from '../../../contexts/AuthContext';
+import { buildRoute } from '../../../constants/routes';
+import { DraftAudioChooser } from '../../../components/external-audio/DraftAudioChooser';
+import { PublicListeningAudioWarning } from '../../../components/external-audio/PublicListeningAudioWarning';
+import { externalAudioAuthoringOptedIn, externalAudioChooserRolloutEnabled, externalAudioPrivateHomeworkOptedIn, externalAudioPublicListeningOptedIn, resolveExternalAudioOrigin } from '../../../services/externalAudioClient';
+import type { DraftSectionAudio } from '../../../types/assessmentAudio.types';
 import { Button, toast } from '../../../components/modern';
 import { AUDIO_CONTROLS_PRESETS } from '../../../types/listening.types';
 import type {
@@ -40,6 +48,7 @@ import {
 import { createListeningAuthoringWorkflow } from '../../../features/assessment/listening/authoring/listeningAuthoringWorkflow';
 import type {
   ListeningAuthoringDocumentV1,
+  ListeningAuthoringDraftRecord,
   ListeningAuthoringIssue,
 } from '../../../features/assessment/listening/types/listeningAuthoring.types';
 import { AssessmentAuthoringHeader } from '../../../features/assessment/shared/components/AssessmentAuthoringHeader';
@@ -104,6 +113,7 @@ interface AudioSection {
   audioUrl: string;
   streamUrl?: string; // Direct stream URL for audio player preview
   assetId?: string;
+  externalAudio?: DraftSectionAudio;
   uploadSessionId?: string;
   tempKey?: string;
   checksum?: string;
@@ -114,6 +124,7 @@ interface AudioSection {
   endQuestion: number;
   playLimit?: number; // How many times can replay (undefined = unlimited)
   waitTimeBefore?: number; // Seconds of wait time before section
+  duration?: number;
   uploadProgress?: number; // Upload progress 0-100
   uploadETA?: number; // Estimated time remaining in seconds
 }
@@ -158,6 +169,8 @@ interface ListeningTestBuilderProps {
   onDirtyChange?: (hasUnsavedChanges: boolean) => void;
   onHeaderChange?: (header: ListeningBuilderHeaderState) => void;
   onHeaderActionsChange?: (actions: React.ReactNode | null) => void;
+  reloadedDraft?: ListeningAuthoringDraftRecord;
+  allowDraftResume?: boolean;
 }
 
 const LISTENING_BUILDER_STEPS: ListeningBuilderStep[] = [
@@ -287,6 +300,8 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
   onDirtyChange,
   onHeaderChange,
   onHeaderActionsChange,
+  reloadedDraft,
+  allowDraftResume,
 }) => {
   const { navigateTo } = useNavigation('teacher');
   const location = useLocation();
@@ -294,12 +309,20 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
 
   const routeState = (location.state ?? {}) as ListeningBuilderRouteState;
   const passedMetadata = initialMetadata ?? routeState.metadata;
-  const initialDisplayMode = resolveInitialDisplayMode(initialDisplayModeProp ?? routeState.initialDisplayMode);
-  const initialStep = resolveInitialBuilderStep(initialStepProp ?? routeState.initialStep);
+  const savedDocument = reloadedDraft?.document;
+  const initialDisplayMode = resolveInitialDisplayMode(savedDocument?.displayMode ?? initialDisplayModeProp ?? routeState.initialDisplayMode);
+  const initialStep = reloadedDraft ? 'audio' : resolveInitialBuilderStep(initialStepProp ?? routeState.initialStep);
   const isEmbedded = presentation === 'embedded';
 
   // Form state - initialize with passed metadata if available
-  const [metadata, setMetadata] = useState<ListeningTestMetadata>(() => buildInitialListeningMetadata(passedMetadata));
+  const [metadata, setMetadata] = useState<ListeningTestMetadata>(() => savedDocument ? {
+    title: savedDocument.title, type: savedDocument.type, skill: 'Listening',
+    duration: savedDocument.duration, difficulty: savedDocument.difficulty,
+    description: savedDocument.metadata.description, tags: [...(savedDocument.metadata.tags ?? [])],
+    targetBand: savedDocument.metadata.targetBand, transcript: savedDocument.metadata.transcript,
+    sections: savedDocument.audioSections.map((section) => ({ ...section })),
+    totalQuestions: Math.max(savedDocument.questionCount, ...savedDocument.audioSections.map((section) => section.endQuestion)),
+  } : buildInitialListeningMetadata(passedMetadata));
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
 
   // Step flow: mode-select → audio → questions → review (metadata collected in Review step)
@@ -309,11 +332,19 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
 
   // Display mode: 'text' for IELTS-like full-width, 'image' for two-column with question images
   const [displayMode, setDisplayMode] = useState<ListeningDisplayMode>(initialDisplayMode);
-  const [questionImages, setQuestionImages] = useState<QuestionImage[]>([]);
+  const [questionImages, setQuestionImages] = useState<QuestionImage[]>(() =>
+    (savedDocument?.questionImages ?? []).map((image) => ({ ...image })));
   const [uploadingQuestionImages, setUploadingQuestionImages] = useState(0);
   const [activeAnswerSectionNumber, setActiveAnswerSectionNumber] = useState(1);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [questions, setQuestions] = useState<ParsedQuestion[]>([]);
+  const [questions, setQuestions] = useState<ParsedQuestion[]>(() => (savedDocument?.questions ?? []).map((question) => ({
+    ...question,
+    id: `question-${question.number}`,
+    questionNumber: question.number,
+    questionText: question.question,
+    answerSource: 'manual',
+    confidence: 1,
+  })));
   const [isSaving, setIsSaving] = useState(false);
   const [uploadingSection, setUploadingSection] = useState<number | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -325,14 +356,15 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
   const [parsingProgress, setParsingProgress] = useState(0);
   const [parsingStage, setParsingStage] = useState('');
   const [bulkAnswerKey, setBulkAnswerKey] = useState('');
-  const [isPublic, setIsPublic] = useState(false); // Default to private
+  const [isPublic, setIsPublic] = useState(savedDocument?.isPublic ?? false);
+  const [showPublicAudioWarning, setShowPublicAudioWarning] = useState(false);
 
   // Audio Controls Configuration (teacher-configurable)
   const [audioControls, setAudioControls] = useState<AudioControlsConfig>(
-    AUDIO_CONTROLS_PRESETS.IELTS_STANDARD
+    savedDocument?.settings.audioControls ?? AUDIO_CONTROLS_PRESETS.IELTS_STANDARD
   );
-  const [allowReplay, setAllowReplay] = useState(false);
-  const [maxReplays, setMaxReplays] = useState(1);
+  const [allowReplay, setAllowReplay] = useState(savedDocument?.settings.allowReplay ?? false);
+  const [maxReplays, setMaxReplays] = useState(savedDocument?.settings.maxReplays ?? 1);
   const [audioSettingsOpen, setAudioSettingsOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<'saveDraft' | 'publish' | 'discard' | null>(null);
   const [draftStatusMode, setDraftStatusMode] = useState<ListeningDraftStatusMode>('idle');
@@ -341,9 +373,9 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
   const [publishReadinessMode, setPublishReadinessMode] = useState<ListeningPublishReadinessMode>('idle');
   const [publishReadinessBlockers, setPublishReadinessBlockers] = useState<readonly ListeningAuthoringIssue[]>([]);
   const [publishReadinessCheckedSections, setPublishReadinessCheckedSections] = useState(0);
-  const [draftId, setDraftId] = useState<string | null>(null);
-  const [draftConflictToken, setDraftConflictToken] = useState(0);
-  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const [draftId, setDraftId] = useState<string | null>(reloadedDraft?.draftId ?? null);
+  const [draftConflictToken, setDraftConflictToken] = useState(reloadedDraft?.conflictToken ?? 0);
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(reloadedDraft?.updatedAt ?? null);
   const [lastPersistedFingerprint, setLastPersistedFingerprint] = useState<string | null>(null);
   const [duplicateAction, setDuplicateAction] = useState<'saveDraft' | 'publish' | null>(null);
   const [discardContext, setDiscardContext] = useState<'navigation-away' | 'saved-draft' | null>(null);
@@ -363,6 +395,8 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
   const initialFingerprintRef = useRef<string | null>(null);
   const pendingNavigationRef = useRef<null | (() => void)>(null);
   const uploadAttemptIdsRef = useRef<Record<number, string>>({});
+  const [savedSectionNumbers, setSavedSectionNumbers] = useState<number[]>(() =>
+    savedDocument?.audioSections.map(({ number }) => number) ?? []);
   const createAuthoringWorkflow = () => createListeningAuthoringWorkflow({
     onObservabilityEvent: (actionName, metadata) => trackAction(actionName, metadata),
   });
@@ -371,7 +405,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
   useEffect(() => {
     if (!lastSavedAt) return;
     let cancelled = false;
-    metadata.sections.filter((section) => section.assetId).forEach((section) => {
+    metadata.sections.filter((section) => section.assetId && !section.externalAudio).forEach((section) => {
       r2StorageService.probeListeningAuthoringAudio({ assetId: section.assetId,
         ...(section.uploadSessionId ? { uploadSessionId: section.uploadSessionId } : {}) }).then((result) => {
         if (!cancelled && result.previewUrl) {
@@ -420,6 +454,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
     audioUrl: section.audioUrl,
     streamUrl: section.streamUrl,
     assetId: section.assetId,
+    externalAudio: section.externalAudio,
     uploadSessionId: section.uploadSessionId,
     tempKey: section.tempKey,
     checksum: section.checksum,
@@ -430,6 +465,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
     endQuestion: section.endQuestion,
     playLimit: section.playLimit,
     waitTimeBefore: section.waitTimeBefore,
+    ...(section.duration !== undefined ? { duration: section.duration } : {}),
   }));
 
   const getSectionNumberForQuestion = (questionNumber: number, sections: readonly StorageAudioSection[]) => {
@@ -448,12 +484,14 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
         audioUrl: section.audioUrl,
         ...(section.streamUrl ? { streamUrl: section.streamUrl } : {}),
         ...(section.assetId ? { assetId: section.assetId } : {}),
+        ...(section.externalAudio ? { externalAudio: section.externalAudio } : {}),
         startQuestion: section.startQuestion,
         endQuestion: section.endQuestion,
         ...(section.playLimit !== undefined ? { playLimit: section.playLimit } : {}),
         ...(section.waitTimeBefore !== undefined
           ? { waitTimeBefore: section.waitTimeBefore }
           : {}),
+        ...(section.duration !== undefined ? { duration: section.duration } : {}),
       }),
     );
     const authoringQuestions: ListeningAuthoringDocumentV1['questions'] = questions.map(
@@ -584,7 +622,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
       },
       audio: {
         title: 'Audio',
-        subtitle: 'Upload one file per section',
+        subtitle: allowDraftResume ? 'Choose one recording per section' : 'Upload one file per section',
       },
       'questions-text': {
         title: 'Question text',
@@ -933,6 +971,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
 
       updateSectionForUploadAttempt(sectionNumber, uploadAttemptId, {
         audioUrl: result.url,
+        externalAudio: undefined,
         streamUrl: result.streamUrl,
         assetId: result.assetId,
         uploadSessionId: result.uploadSessionId,
@@ -978,6 +1017,20 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
       };
     });
   };
+
+  const ensureExternalAudioDraft = async (sectionNumber: number) => {
+    if (draftId && savedSectionNumbers.includes(sectionNumber)) return draftId;
+    const result = await handleSaveDraft('external-audio');
+    return result?.status === 'saved' ? result.draftId : null;
+  };
+
+  const renderDraftAudio = (section: AudioSection) => uploadingSection === null && (
+    <DraftAudioChooser testType="ielts-listening" draftId={draftId} layout="inline"
+      sectionId={String(section.number)} onEnsureDraft={() => ensureExternalAudioDraft(section.number)}
+      value={section.externalAudio} hasUpload={Boolean(section.audioUrl)} track={trackAction}
+      onChange={(audio) => updateSection(section.number, 'externalAudio', audio)} />
+  );
+  const sharedAudioRollout = externalAudioChooserRolloutEnabled();
 
   const updateSectionForUploadAttempt = (
     sectionNumber: number,
@@ -1026,6 +1079,10 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
 
   // Remove a section by number
   const removeSection = (sectionNumber: number) => {
+    if (metadata.sections.some((section) => section.number > sectionNumber && section.externalAudio)) {
+      toast.error('Remove external audio from later sections before renumbering them.');
+      return;
+    }
     if (metadata.sections.length <= 1) return;
 
     trackAction('listeningSectionRemoved', {
@@ -1084,6 +1141,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
     const newErrors: Record<string, string> = {};
 
     for (const section of metadata.sections) {
+      if (section.externalAudio) continue;
       if (!section.audioUrl.trim()) {
         newErrors[`section${section.number}`] = `Section ${section.number} audio URL is required`;
         continue;
@@ -1131,7 +1189,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
         }
       } else {
         trackStepNavigation('next', currentStep, currentStep, 'blocked', {
-          errorCount: metadata.sections.filter((section) => !section.audioUrl.trim()).length || 1,
+          errorCount: metadata.sections.filter((section) => !section.audioUrl.trim() && !section.externalAudio).length || 1,
         });
       }
     } else if (currentStep === 'questions-text') {
@@ -1274,7 +1332,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
     }
   };
 
-  const handleSaveDraft = async () => {
+  const handleSaveDraft = async (trigger: 'explicit' | 'external-audio' = 'explicit') => {
     if (pendingActionRef.current || isSaving || lifecyclePendingAction) {
       handleDuplicateAction('saveDraft');
       return;
@@ -1348,13 +1406,18 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
       setDiscardedDraft(null);
       setDraftWarnings(warnings);
       setLastSavedAt(savedAt);
+      setSavedSectionNumbers(document.audioSections.map(({ number }) => number));
       setLastPersistedFingerprint(currentDraftFingerprint);
       setDraftStatusMode(warnings.length > 0 ? 'draft-warning' : 'draft-saved');
 
-      announceListeningDraftSaved(warnings.length);
+      if (trigger === 'explicit') {
+        announceListeningDraftSaved(warnings.length);
+      } else {
+      }
       trackAction('saveDraft', {
         source: 'listening_builder',
         step: currentStep,
+        trigger,
         draftId: result.draftId,
         conflictToken: result.conflictToken,
         warningCount: warnings.length,
@@ -1421,6 +1484,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
     setDraftId(null);
     setDraftConflictToken(0);
     setLastSavedAt(null);
+    setSavedSectionNumbers([]);
     setLastPersistedFingerprint(null);
     setDuplicateAction(null);
     setDraftStatusMessage(undefined);
@@ -1540,7 +1604,9 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
     }
   };
 
-  const handlePublish = async () => {
+  const handlePublish = () => { void publish(); };
+
+  const publish = async (confirmedPublicAudio = false) => {
     if (pendingActionRef.current || isSaving || lifecyclePendingAction) {
       handleDuplicateAction('publish');
       return;
@@ -1577,7 +1643,9 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
             },
           ]
         : []),
-      ...validateListeningPublish(document),
+      ...validateListeningPublish(document, allowDraftResume && (document.isPublic
+        ? externalAudioPublicListeningOptedIn()
+        : externalAudioPrivateHomeworkOptedIn())),
     ];
     setDraftWarnings(warnings);
     setPublishBlockers(blockers);
@@ -1598,6 +1666,11 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
 
     const publishDraftId = draftId;
     if (!publishDraftId) {
+      return;
+    }
+    if (document.isPublic && document.audioSections.some((section) => section.externalAudio) && !confirmedPublicAudio) {
+      setShowPublicAudioWarning(true);
+      trackAction('publicExternalAudioPublishWarning', { outcome: 'shown' });
       return;
     }
 
@@ -1950,7 +2023,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
       if (file) {
         e.preventDefault();
         // If we have a file, and there's only one section with valid audio, use it
-        const validSections = metadata.sections.filter(s => s.audioUrl);
+        const validSections = metadata.sections.filter(s => s.audioUrl || s.externalAudio);
         if (validSections.length === 1) {
           await uploadQuestionImage(validSections[0], file);
         } else {
@@ -2182,6 +2255,19 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
               />
             )}
 
+            {allowDraftResume && draftId && lastSavedAt && !hasUnsavedChanges && (
+              <Link to={{ pathname: buildRoute('CREATE_TEST'),
+                search: new URLSearchParams({ skill: 'Listening', draft: draftId }).toString() }}
+                onClick={() => trackAction('externalAudioReopenDraft')}>Reopen saved draft</Link>
+            )}
+            {allowDraftResume && currentStep === 'audio' && (
+              <label style={{ display: 'grid', gap: '0.375rem', marginBottom: '1rem' }}>
+                Draft title
+                <input type="text" value={metadata.title}
+                  onChange={(event) => setMetadata((current) => ({ ...current, title: event.target.value }))} />
+              </label>
+            )}
+
             {/* STEP 0: Mode Selection */}
             {currentStep === 'mode-select' && (
               <div>
@@ -2357,7 +2443,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
                           Audio
                         </h2>
                         <p style={{ margin: '0.125rem 0 0 0', color: listeningMakerTokens.muted, fontSize: '0.75rem' }}>
-                          Upload one file per section
+                          {allowDraftResume ? 'Choose one recording per section' : 'Upload one file per section'}
                         </p>
                       </div>
                     </div>
@@ -2366,7 +2452,8 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
 
                 <ListeningUploadGuidance
                   plannedAudioFiles={metadata.sections.length}
-                  uploadedAudioFiles={metadata.sections.filter((section) => section.audioUrl.trim()).length}
+                  configuredAudioFiles={metadata.sections.filter((section) => section.audioUrl.trim() || section.externalAudio).length}
+                  externalOnly={sharedAudioRollout}
                 />
 
                 {/* R2 Storage Ready - No authentication needed */}
@@ -2434,7 +2521,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
                         key={`compact-audio-${section.number}`}
                         style={{
                           padding: '0.75rem',
-                          border: `1px solid ${hasAudio ? listeningMakerTokens.line : listeningMakerTokens.line2}`,
+                          border: `1px solid ${hasAudio || section.externalAudio ? listeningMakerTokens.line : listeningMakerTokens.line2}`,
                           borderRadius: '0.625rem',
                           background: listeningMakerTokens.surface,
                           display: 'grid',
@@ -2488,13 +2575,13 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' }}>
                             <span style={{
                               ...listeningMakerStyles.pill,
-                              background: hasAudio ? listeningMakerTokens.successTint : listeningMakerTokens.warningTint,
-                              color: hasAudio ? listeningMakerTokens.success : listeningMakerTokens.warning,
+                              background: hasAudio || section.externalAudio ? listeningMakerTokens.successTint : listeningMakerTokens.warningTint,
+                              color: hasAudio || section.externalAudio ? listeningMakerTokens.success : listeningMakerTokens.warning,
                             }}>
-                              {hasAudio ? 'Uploaded' : 'No audio yet'}
+                              {section.externalAudio ? 'External audio' : hasAudio ? 'Uploaded' : 'No audio yet'}
                             </span>
 
-                            {hasAudio && (
+                            {hasAudio && !section.externalAudio && (
                               <audio
                                 aria-label={`Section ${section.number} audio preview`}
                                 controls
@@ -2564,7 +2651,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
                               </button>
                             )}
 
-                            <button
+                            {!sharedAudioRollout && <button
                               type="button"
                               onClick={() => {
                                 if (!uploadDisabled) {
@@ -2589,7 +2676,9 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
                             >
                               <IconUpload size={14} stroke={1.9} aria-hidden="true" />
                               {isUploadingThisSection ? 'Uploading...' : hasAudio ? 'Replace' : 'Upload'}
-                            </button>
+                            </button>}
+
+                            {renderDraftAudio(section)}
                           </div>
                         </div>
 
@@ -2800,7 +2889,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
                             )}
 
                             {/* Audio Player Preview - R2 or authorized direct URLs only */}
-                            {section.audioUrl && (
+                            {section.audioUrl && !section.externalAudio && (
                               <div style={{ marginTop: '1rem', padding: '1rem', background: '#f1f5f9', borderRadius: '0.5rem' }}>
                                 <div style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem', color: '#0f766e' }}>
                                   🎧 Audio Preview
@@ -3456,7 +3545,7 @@ Write NO MORE THAN TWO WORDS for each answer.
                               <span style={{ color: listeningMakerTokens.muted, fontSize: '0.75rem' }}>
                                 Q{section.startQuestion}-{section.endQuestion}
                               </span>
-                              {!section.audioUrl ? (
+                              {!(section.audioUrl || section.externalAudio) ? (
                                 <span style={{ color: '#b45309', fontSize: '0.6875rem', fontWeight: 700 }}>
                                   Audio needed
                                 </span>
@@ -3472,7 +3561,7 @@ Write NO MORE THAN TWO WORDS for each answer.
                       minWidth: 0,
                       paddingLeft: '1rem',
                     }}>
-                      {!activeAnswerSection.audioUrl ? (
+                      {!(activeAnswerSection.audioUrl || activeAnswerSection.externalAudio) ? (
                         <div style={{
                           minHeight: '13rem',
                           display: 'grid',
@@ -4475,7 +4564,7 @@ Write NO MORE THAN TWO WORDS for each answer.
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                           <span style={{ fontWeight: 600, color: '#1e293b' }}>Make Publicly Available</span>
                           <span style={{ fontSize: '0.875rem', color: '#64748b' }}>
-                            If checked, this test will appear in the Public Library for other teachers.
+                            Signed-in students can practice this test, and other teachers can assign it.
                           </span>
                         </div>
                       </label>
@@ -4504,10 +4593,10 @@ Write NO MORE THAN TWO WORDS for each answer.
                           </span>
                           <span style={{
                             ...listeningMakerStyles.pill,
-                            background: s.audioUrl ? listeningMakerTokens.successTint : listeningMakerTokens.dangerTint,
-                            color: s.audioUrl ? listeningMakerTokens.success : listeningMakerTokens.danger,
+                            background: s.audioUrl || s.externalAudio ? listeningMakerTokens.successTint : listeningMakerTokens.dangerTint,
+                            color: s.audioUrl || s.externalAudio ? listeningMakerTokens.success : listeningMakerTokens.danger,
                           }}>
-                            {s.audioUrl ? 'Configured' : 'Missing'}
+                            {s.externalAudio ? 'External audio' : s.audioUrl ? 'Configured' : 'Missing'}
                           </span>
                         </div>
                       ))}
@@ -4541,7 +4630,7 @@ Write NO MORE THAN TWO WORDS for each answer.
             <ListeningSavePublishBar
               onBack={handleBack}
               onNext={currentStep === 'questions-text' ? undefined : handleNext}
-              onSaveDraft={handleSaveDraft}
+              onSaveDraft={() => void handleSaveDraft()}
               onPublish={handlePublish}
               onDiscard={() => openDiscardConfirmation('saved-draft')}
               nextLabel="Next →"
@@ -4559,6 +4648,12 @@ Write NO MORE THAN TWO WORDS for each answer.
                 />
               )}
             />
+
+            {showPublicAudioWarning && <PublicListeningAudioWarning onClose={(confirmed) => {
+                setShowPublicAudioWarning(false);
+                trackAction('publicExternalAudioPublishWarning', { outcome: confirmed ? 'confirmed' : 'cancelled' });
+                if (confirmed) void publish(true);
+              }} />}
 
             {draftStatusMode === 'discard-pending' && (
               <div
@@ -4646,4 +4741,39 @@ Write NO MORE THAN TWO WORDS for each answer.
   );
 };
 
-export default ListeningTestBuilder;
+function ListeningDraftEntry(props: ListeningTestBuilderProps) {
+  const { user, profile } = useAuth();
+  const location = useLocation();
+  const canResume = Boolean(user && resolveExternalAudioOrigin(profile));
+  const requestedId = canResume && props.presentation !== 'embedded'
+    ? new URLSearchParams(location.search).get('draft')
+    : null;
+  const [loaded, setLoaded] = useState<{ id: string; ownerId: string; draft: ListeningAuthoringDraftRecord | null } | null>(null);
+  const uid = user?.uid;
+  useEffect(() => {
+    if (!requestedId || !uid) return;
+    let cancelled = false;
+    const saveResult = (draft: ListeningAuthoringDraftRecord | null) => {
+      if (!cancelled) setLoaded({ id: requestedId, ownerId: uid, draft });
+    };
+    if (!/^draft-[a-f0-9]{32}$/u.test(requestedId)) {
+      saveResult(null);
+      return;
+    }
+    get(ref(database, `listening_authoring/drafts/${requestedId}`)).then((snapshot) => {
+      const draft = snapshot.val();
+      saveResult(draft?.ownerId === uid && draft.state === 'active' && draft.draftId === requestedId
+        && Array.isArray(draft.document?.audioSections) ? draft : null);
+    }).catch(() => saveResult(null));
+    return () => { cancelled = true; };
+  }, [requestedId, uid]);
+
+  if (!requestedId) return <ListeningTestBuilder {...props} allowDraftResume={canResume} />;
+  if (loaded?.id !== requestedId || loaded.ownerId !== uid) return <p role="status">Loading Listening draft…</p>;
+  if (!loaded.draft) return <p role="alert">This Listening draft is unavailable.</p>;
+  return <ListeningTestBuilder key={requestedId} {...props} reloadedDraft={loaded.draft} allowDraftResume />;
+}
+
+export default function ListeningBuilderEntry(props: ListeningTestBuilderProps) {
+  return externalAudioAuthoringOptedIn() ? <ListeningDraftEntry {...props} /> : <ListeningTestBuilder {...props} />;
+}

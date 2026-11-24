@@ -1,18 +1,10 @@
 import { MAX_UPLOAD_BYTES } from './grant-authority.js';
+import { isSupportedAssessmentAudioMimeType } from './assessment-audio-format.ts';
 // @ts-ignore JavaScript module has no declaration file.
 import { isApprovedOrigin } from './cors-policy.js';
 
 
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/;
-const AUDIO_MIME_TYPES = new Set([
-  'audio/aac',
-  'audio/m4a',
-  'audio/mp4',
-  'audio/mpeg',
-  'audio/ogg',
-  'audio/wav',
-  'audio/x-wav',
-]);
 const BROWSER_AUTHORITY_FIELDS = [
   'ownerId',
   'assetId',
@@ -176,7 +168,7 @@ export const parseIssueAssetRequest = (body: unknown, idempotencyKey: unknown) =
   const declaredMimeTypeInput = input.declaredMimeType;
   if (typeof declaredMimeTypeInput !== 'string') fail('invalid_mime_type');
   const declaredMimeType = declaredMimeTypeInput.trim().toLowerCase();
-  if (!AUDIO_MIME_TYPES.has(declaredMimeType)) fail('unsupported_mime_type');
+  if (!isSupportedAssessmentAudioMimeType(declaredMimeType)) fail('unsupported_mime_type');
   const sizeBytes = Number(input.sizeBytes);
   if (!Number.isSafeInteger(sizeBytes) || sizeBytes <= 0) fail('invalid_size');
   if (sizeBytes > MAX_UPLOAD_BYTES) fail('upload_too_large');

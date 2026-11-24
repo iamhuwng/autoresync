@@ -17,6 +17,7 @@ export interface ListeningSubmission {
   homeworkId?: string;
   submissionId?: string;
   courseId?: string;
+  courseAttemptHandle?: string;
   moduleId?: string;
   sessionCode?: string;
   studentId?: string;
@@ -51,10 +52,20 @@ async function post(path: string, body: unknown, dependencies: Dependencies) {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    cache: 'no-store',
   });
   const result = await response.json().catch(() => null);
   if (!response.ok) throw new Error(result?.message ?? result?.code ?? 'Listening submission failed. Please retry.');
   return result;
+}
+
+export async function openListeningCourseAttempt(
+  input: { testId: string; versionId: string; courseId: string; moduleId: string; operationId: string },
+  dependencies: Dependencies = {},
+): Promise<string> {
+  const result = await post('course-open', input, dependencies);
+  if (!result || typeof result.attemptHandle !== 'string') throw new Error('The course activity could not be opened.');
+  return result.attemptHandle;
 }
 
 export async function submitListeningTest(input: ListeningSubmission, dependencies: Dependencies = {}): Promise<ListeningSubmissionResult> {

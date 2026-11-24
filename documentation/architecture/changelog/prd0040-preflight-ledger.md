@@ -1,5 +1,9 @@
 # PRD-0040 Preflight Ledger
 
+## 2026-11-25 Shared external audio (BYO Backblaze B2) rollout change record
+
+PR #326 touches saved-result playback (`SavedSectionAudio.tsx`, `SharedSavedResultCore.tsx`, `SharedSavedResultCore.test.tsx`), `testResults.service.ts` (preserving optional external-audio metadata on saved results), `StudentHomeworkDetailPage.tsx`, and `src/config/featureRegistry.ts` (external-audio observability actions). Canonical saved-result shells (`ResultSlidePanel`, `ResultDetailModal`, `LegacyResultDetailView`), entry owners, RTDB `test_results/{resultId}` read rules, and release-state/teacher-ownership boundaries remain unchanged. Saved-result B2 audio replay verifies canonical `test_results/{resultId}` read permission via the caller's Firebase ID token before issuing a short-lived presigned playback URL.
+
 ## 2026-11-04 Writing homework access change record
 
 Domain: saved-result and Writing `result`. Canonical surface:

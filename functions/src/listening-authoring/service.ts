@@ -1,11 +1,13 @@
 import { hmacSha256Hex, requestHash } from './canonical';
-import type { ListeningAuthoringAuthContext } from './contracts';
+import type { ListeningAuthoringAuthContext, ListeningAuthoringDocumentV1 } from './contracts';
 import type {
   ListeningAuthoringRepository,
   LifecycleTransactionResult,
   PublishBlocker,
+  PublishDraftTransactionInput,
+  ListeningAuthoringDraftRecord,
   PublishedDraftTransactionPayload,
-} from './repository';
+} from './repository.shared';
 import { parseLifecycleRequest, parsePublishDraftRequest, parseSaveDraftRequest } from './validation';
 
 export type SaveListeningDraftCoreResult =
@@ -40,6 +42,7 @@ export interface SaveListeningDraftCoreInput {
   body: unknown;
   repo: ListeningAuthoringRepository;
   idempotencySecret: string;
+  verifyDraftAudio?: (draftId: string, sections: ListeningAuthoringDocumentV1['audioSections']) => Promise<void>;
 }
 
 const createDraftId = (ownerId: string, secret: string, idempotencyKey: string): string =>
@@ -84,9 +87,14 @@ export const saveListeningDraftCore = async ({
   body,
   repo,
   idempotencySecret,
+  verifyDraftAudio,
 }: SaveListeningDraftCoreInput): Promise<SaveListeningDraftCoreResult> => {
   const request = parseSaveDraftRequest(body);
   const ownerId = auth.uid;
+  if (request.document.audioSections.some((section) => section.externalAudio !== undefined)) {
+    if (!request.draftId || !verifyDraftAudio) throw new Error('External audio requires a verified draft attachment and is unsupported here.');
+    await verifyDraftAudio(request.draftId, request.document.audioSections);
+  }
   const draftId = request.draftId ?? createDraftId(ownerId, idempotencySecret, request.idempotencyKey);
   const idempotencyKeyHash = hmacSha256Hex(
     idempotencySecret,
@@ -188,6 +196,7 @@ export interface PublishListeningDraftCoreInput {
   body: unknown;
   repo: ListeningAuthoringRepository;
   idempotencySecret: string;
+  verifyDraftAudio?: (draft: ListeningAuthoringDraftRecord) => Promise<PublishDraftTransactionInput['externalAudioValidation']>;
 }
 
 const toPublishedResult = (
@@ -206,6 +215,7 @@ export const publishListeningDraftCore = async ({
   body,
   repo,
   idempotencySecret,
+  verifyDraftAudio,
 }: PublishListeningDraftCoreInput): Promise<PublishListeningDraftCoreResult> => {
   const request = parsePublishDraftRequest(body);
   const ownerId = auth.uid;
@@ -281,6 +291,12 @@ export const publishListeningDraftCore = async ({
     retainedPins: request.retainedPins,
   });
 
+  const currentDraft = verifyDraftAudio ? await repo.getDraft(request.draftId) : null;
+  const externalAudioValidation = currentDraft?.ownerId === ownerId && currentDraft.state === 'active'
+    && currentDraft.conflictToken === request.expectedConflictToken
+    && currentDraft.document.audioSections.some((section) => section.externalAudio)
+    ? await verifyDraftAudio?.(currentDraft)
+    : undefined;
   const transactionResult = await repo.publishDraftTransaction({
     ownerId,
     draftId: request.draftId,
@@ -290,6 +306,7 @@ export const publishListeningDraftCore = async ({
     requestHash: safeRequestHash,
     expectedConflictToken: request.expectedConflictToken,
     publishedAt: Date.now(),
+    externalAudioValidation,
   });
 
   switch (transactionResult.kind) {

@@ -123,7 +123,7 @@ export const executeRecoveryOperation = executeRecovery;
 /** Known dependency order for RTDB restore (PRD §4.16.3) */
 const RTDB_RESTORE_ORDER = [
     'users', 'media_asset_upload_sessions', 'media_assets', 'media_asset_events',
-    'media_asset_metrics', 'media_asset_sweeps', 'listening_authoring', 'book_activity', 'tests', 'quizzes', 'classes', 'courses',
+    'media_asset_metrics', 'media_asset_sweeps', 'listening_authoring', 'thcs_published_versions', 'thcs_result_audio', 'book_activity', 'tests', 'quizzes', 'classes', 'courses',
     'course_enrollments', 'class_course_links', 'course_materials', 'course_progress',
     'test_results', 'game_sessions', 'deleted_users', 'guest_results',
     'invitations', 'badges', 'course_attendance', 'audit_logs',

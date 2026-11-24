@@ -166,7 +166,7 @@ const Modal: React.FC<LocalModalProps> = ({
         }
 
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
+            if (event.key === 'Escape' && !document.querySelector('dialog:modal')) {
                 onClose();
             }
         };
@@ -1499,7 +1499,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
     // ─── Keyboard Handlers ───────────────────────────────────────
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (!opened) return;
+            if (!opened || document.querySelector('dialog:modal')) return;
 
             if (e.key === 'Escape') {
                 e.preventDefault();

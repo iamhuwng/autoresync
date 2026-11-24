@@ -1,3 +1,5 @@
+import type { DraftSectionAudio } from './assessmentAudio.types';
+
 // ═══════════════════════════════════════════════════════════════
 // PRD-0027/0028: THCS-THPT Test Data Model
 // Phase 1: Editor + MCQ Flow | Phase 2: Fill-in, Writing, Cloze
@@ -99,6 +101,9 @@ export interface THCSQuestion {
  */
 export interface THCSSection {
     id: string;                          // UUID
+    externalAudio?: DraftSectionAudio;
+    externalAudioRequired?: true;
+    audioPlayback?: THCSAudioPlayback;
     name: string;                        // e.g., "PART A: PRONUNCIATION"
     order: number;                       // Display order (0-based) — used for sorting sections
     totalPoints: number;                 // Total points for this section (initial default: 0 — display auto-calculated value when 0 per PRD §9 EC14)
@@ -128,6 +133,16 @@ export interface THCSSection {
     rawText?: string;                      // Original raw section text preserved as-is
     isRawTextFallback?: boolean;           // true when this section failed compromise
 }
+
+export interface THCSAudioPlayback {
+    readonly delaySeconds: number;
+    readonly maxReplays: number;
+    readonly allowSeek: boolean;
+}
+
+export const DEFAULT_THCS_AUDIO_PLAYBACK: THCSAudioPlayback = { delaySeconds: 0, maxReplays: 1, allowSeek: true };
+export const THCS_AUDIO_DELAY_LIMIT_SECONDS = 120;
+export const THCS_AUDIO_REPLAY_LIMIT = 5;
 
 /**
  * Test metadata
@@ -165,6 +180,7 @@ export interface THCSTest {
     updatedAt: number;
     publishedAt?: number;
     sourceDraftId?: string;              // The Firestore draft ID this test was published from — needed for "Edit" action in Teacher Lobby
+    externalAudioVersionId?: string;
 
     // Runtime statistics (updated after sessions)
     // Field name is `stats` NOT `statistics` per PRD §4.1.1
@@ -210,6 +226,8 @@ export interface THCSDraft {
     sections: THCSSection[];
     questionCount: number;
     totalPoints: number;
+    isPublic?: boolean;
+    externalAudioPublished?: boolean;    // Routes subsequent edits back through trusted publication.
     status: 'editing' | 'review' | 'published'; // 'review' for Phase 2 preview
     publishedTestId?: string;            // RTDB testId — set after first publish, reused for re-publish + version dropdown
     createdAt: Date;                     // Firestore Timestamp, converted to Date on read

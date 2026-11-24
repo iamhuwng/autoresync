@@ -80,6 +80,21 @@ describe('Listening published-test editing', () => {
     expect(mocks.publish.mock.calls[0][0]).toEqual(mocks.publish.mock.calls[1][0]);
   });
 
+  it('publishes an external replacement from the working draft and reloads it without an R2 probe', async () => {
+    const editable = await loadListeningTestForEditing(test);
+    const externalAudio = { assetId: '53f947d9-2484-4e83-bc3a-6ec82e0e5c81', scope: 'section' as const };
+    const input = edits(editable);
+    input.resources[0] = { ...input.resources[0], externalAudio };
+    await expect(createListeningTestEditSession(editable)(input)).resolves.toEqual(published);
+    expect(mocks.publish).toHaveBeenCalledWith(expect.objectContaining({ draftId: 'draft-1', expectedConflictToken: 9 }));
+    const savedDocument = parseSaveDraftRequest(mocks.save.mock.calls[0][0]).document;
+    expect(savedDocument.audioSections[0]).toMatchObject({ externalAudio, assetId: 'asset-original' });
+    mocks.records['listening_authoring/drafts/draft-1'].document = savedDocument;
+    mocks.probe.mockClear();
+    expect(adaptTestToResources(await loadListeningTestForEditing(test))[0].externalAudio).toEqual(externalAudio);
+    expect(mocks.probe).not.toHaveBeenCalled();
+  });
+
   it('restores empty tags omitted by RTDB before opening and saving the working draft', async () => {
     const stored = mocks.records['listening_authoring/drafts/draft-1'].document;
     delete stored.metadata.tags;

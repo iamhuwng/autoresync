@@ -1,9 +1,12 @@
+import type { DraftSectionAudio } from './assessmentAudio.types';
+
 export interface AudioSection {
   number: number;
   name: string;
   audioUrl: string;
   streamUrl?: string;
   assetId?: string;
+  externalAudio?: DraftSectionAudio;
   uploadSessionId?: string;
   startQuestion: number;
   endQuestion: number;

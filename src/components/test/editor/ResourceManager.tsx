@@ -16,6 +16,7 @@ interface ResourceManagerProps {
     totalQuestions: number;
     readOnly?: boolean;
     audioPreviewUrls?: Record<string, string>;
+    listeningDraftId?: string;
     uploadAudio?: (file: File, onProgress: (percent: number) => void) => Promise<Partial<ContextResource>>;
 }
 
@@ -26,6 +27,7 @@ export const ResourceManager: React.FC<ResourceManagerProps> = ({
     totalQuestions,
     readOnly = false,
     audioPreviewUrls,
+    listeningDraftId,
     uploadAudio,
 }) => {
     const { trackAction } = useFeatureTracking(FEATURE_IDS.testCreation);
@@ -244,6 +246,7 @@ export const ResourceManager: React.FC<ResourceManagerProps> = ({
                             <AudioResourceEditor
                                 resource={selectedResource}
                                 previewUrl={selectedResource.assetId ? audioPreviewUrls?.[selectedResource.assetId] : undefined}
+                                listeningDraftId={listeningDraftId}
                                 uploadAudio={uploadAudio}
                                 onUpdate={(updated) => handleUpdateResource(selectedResource.id, updated)}
                                 totalQuestions={totalQuestions}

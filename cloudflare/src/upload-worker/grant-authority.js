@@ -142,13 +142,13 @@ const ipClass = (request) => {
   return ip.includes(':') ? 'ipv6' : 'unknown';
 };
 
-export const enforceRateLimit = async ({ env, uid, request }) => {
+export const enforceRateLimit = async ({ env, uid, request, group = 'upload-worker' }) => {
   const limiter = env.UPLOAD_RATE_LIMITER;
   if (!limiter || typeof limiter.limit !== 'function') {
     fail('rate_limit_unavailable', 500);
   }
   const outcome = await limiter.limit({
-    key: `upload-worker:${uid}:${ipClass(request)}`,
+    key: `${group}:${uid}:${ipClass(request)}`,
   });
   if (!outcome?.success) fail('rate_limited', 429);
   return outcome;

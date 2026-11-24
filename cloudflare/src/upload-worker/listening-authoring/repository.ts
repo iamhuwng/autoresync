@@ -42,6 +42,8 @@ import { ListeningAssetCommitError } from '../../../../src/features/assessment/l
 import { ListeningAuthoringAssets, type ListeningAssetBucket, type PreparedListeningDocument } from './assets.ts';
 import { buildListeningPublishedMaterialUpdates } from './published-material.ts';
 import { replaceListeningPublishedAudio } from './audio-replacement.ts';
+import { createAudioCredentialStore } from '../external-audio/credential-store.ts';
+import { readDraftAudioAsset, type DraftAudioEnv } from '../external-audio/draft-assets.ts';
 import {
   getMaterialSummaryRecordPath,
   type MaterialSummary,
@@ -53,7 +55,7 @@ interface ListeningAuthoringRootState {
   versions?: Record<string, ListeningPublishedVersionRecord>;
   operations?: Record<string, ListeningAuthoringOperationRecord>;
 }
-export interface RepositoryEnv extends RtdbRepositoryEnv {
+export interface RepositoryEnv extends RtdbRepositoryEnv, DraftAudioEnv {
   readonly R2_BUCKET?: ListeningAssetBucket;
   readonly PUBLIC_URL?: string;
 }
@@ -178,7 +180,7 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
     expectedConflictToken: number,
     updateFn: (draft: ListeningAuthoringDraftRecord) => ListeningAuthoringDraftRecord,
   ): Promise<UpdateDraftTransactionResult> {
-    return this.withRootTransaction((root) => {
+    return this.withRootTransaction<UpdateDraftTransactionResult>((root) => {
       const maps = rootMaps(root);
       const current = maps.drafts.get(draftId);
       if (!current) return { outcome: { kind: 'missing' as const } };
@@ -278,7 +280,10 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
         if (outcome.kind === 'published') {
           maps.versions.set(version.versionId, { ...version, document: prepared.document, documentHash: requestHash(prepared.document) });
           const draft = maps.drafts.get(input.draftId)!;
-          maps.drafts.set(draft.draftId, { ...draft, document: prepared.document });
+          maps.drafts.set(draft.draftId, { ...draft, document: { ...prepared.document,
+            audioSections: prepared.document.audioSections.map((section, index) =>
+              section.externalAudio ? draft.document.audioSections[index] : section),
+          } });
         }
       }
       return {
@@ -367,11 +372,8 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
   }
   async createVersionTransaction(
     input: CreateListeningPublishedVersionInput,
-  ): Promise<
-    | { kind: 'created'; record: ListeningPublishedVersionRecord }
-    | { kind: 'exists'; record: ListeningPublishedVersionRecord }
-  > {
-    return this.withRootTransaction((root) => {
+  ): ReturnType<ListeningAuthoringRepository['createVersionTransaction']> {
+    return this.withRootTransaction<Awaited<ReturnType<ListeningAuthoringRepository['createVersionTransaction']>>>((root) => {
       const maps = rootMaps(root);
       const existing = maps.versions.get(input.versionId);
       if (existing) return { outcome: { kind: 'exists' as const, record: existing } };
@@ -408,6 +410,44 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
     return normalizeRoot(data);
   }
 
+  private async ensurePublishedExternalAsset(version: ListeningPublishedVersionRecord) {
+    for (const section of version.document.audioSections) {
+      if (!section.externalAudio) continue;
+      const { assetId } = section.externalAudio;
+      if (!version.sourceDraftId) throw new Error('external_audio_source_draft_missing');
+      const store = createAudioCredentialStore(this.options.env);
+      const pinned = await readDraftAudioAsset(store, version.ownerId, {
+        testType: 'ielts-listening', draftId: version.sourceDraftId, sectionId: String(section.number),
+      }, assetId);
+      const path = `media_assets/${assetId}`;
+      let written = false;
+      for (let attempt = 0; attempt < this.maxRetries; attempt++) {
+        const { data, etag } = await this.rtdb.readWithEtag<Record<string, any> | null>(path);
+        if (data && (data.storageProvider !== 'b2' || data.assetId !== assetId || data.canonicalAssetId !== assetId
+          || data.ownerId !== version.ownerId || data.state !== 'committed' || data.sourceDraftId !== version.sourceDraftId
+          || data.sectionNumber !== section.number)) throw new Error('external_audio_asset_identity_conflict');
+        if (data?.references?.versions?.[version.versionId] === true && data?.references?.tests?.[version.testId] === true) {
+          written = true;
+          break;
+        }
+        const references = {
+          ...data?.references,
+          versions: { ...data?.references?.versions, [version.versionId]: true },
+          tests: { ...data?.references?.tests, [version.testId]: true },
+        };
+        if (await this.rtdb.writeIfMatch(path, {
+          assetId, canonicalAssetId: assetId, ownerId: version.ownerId, storageProvider: 'b2', state: 'committed',
+          sourceDraftId: version.sourceDraftId, sectionNumber: section.number, references,
+          contentType: pinned.contentType, sizeBytes: pinned.sizeBytes, createdAt: data?.createdAt ?? this.now(), updatedAt: this.now(),
+        }, etag)) {
+          written = true;
+          break;
+        }
+      }
+      if (!written) throw new Error('external_audio_asset_write_conflict');
+    }
+  }
+
   private async synchronizePublishedMaterial(versionId: string, assetsFinalized = false): Promise<void> {
     for (let attempt = 0; attempt < this.maxRetries; attempt += 1) {
       const root = await this.readRoot();
@@ -417,6 +457,7 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
         .filter((version) => version.testId === requested.testId)
         .reduce((current, version) => version.versionNumber > current.versionNumber ? version : current, requested));
       latest.document = normalizeStoredDocument(latest.document);
+      if (latest.archive.state === 'active') await this.ensurePublishedExternalAsset(latest);
       // Publish already finalized this immutable version; a racing newer version still needs verification.
       if ((!assetsFinalized || latest.versionId !== versionId)
         && latest.archive.state !== 'archived' && !latest.compatibility.frozenLegacyVersion1) {

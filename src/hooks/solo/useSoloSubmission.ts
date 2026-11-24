@@ -56,6 +56,7 @@ interface UseSoloSubmissionOptions {
     studentId: string | undefined;
     studentName: string;
     timeRemaining: number;
+    elapsedSeconds?: number;
     resolvedSettings: ResolvedPracticeSettings | null;
     context: {
         type: ResultContext['type'];
@@ -77,6 +78,7 @@ interface UseSoloSubmissionOptions {
         courseId: string;
         moduleId: string;
     };
+    courseAttemptHandle?: string;
     /** Homework context â€” when set, also updates homework_submissions */
     homeworkId?: string;
     /** Homework submission ID â€” required for homework mode */
@@ -118,9 +120,11 @@ export const useSoloSubmission = ({
     studentId,
     studentName,
     timeRemaining,
+    elapsedSeconds,
     resolvedSettings,
     context,
     courseContext,
+    courseAttemptHandle,
     homeworkId,
     submissionId,
     questionsWithAnswersRef,
@@ -133,6 +137,9 @@ export const useSoloSubmission = ({
     telemetrySurface = 'solo_submission',
     skipConfirm = false,
 }: UseSoloSubmissionOptions): UseSoloSubmissionReturn => {
+    const resolvedElapsedSeconds = Number.isFinite(elapsedSeconds)
+        ? Math.max(0, elapsedSeconds as number)
+        : Math.max(0, testData ? testData.duration * 60 - (Number.isFinite(timeRemaining) ? timeRemaining : 0) : 0);
     const isHomework = context.type === 'homework' && !!homeworkId;
     const { navigateTo } = useNavigation('student');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -312,7 +319,8 @@ export const useSoloSubmission = ({
                     operationId: identity.submissionOperationId, answers,
                     ...(isHomework ? { homeworkId, submissionId } : {}),
                     ...(courseContext ?? {}),
-                    timeElapsed: Math.max(0, testData.duration * 60 - (isFinite(timeRemaining) ? timeRemaining : 0)),
+                    ...(courseAttemptHandle ? { courseAttemptHandle } : {}),
+                    timeElapsed: resolvedElapsedSeconds,
                     ...(integrity ? { integrity } : {}), attemptsNullified,
                 });
                 return { results: result, resultId: result.resultId };
@@ -399,7 +407,7 @@ export const useSoloSubmission = ({
                     skill: testData.skill || 'reading',
                     duration: testData.duration,
                 },
-                (testData.duration * 60) - (isFinite(timeRemaining) ? timeRemaining : 0),
+                resolvedElapsedSeconds,
                 undefined,
                 false,
                 undefined,
@@ -442,7 +450,7 @@ export const useSoloSubmission = ({
             if (!isListening && isHomework && submissionId) {
                 try {
                     const { submitHomework } = await import('../../services/homeworkSubmissionService');
-                    const timeSpent = (testData.duration * 60) - (isFinite(timeRemaining) ? timeRemaining : 0);
+                    const timeSpent = resolvedElapsedSeconds;
                     await submitHomework(
                         submissionId,
                         resultId,

@@ -35,6 +35,7 @@ import THCSSubmitConfirmation from '../thcs-student/THCSSubmitConfirmation';
 import { markThcsTest, thcsResultToTestMarkingResult } from '../../services/thcsAutoMarking.service';
 import { gradeWritingQuestions } from '../../services/thcsWritingGrading.service';
 import { saveTestResult } from '../../services/testResults.service';
+import { notifyCommittedEvent } from '../../services/notificationProducerClient';
 import { getThcsTestFromFirebase } from '../../services/thcsTestStorage';
 import { shuffleTest } from '../../utils/thcsShuffle';
 import { Button } from '../modern';
@@ -60,6 +61,10 @@ import {
 } from '../../services/antiCheatReporting';
 import { buildThcsPracticePersistenceContext } from './thcsPracticeResultContext';
 import { studentResumeService } from '../../services/studentResume.service';
+import { createExternalAudioClient, resolveThcsAudioOrigin, type ThcsAudioScope } from '../../services/externalAudioClient';
+import { useFeatureTracking } from '../../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../../config/featureRegistry';
+import { ThcsSectionAudio } from './ThcsSectionAudio';
 
 import type { THCSTest } from '../../types/thcs-test.types';
 import type { PracticeContext } from '../../types/practice.types';
@@ -132,9 +137,18 @@ export const THCSPracticeView: React.FC<THCSPracticeViewProps> = ({
     practiceContext,
 }) => {
     const navigate = useNavigate();
+    const { user } = useAuth();
+    const audioOrigin = resolveThcsAudioOrigin();
+    const audioClient = useMemo(() => user && audioOrigin
+        ? createExternalAudioClient(audioOrigin, () => user.getIdToken()) : null, [audioOrigin, user]);
+    const { homeworkId, submissionId, courseId, moduleId } = practiceContext;
+    const thcsScope = useMemo<ThcsAudioScope>(() => ({
+        testId: materialId, homeworkId, submissionId, courseId, moduleId,
+    }), [materialId, homeworkId, submissionId, courseId, moduleId]);
 
     // ── Load THCS test data ────────────────────────────────────────────────────
     const [testData, setTestData] = useState<THCSTest | null>(null);
+    const [attemptHandle, setAttemptHandle] = useState<string>();
     const [loadingTest, setLoadingTest] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -148,24 +162,35 @@ export const THCSPracticeView: React.FC<THCSPracticeViewProps> = ({
 
     useEffect(() => {
         if (!materialId) return;
+        const controller = new AbortController();
         const load = async () => {
             setLoadingTest(true);
+            setLoadError(null);
+            setAttemptHandle(undefined);
             try {
                 const result = await getThcsTestFromFirebase(materialId);
                 if (result.success && result.data) {
-                    setTestData(result.data);
+                    const loaded = result.data.externalAudioVersionId
+                        ? await audioClient?.readThcs(thcsScope, controller.signal) : { document: result.data };
+                    if (controller.signal.aborted) return;
+                    if (!loaded) {
+                        setLoadError('This THCS test is unavailable.');
+                        return;
+                    }
+                    setTestData(loaded.document);
+                    setAttemptHandle('attemptHandle' in loaded ? loaded.attemptHandle : undefined);
                 } else {
-                    setLoadError('Failed to load THCS test');
+                    if (!controller.signal.aborted) setLoadError('Failed to load THCS test');
                 }
-            } catch (err) {
-                console.error('[THCSPracticeView] Load error:', err);
-                setLoadError('Failed to load THCS test');
+            } catch {
+                if (!controller.signal.aborted) setLoadError('Failed to load THCS test');
             } finally {
-                setLoadingTest(false);
+                if (!controller.signal.aborted) setLoadingTest(false);
             }
         };
-        load();
-    }, [materialId]);
+        void load();
+        return () => controller.abort();
+    }, [audioClient, materialId, thcsScope]);
 
     useEffect(() => {
         // If not homework or no submissionId, nothing to load
@@ -241,6 +266,9 @@ export const THCSPracticeView: React.FC<THCSPracticeViewProps> = ({
             materialId={materialId}
             practiceContext={practiceContext}
             initialElapsedSeconds={initialElapsedSeconds}
+            audioClient={audioClient}
+            thcsScope={thcsScope}
+            attemptHandle={attemptHandle}
         />
     );
 };
@@ -252,8 +280,15 @@ const THCSPracticeInner: React.FC<{
     materialId: string;
     practiceContext: PracticeContext;
     initialElapsedSeconds?: number;
-}> = ({ testData, materialId, practiceContext, initialElapsedSeconds = 0 }) => {
+    audioClient: ReturnType<typeof createExternalAudioClient> | null;
+    thcsScope: ThcsAudioScope;
+    attemptHandle?: string;
+}> = ({ testData, materialId, practiceContext, initialElapsedSeconds = 0, audioClient, thcsScope, attemptHandle }) => {
     const { user, profile } = useAuth();
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.testTaking);
+    const savedAudioResult = useRef<string | undefined>(undefined);
+    const [sectionPlays, setSectionPlays] = useState<Record<string, number>>({});
+    const sectionAudioPositions = useRef<Record<string, number>>({});
     const navigate = useNavigate();
     const isHomework = practiceContext.type === 'homework';
 
@@ -325,6 +360,14 @@ const THCSPracticeInner: React.FC<{
     const handleSubmitRef = useRef<(timerExpired?: boolean) => void>(() => { });
 
     const rawCurrentSection = shuffledTestData.sections[currentSectionIndex];
+    const audioSectionId = rawCurrentSection?.id;
+    const audioAssetId = rawCurrentSection?.externalAudio?.assetId;
+    const audioVersionId = testData.externalAudioVersionId;
+    const audioScope = useMemo(() => {
+        if (!audioSectionId || !audioAssetId || !audioVersionId) return null;
+        return { ...thcsScope, versionId: audioVersionId, sectionId: audioSectionId, assetId: audioAssetId,
+            ...(thcsScope.courseId && attemptHandle ? { attemptHandle } : {}) };
+    }, [attemptHandle, audioAssetId, audioSectionId, audioVersionId, thcsScope]);
 
     // ── Passage Resolution ──────────────────────────────────────────────────
     // Backward-compat: the converter outputs both flat fields (passageContent, passageTitle)
@@ -631,7 +674,11 @@ const THCSPracticeInner: React.FC<{
                 : undefined;
 
             // Save the canonical result once, using the attempt-scoped identity on homework retries.
-            const resultId = await saveTestResult(
+            const submitCourse = Boolean(attemptHandle && audioClient && thcsScope.courseId);
+            const versionScope = { ...thcsScope, versionId: testData.externalAudioVersionId };
+            const resultId = submitCourse
+                ? (await audioClient!.submitThcsCourse(versionScope, attemptHandle!, answers, timeElapsed)).resultId
+                : savedAudioResult.current ?? await saveTestResult(
                 homeworkIdentity
                     ? `homework_practice_${practiceContext.submissionId}`
                     : `practice_${materialId}_${Date.now()}`,
@@ -653,12 +700,24 @@ const THCSPracticeInner: React.FC<{
                 resultContext,
                 thcsData,
                 undefined,
-                homeworkIdentity ? {
-                    stableResultId: homeworkIdentity.resultId,
-                    submissionOperationId: homeworkIdentity.submissionOperationId,
-                    studentPrivateHomework: true,
+                homeworkIdentity || attemptHandle ? {
+                    ...(homeworkIdentity ? {
+                        stableResultId: homeworkIdentity.resultId,
+                        submissionOperationId: homeworkIdentity.submissionOperationId,
+                        studentPrivateHomework: true,
+                    } : {}),
+                    ...(attemptHandle ? { thcsMaterialVersionId: testData.externalAudioVersionId } : {}),
                 } : undefined,
             );
+            if (attemptHandle && audioClient && !submitCourse) {
+                savedAudioResult.current = resultId;
+                await audioClient.retainThcsResult(versionScope, resultId, attemptHandle);
+            }
+            if (submitCourse) {
+                trackAction('finishTest', { mode: 'course_material' });
+                toast.success('Test result saved.');
+                void notifyCommittedEvent({ eventKind: 'result-completed', resultId });
+            }
 
             // If homework, update homework_submissions
             if (isHomework && practiceContext.submissionId) {
@@ -813,6 +872,8 @@ const THCSPracticeInner: React.FC<{
         }
     }, [
         answers,
+        attemptHandle,
+        audioClient,
         antiCheatConfig,
         flushEvents,
         getIntegrityReport,
@@ -821,6 +882,8 @@ const THCSPracticeInner: React.FC<{
         navigate,
         practiceContext,
         testData,
+        thcsScope,
+        trackAction,
         timeElapsed,
         timeRemaining,
         user,
@@ -1080,6 +1143,18 @@ const THCSPracticeInner: React.FC<{
                                     </p>
                                 </div>
                             )}
+
+                            {audioAssetId && !isSubmitted && (audioScope && audioClient
+                                ? <ThcsSectionAudio key={`${user?.uid}:${audioScope.versionId}:${audioScope.sectionId}`}
+                                    client={audioClient} scope={audioScope} settings={currentSection.audioPlayback}
+                                    sectionNumber={currentSectionIndex + 1} plays={sectionPlays[currentSection.id] ?? 0}
+                                    position={sectionAudioPositions.current[currentSection.id] ?? 0}
+                                    onPosition={(seconds) => { sectionAudioPositions.current[currentSection.id] = seconds; }}
+                                    onComplete={() => setSectionPlays((previous) => ({
+                                        ...previous, [currentSection.id]: (previous[currentSection.id] ?? 0) + 1,
+                                    }))}
+                                    track={trackAction} />
+                                : <p role="status">Section audio is unavailable.</p>)}
 
                             {/* Two-column reading: dual independent scroll panels */}
                             {currentSection.layout === 'two-column' && currentSection.passage ? (
