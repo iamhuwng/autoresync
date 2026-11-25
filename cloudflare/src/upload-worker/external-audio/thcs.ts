@@ -15,6 +15,7 @@ import { createExternalAudioConnections } from './connections.ts';
 import { createAudioCredentialStore } from './credential-store.ts';
 import { externalAudioThcsEnabled, readDraftAudioAsset, readThcsAudioDraft } from './draft-assets.ts';
 import { ExternalAudioError, fail, record } from './protocol.ts';
+import { resolveExternalAudioProxyConfig } from './proxy.ts';
 
 export type ThcsAudioAction = 'validate-thcs-draft' | 'publish-thcs' | 'play-thcs' | 'read-thcs' | 'retain-thcs-result' | 'submit-thcs-course';
 type Data = Record<string, unknown>;
@@ -282,7 +283,9 @@ export async function handleThcsAudio(action: ThcsAudioAction, input: Input, bod
   };
   const profile = async () => (await activeProfile())?.role;
   const store = createAudioCredentialStore(env, fetchImpl);
-  const source = createExternalAudioConnections({ store, source: new BackblazeAudioSource(fetchImpl), now });
+  const source = createExternalAudioConnections({
+    store, source: new BackblazeAudioSource(fetchImpl), now, proxy: resolveExternalAudioProxyConfig(env),
+  });
   if (action === 'submit-thcs-course') return submitThcsCourse(input, body, record(await activeProfile()), fetchImpl);
 
   if (action === 'read-thcs' || action === 'retain-thcs-result' || isPlayback) {

@@ -942,4 +942,65 @@ describe('external audio lifecycle and trusted playback', () => {
       expect(rejected.status).toBe(403);
     }
   });
+
+  it('proxies B2 audio through /external-audio/content with HMAC token verification, Range support, and edge caching', async () => {
+    const f = fixture();
+    const audioBytes = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45]);
+    const proxyEnv = {
+      ...f.env,
+      EXTERNAL_AUDIO_PROXY_ORIGIN: 'https://audio.hocthem.net',
+      LISTENING_DELIVERY_SECRET: 'test-proxy-hmac-secret-32-bytes!!',
+    };
+    const id = await f.connect();
+    const { createExternalAudioProxyToken, verifyExternalAudioProxyToken } = await import('../src/upload-worker/external-audio/proxy.ts');
+    const claims = {
+      v: 1 as const,
+      ownerId: 'owner-1',
+      connectionId: id,
+      bucketId: 'bucket-1',
+      objectKey: file.fileName,
+      providerVersionId: file.fileId,
+      contentType: 'audio/wav',
+      sizeBytes: audioBytes.byteLength,
+      expiresAt: now() + 120_000,
+    };
+    const token = await createExternalAudioProxyToken(proxyEnv.LISTENING_DELIVERY_SECRET, claims);
+    expect(await verifyExternalAudioProxyToken(proxyEnv.LISTENING_DELIVERY_SECRET, token, now())).toEqual(claims);
+    expect(await verifyExternalAudioProxyToken(proxyEnv.LISTENING_DELIVERY_SECRET, `${token}tamper`, now())).toBeNull();
+    expect(await verifyExternalAudioProxyToken(proxyEnv.LISTENING_DELIVERY_SECRET, token, claims.expiresAt + 1)).toBeNull();
+
+    let b2Fetches = 0;
+    const proxyFetch: typeof fetch = async (input, init) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      if (url.startsWith('https://s3.us-west-004.backblazeb2.com/')) {
+        b2Fetches += 1;
+        return new Response(audioBytes, {
+          status: 200,
+          headers: { 'Content-Type': 'audio/wav', 'Content-Length': String(audioBytes.byteLength), 'x-amz-version-id': file.fileId },
+        });
+      }
+      return f.fetchMock(input, init);
+    };
+    const worker = createUploadWorker({
+      fetchImpl: proxyFetch,
+      verifyToken: async () => ({ uid: 'owner-1' }),
+      readDatabaseValue: async (path) => f.appValues.get(path),
+      now,
+    });
+    const contentUrl = `https://audio.hocthem.net/external-audio/content?versionId=${encodeURIComponent(file.fileId)}&token=${encodeURIComponent(token)}`;
+    const first = await worker.fetch(new Request(contentUrl, {
+      method: 'GET',
+      headers: { Origin: 'http://localhost:5173', Range: 'bytes=0-3' },
+    }), proxyEnv as never, {} as never);
+    expect(first.status).toBe(206);
+    expect(first.headers.get('Content-Range')).toBe(`bytes 0-3/${audioBytes.byteLength}`);
+    expect(first.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:5173');
+    expect(new Uint8Array(await first.arrayBuffer())).toEqual(audioBytes.slice(0, 4));
+    expect(b2Fetches).toBe(1);
+
+    // Invalid token must return 403 without hitting B2.
+    const invalid = await worker.fetch(new Request(`${contentUrl}bad`, { method: 'GET' }), proxyEnv as never, {} as never);
+    expect(invalid.status).toBe(403);
+    expect(b2Fetches).toBe(1);
+  });
 });

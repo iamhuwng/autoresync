@@ -8,6 +8,12 @@
   ],
   "workers_dev": true,
   "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "audio.hocthem.net",
+      "custom_domain": true
+    }
+  ],
   "ai": {
     "binding": "AI"
   },
@@ -61,6 +67,7 @@
     "EXTERNAL_AUDIO_UPLOAD_ROLLBACK": "disabled",
     "EXTERNAL_AUDIO_STORE_PROJECT_ID": "luyentap-audio-prod",
     "EXTERNAL_AUDIO_STORE_DATABASE_URL": "https://luyentap-audio-prod-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "EXTERNAL_AUDIO_PROXY_ORIGIN": "https://audio.hocthem.net",
     "STUDENT_AUTH_ROUTES_ENABLED": "enabled",
     "STUDENT_AUTH_ALLOWED_ORIGINS": "https://kahut1.web.app,https://hocthem.net,https://www.hocthem.net,https://app.hocthem.net,https://kahoot.hocthem.net,https://portal.hocthem.net,https://mstu.work,https://app.mstu.work,https://kahoot.mstu.work,https://portal.mstu.work,https://temp-a1437.web.app,https://temp-a1437.firebaseapp.com",
     "BOOK_HOMEWORK_SERVICE_IDENTITY": "book-homework-runtime@temp-a1437.iam.gserviceaccount.com",
