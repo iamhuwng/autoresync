@@ -220,7 +220,7 @@ async function readLocal(cwd, source, hostingObservation, envFingerprint, produc
   const impactPaths = hostingImpactPaths(cwd, actualSource);
   const scope = selectHostingDependencyScope(impactPaths);
   let environmentBinding = { kind: 'exact', productionFingerprint: envFingerprint, buildInputFingerprint: envFingerprint };
-  if (envFingerprint !== hostingObservation.manifest.envFingerprint) {
+  if (envFingerprint !== hostingObservation.manifest.envFingerprint && !actualSource.files.includes('scripts/deploy-live.mjs')) {
     let qualification = Object.fromEntries(qualificationKeys.map(key => [key, process.env[`LUYENTAP_QUALIFICATION_FIREBASE_${key}`]]));
     if (Object.values(qualification).every(value => !value) && process.env.GITHUB_ACTIONS !== 'true') {
       const result = spawnSync('gh', ['api', 'repos/iamhuwng/autoresync/actions/variables', '--paginate', '--slurp'], { encoding: 'utf8', windowsHide: true });
