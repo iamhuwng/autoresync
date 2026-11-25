@@ -112,5 +112,16 @@ describe('external audio client boundary', () => {
         const api = createExternalAudioClient(prodWorker, async () => 'prod-token', fetchImpl);
         expect(await api.connections()).toEqual({ generation: 0, activeConnectionId: null, connections: [] });
         expect(fetchImpl).toHaveBeenCalledWith(`${prodWorker}/external-audio/connections`, expect.any(Object));
+
+        // Verify client accepts Cloudflare edge-cached audio proxy URLs (audio.hocthem.net)
+        const expiresAt = Date.now() + 120_000;
+        const proxyFetch = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json({
+            file,
+            url: `https://audio.hocthem.net/external-audio/content?versionId=${file.providerVersionId}&token=signed.hmac`,
+            expiresAt,
+        }));
+        const proxyApi = createExternalAudioClient(prodWorker, async () => 'prod-token', proxyFetch);
+        const previewRes = await proxyApi.preview(target);
+        expect(previewRes.url).toContain('https://audio.hocthem.net/external-audio/content?');
     });
 });

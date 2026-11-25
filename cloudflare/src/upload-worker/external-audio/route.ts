@@ -5,6 +5,7 @@ import {
   assertDraftAudioTarget, externalAudioAdoptionEnabled, externalAudioDraftsEnabled, parseDraftAudioTarget, readAudioHomeworkVersions, readDraftAudioAsset, readThcsDraftRecordingReferences, type DraftAudioEnv,
 } from './draft-assets.ts';
 import { CONNECTION_ID, ExternalAudioError, fail, OWNER_ID, readJson, record } from './protocol.ts';
+import { resolveExternalAudioProxyConfig, type ExternalAudioProxyEnv } from './proxy.ts';
 import { handleThcsAudio, type ThcsAudioAction } from './thcs.ts';
 import { getFirebaseServiceAccountAccessToken, type RepositoryEnv } from '../listening-authoring/rtdb.ts';
 
@@ -87,7 +88,7 @@ function selection(body: Record<string, unknown>) {
 
 export async function handleExternalAudioRoute(input: {
   request: Request;
-  env: DraftAudioEnv & RepositoryEnv;
+  env: DraftAudioEnv & RepositoryEnv & ExternalAudioProxyEnv;
   uid: string;
   action: Action;
   now: () => number;
@@ -122,6 +123,7 @@ export async function handleExternalAudioRoute(input: {
     const body = record(payload);
     const service = createExternalAudioConnections({
       store, source: new BackblazeAudioSource(fetchImpl), now, readAppValue,
+      proxy: resolveExternalAudioProxyConfig(env),
       readThcsDrafts: async (ownerId) => {
         if (env.EXTERNAL_AUDIO_THCS_ENABLED !== 'enabled') return [];
         if (env.EXTERNAL_AUDIO_ENVIRONMENT === 'local' && !env.FIRESTORE_EMULATOR_URL) return [];
