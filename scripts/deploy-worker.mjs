@@ -16,6 +16,9 @@ const production = (packageDir, configFile, wranglerTool, testArgs, smokeProbe) 
 });
 
 export const WORKER_REGISTRY = Object.freeze({
+  'luyentap-book-pdf-prod': production('cloudflare', 'wrangler.book-pdf.jsonc', 'cloudflare-wrangler',
+    ['../scripts/tooling-where.mjs', '--exec', 'cloudflare-vitest', 'run', '--config', 'vitest.config.mjs', 'test/book-source-oci-s3-source-provider.test.ts', 'test/book-assembly-publication-repository.test.ts', 'test/student-book-homework-summary.test.ts', 'test/spare-cors-policy.test.ts'],
+    { url: 'https://luyentap-book-pdf-prod.iamhuwng.workers.dev/', method: 'OPTIONS', headers: { Origin: 'https://kahut1.web.app', 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'authorization, content-type' }, expectedStatuses: [204] }),
   'r2-upload-signer': production('cloudflare', 'wrangler.jsonc', 'cloudflare-wrangler',
     ['../scripts/tooling-where.mjs', '--exec', 'cloudflare-vitest', 'run', '--config', 'vitest.config.mjs', '__tests__/upload-worker-harness.test.js', 'test/upload-worker-security.test.js', 'test/student-auth-worker.test.ts', 'test/spare-cors-policy.test.ts', 'test/external-audio.test.ts'],
     { url: 'https://r2-upload-signer.iamhuwng.workers.dev/', method: 'OPTIONS', headers: { Origin: 'https://kahut1.web.app', 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'authorization, content-type' }, expectedStatuses: [204] }),

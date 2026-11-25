@@ -91,12 +91,13 @@ VITE_READING_PASSAGE_LIBRARY=enabled
 VITE_READING_PASSAGE_HOMEWORK=enabled
 VITE_MATERIAL_BOOKS=enabled
 VITE_MATERIAL_BOOK_EDITOR=enabled
-VITE_BOOK_ACTIVITY_CREATE_PRESENTATION=disabled
-VITE_BOOK_ACTIVITY_PUBLISH_PRESENTATION=disabled
-VITE_BOOK_ACTIVITY_ASSIGN_PLACE_PRESENTATION=disabled
-VITE_BOOK_ACTIVITY_LAUNCH_DELIVERY_PRESENTATION=disabled
-VITE_BOOK_ACTIVITY_MUTATION_PRESENTATION=disabled
-VITE_BOOK_ACTIVITY_EVALUATION_PRESENTATION=disabled
+VITE_BOOK_ACTIVITY_CREATE_PRESENTATION=enabled
+VITE_BOOK_ACTIVITY_PUBLISH_PRESENTATION=enabled
+VITE_BOOK_ACTIVITY_ASSIGN_PLACE_PRESENTATION=enabled
+VITE_BOOK_ACTIVITY_LAUNCH_DELIVERY_PRESENTATION=enabled
+VITE_BOOK_ACTIVITY_MUTATION_PRESENTATION=enabled
+VITE_BOOK_ACTIVITY_EVALUATION_PRESENTATION=enabled
+VITE_BOOK_COURSE_PLACEMENT_PRESENTATION=enabled
 `;
 
 test('production and qualification environment identities stay separate', async () => {
@@ -187,16 +188,17 @@ test('production route preserves existing Reading passage capabilities', async (
   }
 });
 
-test('production route preserves existing Books while PDF Activity rollout remains disabled', async () => {
+test('production route preserves existing Books and enables Book PDF V1 presentation gates', async () => {
   for (const [key, mode] of Object.entries({
     VITE_MATERIAL_BOOKS: 'enabled',
     VITE_MATERIAL_BOOK_EDITOR: 'enabled',
-    VITE_BOOK_ACTIVITY_CREATE_PRESENTATION: 'disabled',
-    VITE_BOOK_ACTIVITY_PUBLISH_PRESENTATION: 'disabled',
-    VITE_BOOK_ACTIVITY_ASSIGN_PLACE_PRESENTATION: 'disabled',
-    VITE_BOOK_ACTIVITY_LAUNCH_DELIVERY_PRESENTATION: 'disabled',
-    VITE_BOOK_ACTIVITY_MUTATION_PRESENTATION: 'disabled',
-    VITE_BOOK_ACTIVITY_EVALUATION_PRESENTATION: 'disabled',
+    VITE_BOOK_ACTIVITY_CREATE_PRESENTATION: 'enabled',
+    VITE_BOOK_ACTIVITY_PUBLISH_PRESENTATION: 'enabled',
+    VITE_BOOK_ACTIVITY_ASSIGN_PLACE_PRESENTATION: 'enabled',
+    VITE_BOOK_ACTIVITY_LAUNCH_DELIVERY_PRESENTATION: 'enabled',
+    VITE_BOOK_ACTIVITY_MUTATION_PRESENTATION: 'enabled',
+    VITE_BOOK_ACTIVITY_EVALUATION_PRESENTATION: 'enabled',
+    VITE_BOOK_COURSE_PLACEMENT_PRESENTATION: 'enabled',
   })) {
     const expected = new RegExp(`${key} must be ${mode}`, 'u');
     await assertBlocked('', expected, validFirebaseEnv.replace(`${key}=${mode}`, ''));

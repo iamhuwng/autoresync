@@ -1,0 +1,80 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "luyentap-book-pdf-prod",
+  "main": "worker.js",
+  "compatibility_date": "2026-01-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "ratelimits": [
+    {
+      "name": "UPLOAD_RATE_LIMITER",
+      "namespace_id": "205512",
+      "simple": { "limit": 30, "period": 60 }
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "UPLOAD_GRANT_REPLAY_LEDGER", "class_name": "UploadGrantReplayLedger" }]
+  },
+  "migrations": [
+    { "tag": "v1-upload-grant-replay-ledger", "new_sqlite_classes": ["UploadGrantReplayLedger"] },
+    { "tag": "v4-prd0062-prd0062b-retirement" }
+  ],
+  "vars": {
+    "FIREBASE_PROJECT_ID": "temp-a1437",
+    "FIREBASE_DB_URL": "https://temp-a1437-default-rtdb.firebaseio.com",
+    "PUBLIC_URL": "https://pub-9785039d4a7e4f76b2446f9fae6b2ca1.r2.dev",
+    "BOOK_ACTIVITY_AUTHORING_ROUTES_ENABLED": "enabled",
+    "BOOK_ASSEMBLY_ROUTES_ENABLED": "enabled",
+    "BOOK_ASSEMBLY_MUTATIONS_ENABLED": "true",
+    "BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION": "activity-renderer-manifest-v1@sha256:649910eeb4ce46bc89e246ec4bcb7df883a0aae5da4fdbf2bc66d3bc3f9f1831",
+    "BOOK_FULL_PDF_PUBLICATION_ROUTES_ENABLED": "enabled",
+    "BOOK_FULL_PDF_PUBLICATION_ENABLED": "true",
+    "BOOK_COMPONENT_PDF_PUBLICATION_ROUTES_ENABLED": "enabled",
+    "BOOK_COMPONENT_PDF_PUBLICATION_ENABLED": "true",
+    "BOOK_TEACHER_ASSEMBLY_DOCUMENT_ROUTES_ENABLED": "enabled",
+    "BOOK_DELIVERY_READ_ROUTES_ENABLED": "enabled",
+    "BOOK_DOCUMENT_DELIVERY_ROUTES_ENABLED": "enabled",
+    "BOOK_RUNTIME_LAUNCH_ROUTES_ENABLED": "enabled",
+    "BOOK_RUNTIME_ROUTES_ENABLED": "enabled",
+    "BOOK_HOMEWORK_ROUTES_ENABLED": "enabled",
+    "BOOK_HOMEWORK_READ_ROUTES_ENABLED": "enabled",
+    "BOOK_HOMEWORK_COMPLETION_PROJECTION_ENABLED": "enabled",
+    "BOOK_RESULT_READ_ROUTES_ENABLED": "enabled",
+    "BOOK_RESULT_PROJECTION_ENABLED": "enabled",
+    "BOOK_EVALUATION_HISTORY_ROUTES_ENABLED": "enabled",
+    "BOOK_COURSE_PLACEMENT_ROUTES_ENABLED": "enabled",
+    "BOOK_SOURCE_UPLOAD_ACCOUNT_ID": "book_oci_primary",
+    "BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN": "https://kahut1.web.app,https://hocthem.net,https://www.hocthem.net,https://app.hocthem.net,https://kahoot.hocthem.net,https://portal.hocthem.net,https://mstu.work,https://app.mstu.work,https://kahoot.mstu.work,https://portal.mstu.work,https://temp-a1437.web.app,https://temp-a1437.firebaseapp.com",
+    "BOOK_SOURCE_OCI_PROVIDER_STATE": "enabled",
+    "BOOK_SOURCE_OCI_ENDPOINT": "https://axgsodluzsdz.compat.objectstorage.ap-singapore-1.oraclecloud.com",
+    "BOOK_SOURCE_OCI_REGION": "ap-singapore-1",
+    "BOOK_SOURCE_OCI_STORAGE_LOCATION_ID": "oci_book_primary",
+    "BOOK_SOURCE_OCI_PRIVATE_BUCKET_NAME": "luyentap-bookpdf-qa",
+    "BOOK_SOURCE_OCI_OBJECT_KEY_PREFIX": "book-source/production/",
+    "BOOK_SOURCE_UPLOAD_SERVICE_IDENTITY": "book-source-worker-runtime@temp-a1437.iam.gserviceaccount.com",
+    "BOOK_ASSEMBLY_SERVICE_IDENTITY": "book-assembly-p2-runtime@temp-a1437.iam.gserviceaccount.com",
+    "BOOK_ACTIVITY_AUTHORING_SERVICE_IDENTITY": "book-activity-authoring-rt@temp-a1437.iam.gserviceaccount.com",
+    "BOOK_DELIVERY_SERVICE_IDENTITY": "book-delivery-runtime@temp-a1437.iam.gserviceaccount.com",
+    "BOOK_HOMEWORK_SERVICE_IDENTITY": "book-homework-runtime@temp-a1437.iam.gserviceaccount.com",
+    "BOOK_RUNTIME_SERVICE_IDENTITY": "book-runtime-runtime@temp-a1437.iam.gserviceaccount.com",
+    "BOOK_RESULT_READ_SERVICE_IDENTITY": "book-result-read-runtime@temp-a1437.iam.gserviceaccount.com",
+    "BOOK_ACTIVITY_EVALUATION_SERVICE_IDENTITY": "book-evaluation-runtime@temp-a1437.iam.gserviceaccount.com"
+  },
+  "secrets": {
+    "required": [
+      "FIREBASE_WEB_API_KEY",
+      "UPLOAD_GRANT_SECRET",
+      "BOOK_SOURCE_UPLOAD_GOOGLE_SA_KEY",
+      "BOOK_ASSEMBLY_GOOGLE_SA_KEY",
+      "BOOK_ACTIVITY_AUTHORING_GOOGLE_SA_KEY",
+      "BOOK_DELIVERY_GOOGLE_SA_KEY",
+      "BOOK_HOMEWORK_GOOGLE_SA_KEY",
+      "BOOK_RUNTIME_GOOGLE_SA_KEY",
+      "BOOK_RESULT_READ_GOOGLE_SA_KEY",
+      "BOOK_ACTIVITY_EVALUATION_GOOGLE_SA_KEY",
+      "BOOK_SOURCE_OCI_ACCESS_KEY_ID",
+      "BOOK_SOURCE_OCI_SECRET_ACCESS_KEY"
+    ]
+  }
+}

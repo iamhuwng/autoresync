@@ -72,12 +72,15 @@ test('Hosting dependency scope selects only affected backend probes', () => {
     rtdbRules: false, rtdbFlags: false, firestoreRules: false, firestoreIndexes: false, functions: false,
     privateAudio: false, workers: ['thcs-gemma'], cloudflareCommon: true,
   });
+  assert.deepEqual(selectHostingDependencyScope(['cloudflare/wrangler.book-pdf.jsonc', 'cloudflare/src/book-source-worker/capacity-probe-worker.ts']), {
+    rtdbRules: false, rtdbFlags: false, firestoreRules: false, firestoreIndexes: false, functions: false,
+    privateAudio: false, workers: ['luyentap-book-pdf-prod'], cloudflareCommon: true,
+  });
   for (const excluded of [
     'cloudflare/wrangler.book-source-capacity-probe.jsonc',
     'cloudflare/wrangler.book-source-b2.jsonc',
     'cloudflare/wrangler.book-source-reconciliation-preview.jsonc',
     'cloudflare/wrangler.book-source.jsonc',
-    'cloudflare/src/book-source-worker/capacity-probe-worker.ts',
     'cloudflare/wrangler.ticket87-preview.jsonc',
   ]) {
     assert.deepEqual(selectHostingDependencyScope([excluded]), {
