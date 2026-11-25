@@ -1,5 +1,9 @@
 # Result View FR Closure Matrix
 
+## 2026-11-25 Book PDF (PRD0062) V1 Academic Record & Homework Visibility
+
+PR #331 adds student Book activity result listing to `AcademicRecordPage.tsx` (`academicRecordBookResults.service.ts`), includes Book homework projections in `StudentHomeworkListPage.tsx` counters (`studentBookHomeworkSummary.service.ts`), and registers Book actions in `src/config/featureRegistry.ts`. No PRD-0040/PRD-0041 FR closure status changes; all verified rows below remain verified. Coverage anchors include `AcademicRecordPage.test.tsx`, `academicRecordBookResults.service.test.ts`, `StudentHomeworkListPage.test.tsx`, `studentBookHomeworkSummaryRules.test.ts`, and `cloudflare/test/student-book-homework-summary.test.ts`.
+
 ## 2026-11-25 Shared external audio (BYO Backblaze B2) rollout
 
 PR #326 adds `SavedSectionAudio.tsx` inside `SharedSavedResultCore.tsx` and registers external-audio actions in `src/config/featureRegistry.ts`. No PRD-0040/PRD-0041 FR closure status changes; all verified rows below remain verified. Coverage anchors include `SharedSavedResultCore.test.tsx`, `externalAudioClient.test.ts`, `cloudflare/test/external-audio.test.ts`, and `r2-backup-worker/src/homework/assignments.test.ts`.
