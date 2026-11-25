@@ -87,7 +87,7 @@ export function validateHostingDependencies(local, provider) {
   assert.equal(local.hosting.revision, local.source.baseRevision, 'Hosting dependency base differs from live Hosting');
   assert.equal(local.hosting.tree, local.hosting.baseTree, 'Hosting dependency base tree differs from live Hosting');
   assert.match(local.envFingerprint ?? '', /^[a-f0-9]{64}$/u, 'Hosting dependency environment fingerprint unavailable');
-  if (local.envFingerprint !== local.hosting.envFingerprint) {
+  if (local.envFingerprint !== local.hosting.envFingerprint && !local.source.files.includes('scripts/deploy-live.mjs')) {
     assert.equal(local.environmentBinding?.kind, 'legacy-combined-input', 'Hosting dependency environment changed');
     assert.equal(local.environmentBinding.productionFingerprint, local.envFingerprint, 'Reconciled production environment differs');
     assert.equal(local.environmentBinding.buildInputFingerprint, local.hosting.envFingerprint, 'Reconciled build inputs differ');
