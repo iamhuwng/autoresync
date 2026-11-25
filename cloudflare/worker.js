@@ -31,6 +31,7 @@ import { createProductionBookAssemblyRouteOptions } from './src/upload-worker/bo
 import { createStudentAuthWorkerHandlers } from './src/upload-worker/student-auth/worker.ts';
 import { handleExternalAudioRoute, resolveExternalAudioRoute } from './src/upload-worker/external-audio/route.ts';
 import { externalAudioDraftsEnabled, externalAudioThcsEnabled } from './src/upload-worker/external-audio/draft-assets.ts';
+import { handleExternalAudioContent } from './src/upload-worker/external-audio/proxy.ts';
 
 /**
  * R2 Upload Worker with Smart Cleanup Support
@@ -126,6 +127,7 @@ export function createUploadWorker({
   firebaseVerifier = createFirebaseVerifier(),
   nonceGenerator = generateNonce,
   now = () => Date.now(),
+  fetchImpl = globalThis.fetch,
   listeningAuthoringHandlers = createListeningAuthoringWorkerHandlers(),
   listeningUploadSessionHandlers = createListeningUploadSessionHandlers(),
   listeningDeliveryHandlers = createListeningDeliveryWorkerHandlers(),
@@ -145,6 +147,18 @@ export function createUploadWorker({
   return {
     async fetch(request, env, ctx) {
       const url = new URL(request.url);
+      if (env.EXTERNAL_AUDIO_PROXY_ORIGIN) {
+        let proxyHost = null;
+        try {
+          proxyHost = new URL(env.EXTERNAL_AUDIO_PROXY_ORIGIN).hostname;
+        } catch {
+          proxyHost = null;
+        }
+        if (proxyHost && url.hostname === proxyHost && url.pathname !== '/external-audio/content') {
+          return new Response(null, { status: 404, headers: { 'Cache-Control': 'no-store' } });
+        }
+      }
+
       if (url.pathname.startsWith('/auth/student/')) {
         return canonicalStudentAuthHandlers.fetch(request, env);
       }
@@ -153,6 +167,34 @@ export function createUploadWorker({
       if (bookResponse) return bookResponse;
 
       let externalAudio;
+      if (url.pathname === '/external-audio/content') {
+        const origin = request.headers.get('Origin');
+        const originAllowed = env.EXTERNAL_AUDIO_ENVIRONMENT === 'production' && env.FIREBASE_PROJECT_ID === 'temp-a1437'
+          ? isApprovedProductionAppOrigin(origin)
+          : isApprovedLocalAppOrigin(origin, env);
+        if (origin && !originAllowed) {
+          return new Response(null, { status: 403, headers: { Vary: 'Origin' } });
+        }
+        const contentCors = origin ? {
+          Vary: 'Origin',
+          'Access-Control-Allow-Origin': origin,
+          'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+          'Access-Control-Allow-Headers': 'Range',
+          'Access-Control-Expose-Headers': 'Accept-Ranges, Content-Length, Content-Range, Content-Type, X-External-Audio-Cache',
+        } : { Vary: 'Origin' };
+        if (request.method === 'OPTIONS') {
+          return new Response(null, { status: 204, headers: contentCors });
+        }
+        const response = await handleExternalAudioContent({ request, env, ctx, now }, fetchImpl);
+        const headers = new Headers(response.headers);
+        Object.entries(contentCors).forEach(([key, value]) => headers.set(key, value));
+        return new Response(response.body, {
+          status: response.status,
+          statusText: response.statusText,
+          headers,
+        });
+      }
+
       if (url.pathname.startsWith('/external-audio/')) {
         externalAudio = resolveExternalAudioRoute(url.pathname);
         if (!externalAudio || env.EXTERNAL_AUDIO_ROUTES_ENABLED !== 'enabled'

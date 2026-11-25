@@ -4,6 +4,9 @@ import {
   MAX_CONNECTIONS_PER_OWNER, validConnectionLabel, type AudioConnection, type AudioCredentialStore, type OwnerConnections,
 } from './credential-store.ts';
 import { ExternalAudioError, fail, record } from './protocol.ts';
+import {
+  buildExternalAudioProxyUrl, createExternalAudioProxyToken, type ExternalAudioProxyConfig,
+} from './proxy.ts';
 
 type B2Asset = Extract<AudioAssetRecord, { storageProvider: 'b2' }>;
 type CredentialsInput = B2Key & Pick<B2Scope, 'bucketName' | 'prefix'>;
@@ -11,6 +14,7 @@ type ConnectionOptions = {
   readonly store: AudioCredentialStore;
   readonly source: BackblazeAudioSource;
   readonly now: () => number;
+  readonly proxy?: ExternalAudioProxyConfig;
   readonly readAppValue?: (path: string) => Promise<unknown>;
   readonly readThcsDrafts?: (ownerId: string) => Promise<readonly unknown[]>;
   readonly readHomeworkVersions?: (ids: readonly string[]) => Promise<ReadonlyMap<string, string>>;
@@ -71,7 +75,7 @@ function find(state: OwnerConnections, connectionId: string, activeOnly: boolean
   return connection;
 }
 
-export function createExternalAudioConnections({ store, source, now, readAppValue, readThcsDrafts, readHomeworkVersions }: ConnectionOptions) {
+export function createExternalAudioConnections({ store, source, now, proxy, readAppValue, readThcsDrafts, readHomeworkVersions }: ConnectionOptions) {
   const readyToWrite = async (ownerId: string, expectedGeneration: number) => {
     const snapshot = await store.read(ownerId);
     if (snapshot.value.generation !== expectedGeneration) fail('generation_conflict');
@@ -304,7 +308,19 @@ export function createExternalAudioConnections({ store, source, now, readAppValu
       const { connection, generation, key } = await seeConnection(ownerId, id, true);
       const preview = await source.playback(key, connection.scope, selection, now);
       await assertCurrent(ownerId, id, generation, true);
-      return preview;
+      if (!proxy) return preview;
+      const token = await createExternalAudioProxyToken(proxy.secret, {
+        v: 1,
+        ownerId,
+        connectionId: id,
+        bucketId: connection.scope.bucketId,
+        objectKey: preview.file.objectKey,
+        providerVersionId: preview.file.providerVersionId,
+        contentType: preview.file.contentType,
+        sizeBytes: preview.file.sizeBytes,
+        expiresAt: preview.expiresAt,
+      });
+      return { ...preview, url: buildExternalAudioProxyUrl(proxy.origin, preview.file.providerVersionId, token) };
     },
     /** Prepare an exact, trusted attachment. The authoring workflow will own persistence. */
     async prepareAsset(ownerId: string, id: string, assetId: string, selection: B2Selection, expectedGeneration?: number): Promise<B2Asset> {
@@ -326,7 +342,19 @@ export function createExternalAudioConnections({ store, source, now, readAppValu
       const { file, url, expiresAt } = await source.playback(key, connection.scope, asset, now, ttlSeconds);
       if (file.contentType !== asset.contentType || file.sizeBytes !== asset.sizeBytes) fail('object_changed');
       await assertCurrent(ownerId, connectionId, generation, false);
-      return { url, expiresAt };
+      if (!proxy) return { url, expiresAt };
+      const token = await createExternalAudioProxyToken(proxy.secret, {
+        v: 1,
+        ownerId,
+        connectionId,
+        bucketId: asset.bucketId,
+        objectKey: file.objectKey,
+        providerVersionId: file.providerVersionId,
+        contentType: file.contentType,
+        sizeBytes: file.sizeBytes,
+        expiresAt,
+      });
+      return { url: buildExternalAudioProxyUrl(proxy.origin, file.providerVersionId, token), expiresAt };
     },
   };
 }

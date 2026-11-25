@@ -127,6 +127,7 @@ interface AudioQaEnv {
 
 const PRODUCTION_APP_ORIGINS = new Set(['https://kahut1.web.app', 'https://hocthem.net', 'https://www.hocthem.net']);
 const PRODUCTION_WORKER_ORIGINS = new Set(['https://r2-upload-signer.iamhuwng.workers.dev']);
+const PRODUCTION_AUDIO_PROXY_ORIGINS = new Set(['https://audio.hocthem.net', 'https://r2-upload-signer.iamhuwng.workers.dev']);
 const LOCAL_QA_PROJECT_ID = import.meta.env.DEV || import.meta.env.MODE === 'test' ? 'demo-luyentap-local' : '';
 
 function parseUrl(value: string) {
@@ -233,9 +234,12 @@ function assertPreviewUrl(result: z.infer<typeof draftPreview>, versionId?: stri
     const fixture = fixtureOrigin && url?.origin === fixtureOrigin && url.pathname === '/fixture/audio'
         && url.searchParams.get('expiry') === String(result.expiresAt)
         && /^[a-f0-9]{64}$/u.test(url.searchParams.get('signature') ?? '');
+    const workerProxy = url?.pathname === '/external-audio/content'
+        && Boolean(url.searchParams.get('token'))
+        && (PRODUCTION_AUDIO_PROXY_ORIGINS.has(url.origin) || Boolean(localOrigin(url.origin)));
     const backblaze = url?.protocol === 'https:' && !url.port
         && /^s3\.[a-z]{2}(?:-[a-z0-9]+)+-\d+\.backblazeb2\.com$/u.test(url.hostname);
-    if (!url || url.username || url.password || url.hash || (!backblaze && !fixture) || !version
+    if (!url || url.username || url.password || url.hash || (!backblaze && !workerProxy && !fixture) || !version
         || (versionId !== undefined && version !== versionId) || result.expiresAt <= Date.now()) {
         throw new ExternalAudioRequestError('object_changed');
     }

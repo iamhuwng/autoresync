@@ -30,6 +30,7 @@ import { readListeningCourseAccess } from './listening-course-access.ts';
 import { BackblazeAudioSource } from './external-audio/b2-source.ts';
 import { createExternalAudioConnections } from './external-audio/connections.ts';
 import { createAudioCredentialStore } from './external-audio/credential-store.ts';
+import { resolveExternalAudioProxyConfig } from './external-audio/proxy.ts';
 import { externalAudioDraftsEnabled, externalAudioPrivateHomeworkEnabled, externalAudioPublicListeningEnabled, readDraftAudioAsset, type DraftAudioEnv } from './external-audio/draft-assets.ts';
 import { DRAFT_AUDIO_ASSET_ID } from '../../../src/types/assessmentAudio.types.ts';
 
@@ -1496,7 +1497,10 @@ async function issueExternalAudio(
     if (graph.sizeBytes !== asset.sizeBytes || graph.contentType !== asset.contentType) throw new Error('asset_metadata_mismatch');
     const qaTtl = Number(input.env.EXTERNAL_AUDIO_PLAYBACK_QA_TTL_SECONDS);
     ttlSeconds = Number.isSafeInteger(qaTtl) && qaTtl >= 5 && qaTtl <= 120 ? qaTtl : 120;
-    const service = createExternalAudioConnections({ store, source: new BackblazeAudioSource(), now: input.clock ?? (() => input.now) });
+    const service = createExternalAudioConnections({
+      store, source: new BackblazeAudioSource(), now: input.clock ?? (() => input.now),
+      proxy: resolveExternalAudioProxyConfig(input.env),
+    });
     delivery = await service.signPlayback(asset, ttlSeconds);
   } catch {
     throw new ListeningDeliveryWorkerError('external_audio_unavailable', 422);

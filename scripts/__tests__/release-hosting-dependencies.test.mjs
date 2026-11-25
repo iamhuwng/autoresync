@@ -100,7 +100,12 @@ function fixture() {
     scope: { rtdbRules: true, rtdbFlags: true, firestoreRules: true, firestoreIndexes: false, functions: true, privateAudio: true, workers: [...PRODUCTION_WORKER_NAMES], cloudflareCommon: true } };
   const provider = { rulesSha256: local.rulesSha256,
     firestoreRules: { release: { name: 'projects/temp-a1437/releases/cloud.firestore' }, sourceSha256: '3'.repeat(64) },
-    common: { accountSubdomain: { subdomain: 'iamhuwng' }, domains: [], zones: ['1aae6fb9889672cf695927eb575a5bbe'], routes: [] },
+    common: {
+      accountSubdomain: { subdomain: 'iamhuwng' },
+      domains: [{ id: 'domain-id', hostname: 'audio.hocthem.net', service: 'r2-upload-signer', environment: 'production', zone_id: '1aae6fb9889672cf695927eb575a5bbe', cert_id: 'cert-1', enabled: true }],
+      zones: ['1aae6fb9889672cf695927eb575a5bbe'],
+      routes: [],
+    },
     functions: [], writesEnabled: true, restore: null,
     privateAudioBucket: { bucketName: 'luyentap-listening-audio-private', managedDomain: { enabled: false }, customDomains: { domains: [] }, lifecycle }, workers: {} };
   for (const name of PRODUCTION_WORKER_NAMES) {
@@ -169,6 +174,9 @@ test('Hosting dependency validation permits changed sharedHomeworkInputs, vite.c
 
 test('Hosting dependency validation rejects provider configuration, storage and service drift', () => {
   for (const mutate of [
+    p => { p.common.domains = []; },
+    p => { p.common.domains.push({ hostname: 'other.hocthem.net', service: 'r2-upload-signer', environment: 'production', zone_id: '1aae6fb9889672cf695927eb575a5bbe', enabled: true }); },
+    p => { p.common.domains[0].service = 'other-worker'; },
     p => { p.common.routes.push({ pattern: 'other.invalid/*' }); },
     p => { p.functions.push({ name: 'new-function' }); },
     p => { p.restore = {}; },

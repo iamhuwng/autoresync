@@ -170,6 +170,25 @@ export class BackblazeAudioSource {
     return this.inspectAuthorized(await this.authorizeScope(key, scope), selection);
   }
 
+  async signDirectGetUrl(key: B2Key, scope: B2Scope, selection: B2Selection, now: () => number, ttlSeconds = PLAYBACK_TTL_SECONDS): Promise<string> {
+    this.assertSelection(scope, selection);
+    const auth = await this.authorizeScope(key, scope);
+    const issuedAt = Math.floor(now() / 1000) * 1000;
+    const datetime = new Date(issuedAt).toISOString().replace(/[:-]|\.\d{3}/gu, '');
+    const objectPath = selection.objectKey.split('/').map(encodeURIComponent).join('/');
+    const url = new URL(`/${scope.bucketName}/${objectPath}`, auth.s3Url);
+    url.searchParams.set('versionId', selection.providerVersionId);
+    url.searchParams.set('X-Amz-Expires', String(ttlSeconds));
+    const signer = new AwsClient({
+      accessKeyId: key.applicationKeyId,
+      secretAccessKey: key.applicationKey,
+      region: auth.region,
+      service: 's3',
+    });
+    const signed = await signer.sign(url.toString(), { aws: { signQuery: true, datetime } });
+    return signed.url;
+  }
+
   async playback(key: B2Key, scope: B2Scope, selection: B2Selection, now: () => number, ttlSeconds = PLAYBACK_TTL_SECONDS) {
     this.assertSelection(scope, selection);
     const auth = await this.authorizeScope(key, scope);
