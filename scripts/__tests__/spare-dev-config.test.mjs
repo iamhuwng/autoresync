@@ -59,8 +59,9 @@ test('spare development replaces browser config, discards ambient Vite settings,
     'VITE_BOOK_ACTIVITY_LAUNCH_DELIVERY_PRESENTATION',
     'VITE_BOOK_ACTIVITY_MUTATION_PRESENTATION',
     'VITE_BOOK_ACTIVITY_EVALUATION_PRESENTATION',
+    'VITE_BOOK_COURSE_PLACEMENT_PRESENTATION',
   ]) {
-    assert.equal(requiredProductionModes[gate], 'disabled', `${gate} must stay disabled in production`);
+    assert.equal(requiredProductionModes[gate], 'enabled', `${gate} must be enabled for Book PDF V1 production rollout`);
   }
   assert.equal(env.VITE_READING_V2_ROLLOUT_MODE, 'public');
   assert.equal(env.VITE_READING_V2_PASSAGE_ASSET_LOBBY_VISIBILITY, 'opt-in');

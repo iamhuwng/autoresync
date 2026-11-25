@@ -16,6 +16,7 @@ export const FIREBASE_PROJECT_ID = 'temp-a1437';
 export const FIREBASE_DATABASE_URL = 'https://temp-a1437-default-rtdb.firebaseio.com';
 export const PRIVATE_AUDIO_BUCKET_NAME = 'luyentap-listening-audio-private';
 export const PRODUCTION_WORKER_NAMES = Object.freeze([
+  'luyentap-book-pdf-prod',
   'luyentap-notification-command',
   'luyentap-notification-firestore-qa',
   'r2-backup-worker',
