@@ -34,7 +34,7 @@ export interface BookDocumentAuthorizationDecision {
 }
 
 export interface BookDocumentAuthorizedSource extends BookSourceVersionStorageIdentity {
-  readonly provider: 'b2';
+  readonly provider: 'b2' | 'oci';
   readonly bucket: string;
   readonly objectKey: string;
 }
@@ -170,7 +170,7 @@ export const authorizeBookDocumentRequest = async (input: {
     authority.sourceLocations.some((location) =>
       !safeId(location.sourceVersionId) ||
       !safeId(location.storageLocationId) ||
-      location.providerKind !== 'backblaze-b2-s3' ||
+      (location.providerKind !== 'backblaze-b2-s3' && location.providerKind !== 'oci-object-storage-s3') ||
       !safeId(location.privateBucketId) ||
       !safeId(location.bucket) ||
       !safeObjectKey(location.objectKey) ||
@@ -182,7 +182,7 @@ export const authorizeBookDocumentRequest = async (input: {
       !Number.isSafeInteger(location.byteSize) ||
       location.byteSize < 1 ||
       location.byteSize > (combined ? STUDENT_DOCUMENT_MAX_PDF_BYTES : BOOK_SOURCE_MAX_PDF_BYTES) ||
-      location.provider !== 'b2')
+      (location.provider !== 'b2' && location.provider !== 'oci'))
   ) {
     return {
       ok: false,

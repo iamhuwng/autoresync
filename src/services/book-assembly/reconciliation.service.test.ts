@@ -224,6 +224,25 @@ describe('analyzeBookAssemblyReconciliation', () => {
     });
     expect(changedAgain.changes.find((change) => change.changeClass === 'source-replaced')?.resolution).toBe('teacher-choice');
     expect(changedAgain.releaseBlocking).toBe(true);
+
+    const movedToThirdPage = analyzeBookAssemblyReconciliation({
+      manifest: {
+        ...proposed,
+        units: [{
+          ...current.units[0],
+          activitySlots: [{ ...current.units[0].activitySlots[0], pageGroupKeys: ['pages-2'] }],
+          pageGroups: [
+            current.units[0].pageGroups[0],
+            { pageGroupKey: 'pages-2', sourceKey: 'source', pages: [2], activityKeys: ['activity-1'], mode: 'activity' },
+          ],
+        }],
+      },
+      currentManifest: current,
+      sourceVersionAuthority: { getSourceVersion: (id) => trustedProjection(id) },
+      resolvedChangeIds: new Set([pageMappingId, sourceId]),
+    });
+    expect(movedToThirdPage.changes.find((change) => change.changeClass === 'page-mapping-changed')?.resolution).toBe('teacher-choice');
+    expect(movedToThirdPage.releaseBlocking).toBe(true);
   });
 
   it('is idempotent and produces stable issue order', () => {

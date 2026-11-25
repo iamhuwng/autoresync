@@ -1609,19 +1609,40 @@ const BookPdfFlowWorkspace = ({
   };
 
   const renderPublish = () => (
-    <FlowView title={isPublished ? 'Unit 1 is published' : assemblyInitialPublicationStatus === 'loading' ? 'Checking publication status' : assemblyInitialPublicationStatus === 'error' ? 'Unable to verify publication status' : 'Ready to share Unit 1?'} subtitle={isPublished ? 'Assign this Unit as homework to give selected students access. Unit 2 and existing homework are unchanged.' : assemblyInitialPublicationStatus === 'loading' ? 'Publishing stays locked until the current publication is confirmed.' : assemblyInitialPublicationStatus === 'error' ? 'Publishing stays locked until the current publication can be confirmed.' : 'This will publish Unit 1. Students receive access only after you assign it as homework.'} status={isPublished ? 'Published' : assemblyInitialPublicationStatus === 'loading' ? 'Checking' : assemblyInitialPublicationStatus === 'error' ? 'Blocked' : 'Ready'} statusKind={isPublished ? 'good' : assemblyInitialPublicationStatus === 'loaded' ? undefined : 'warn'}>
+    <FlowView
+      title={isPublished
+        ? (selectedMode === 'component' ? 'Book is published' : 'Unit 1 is published')
+        : assemblyInitialPublicationStatus === 'loading'
+          ? 'Checking publication status'
+          : assemblyInitialPublicationStatus === 'error'
+            ? 'Unable to verify publication status'
+            : (selectedMode === 'component' ? 'Ready to publish this Book?' : 'Ready to share Unit 1?')}
+      subtitle={isPublished
+        ? (selectedMode === 'component'
+          ? 'Assign any published Unit as homework to give selected students access. Existing homework is unchanged.'
+          : 'Assign this Unit as homework to give selected students access. Unit 2 and existing homework are unchanged.')
+        : assemblyInitialPublicationStatus === 'loading'
+          ? 'Publishing stays locked until the current publication is confirmed.'
+          : assemblyInitialPublicationStatus === 'error'
+            ? 'Publishing stays locked until the current publication can be confirmed.'
+            : (selectedMode === 'component'
+              ? 'This will publish all approved Units together. Students receive access only after you assign a Unit as homework.'
+              : 'This will publish Unit 1. Students receive access only after you assign it as homework.')}
+      status={isPublished ? 'Published' : assemblyInitialPublicationStatus === 'loading' ? 'Checking' : assemblyInitialPublicationStatus === 'error' ? 'Blocked' : 'Ready'}
+      statusKind={isPublished ? 'good' : assemblyInitialPublicationStatus === 'loaded' ? undefined : 'warn'}
+    >
       <FlowSurface className="pbf-publish-surface">
         {focusedEditing && (
           <div className="pbf-actions" style={{ marginBottom: 14 }}>
             <button type="button" className="pbf-button" onClick={() => setFlowStep(4)}>Back to preview</button>
           </div>
         )}
-        {isPublished && <div className="pbf-success"><div className="pbf-success-mark" aria-hidden="true">✓</div><h2>Unit 1 is published</h2><p>Assign this Unit as homework to give selected students access. Unit 2 and existing homework are unchanged.</p><div className="pbf-actions" style={{ marginTop: 18, justifyContent: 'center' }}><button type="button" className="pbf-button" onClick={onHomeworkHandoff} disabled={!onHomeworkHandoff}>Assign as homework</button><button type="button" className="pbf-button pbf-button-primary" onClick={() => { if (focusedEditing) { setPublication(null); setFlowStep(4); } else { setMode(null); setStep(1); } track('teacher_materials_book_pdf_returned_to_book'); }}>Return to Book</button></div></div>}
-        {assemblyInitialPublicationStatus === 'loading' && <p className="pbf-callout is-warn" aria-busy="true">Checking whether Unit 1 is already published. Publishing is locked until this finishes.</p>}
+        {isPublished && <div className="pbf-success"><div className="pbf-success-mark" aria-hidden="true">✓</div><h2>{selectedMode === 'component' ? 'Book is published' : 'Unit 1 is published'}</h2><p>{selectedMode === 'component' ? 'Assign any published Unit as homework to give selected students access. Existing homework is unchanged.' : 'Assign this Unit as homework to give selected students access. Unit 2 and existing homework are unchanged.'}</p><div className="pbf-actions" style={{ marginTop: 18, justifyContent: 'center' }}><button type="button" className="pbf-button" onClick={onHomeworkHandoff} disabled={!onHomeworkHandoff}>Assign as homework</button><button type="button" className="pbf-button pbf-button-primary" onClick={() => { if (focusedEditing) { setPublication(null); setFlowStep(4); } else { setMode(null); setStep(1); } track('teacher_materials_book_pdf_returned_to_book'); }}>Return to Book</button></div></div>}
+        {assemblyInitialPublicationStatus === 'loading' && <p className="pbf-callout is-warn" aria-busy="true">{selectedMode === 'component' ? 'Checking whether this Book is already published. Publishing is locked until this finishes.' : 'Checking whether Unit 1 is already published. Publishing is locked until this finishes.'}</p>}
         {assemblyInitialPublicationStatus === 'error' && <><p className="pbf-callout is-warn" role="alert">We could not verify the current publication. Retry the check or close and reopen the editor before publishing.</p>{onRetryCurrentPublication && <div className="pbf-actions" style={{ marginTop: 18 }}><button type="button" className="pbf-button" onClick={onRetryCurrentPublication}>Retry publication check</button></div>}</>}
         {publicationRefreshStatus === 'pending' && <p className="pbf-callout is-warn" aria-busy="true">The publication was accepted. Confirming the current publication before another submission.</p>}
         {publicationRefreshStatus === 'error' && <div className="pbf-callout is-warn" role="status"><strong>The publication was accepted</strong><span>Refresh the current publication before resubmitting this draft.</span><div className="pbf-actions" style={{ marginTop: 12 }}><button type="button" className="pbf-button" onClick={() => void refreshCurrentPublication()}>Refresh publication status</button></div></div>}
-        {showPublishControls && publicationStatusReady && publicationRefreshStatus === 'ready' && <><div className="pbf-callout is-warn"><strong>{reviewedDraftDiffers ? 'A reviewed successor is ready' : 'Nothing is published yet'}</strong><span>{reviewedDraftDiffers ? 'The current publication remains assignable until this successor is committed.' : 'Publishing Unit 1 will not change later Units or existing homework.'}</span></div><div className="pbf-checklist" style={{ marginTop: 16 }}><div className="pbf-checklist-item">Unit 1 will be published with its current activities</div><div className="pbf-checklist-item">Students will see only the pages connected to this Unit</div><div className="pbf-checklist-item">Your current Book and later Units will remain safe</div></div></>}
+        {showPublishControls && publicationStatusReady && publicationRefreshStatus === 'ready' && <><div className="pbf-callout is-warn"><strong>{reviewedDraftDiffers ? 'A reviewed successor is ready' : 'Nothing is published yet'}</strong><span>{reviewedDraftDiffers ? 'The current publication remains assignable until this successor is committed.' : selectedMode === 'component' ? 'Publishing approved Units will not change existing homework.' : 'Publishing Unit 1 will not change later Units or existing homework.'}</span></div><div className="pbf-checklist" style={{ marginTop: 16 }}><div className="pbf-checklist-item">{selectedMode === 'component' ? 'All approved Units will be published with their current activities' : 'Unit 1 will be published with its current activities'}</div><div className="pbf-checklist-item">{selectedMode === 'component' ? 'Students will see only the pages connected to each assigned Unit' : 'Students will see only the pages connected to this Unit'}</div><div className="pbf-checklist-item">{selectedMode === 'component' ? 'Existing homework will remain safe' : 'Your current Book and later Units will remain safe'}</div></div></>}
         {showPublishControls && publicationStatusReady && publicationRefreshStatus === 'ready' && <div className="pbf-actions" style={{ marginTop: 18 }}><button type="button" className="pbf-button pbf-button-primary" onClick={() => setPublishConfirmOpen(true)} disabled={!sourceReady || !previewApproval || !assemblyPreviewClient || !candidate || (selectedMode === 'component' && !componentReadyToPublish)}>{assemblyPreviewClient ? selectedMode === 'full' ? 'Publish Unit 1' : componentReadyToPublish ? 'Publish Book' : 'Combine PDFs before publishing' : 'Publication service unavailable'}</button></div>}
       </FlowSurface>
     </FlowView>

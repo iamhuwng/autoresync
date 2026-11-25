@@ -160,6 +160,7 @@ export interface BookHomeworkCompletionProjectResult {
   readonly replayed: boolean;
   readonly fact: BookHomeworkTerminalFact;
   readonly projection: BookHomeworkCompletionProjection;
+  readonly facts?: Readonly<Record<string, BookHomeworkTerminalFact>>;
 }
 
 export interface BookHomeworkCompletionReprojectResult {
@@ -719,11 +720,13 @@ const projectionResult = (
   status: 'accepted' | 'replayed',
   fact: BookHomeworkTerminalFact,
   projection: BookHomeworkCompletionProjection,
+  facts: Readonly<Record<string, BookHomeworkTerminalFact>>,
 ): BookHomeworkCompletionProjectResult => ({
   status,
   replayed: status === 'replayed',
   fact: clone(fact),
   projection: clone(projection),
+  facts: clone(facts),
 });
 
 const reprojectResult = (
@@ -860,7 +863,7 @@ export class InMemoryBookHomeworkCompletionRepository {
       if (merged.status === 'replayed' && scope.projection
         && scope.projection.manifestVersionId === normalized.authority.manifest.manifestVersionId
         && scope.projection.bindingRevision === normalized.binding.revision) {
-        return projectionResult('replayed', normalized.fact, scope.projection);
+        return projectionResult('replayed', normalized.fact, scope.projection, scope.facts);
       }
       const facts = merged.facts;
       if (Object.keys(facts).length > MAX_FACTS_PER_SCOPE) {
@@ -883,7 +886,7 @@ export class InMemoryBookHomeworkCompletionRepository {
         facts,
         projection,
       }, normalized.binding.context.recipientId, normalized.binding.context.contextId);
-      return projectionResult(merged.status, normalized.fact, projection);
+      return projectionResult(merged.status, normalized.fact, projection, this.scopes[key].facts);
     });
     this.queues.set(key, current.then(() => undefined, () => undefined));
     return current;
@@ -1083,7 +1086,7 @@ export class FirebaseRestBookHomeworkCompletionRepository {
       if (merged.status === 'replayed' && scope.projection
         && scope.projection.manifestVersionId === normalized.authority.manifest.manifestVersionId
         && scope.projection.bindingRevision === normalized.binding.revision) {
-        return projectionResult('replayed', normalized.fact, scope.projection);
+        return projectionResult('replayed', normalized.fact, scope.projection, scope.facts);
       }
       const facts = merged.facts;
       if (Object.keys(facts).length > MAX_FACTS_PER_SCOPE) {
@@ -1111,7 +1114,7 @@ export class FirebaseRestBookHomeworkCompletionRepository {
       }
       this.assertWriteIdentity();
       if (await this.rtdb.writeIfMatch(path, next, current.etag)) {
-        return projectionResult(merged.status, normalized.fact, projection);
+        return projectionResult(merged.status, normalized.fact, projection, facts);
       }
     }
     throw new BookHomeworkCompletionRepositoryError('homework_completion_cas_retries_exhausted');

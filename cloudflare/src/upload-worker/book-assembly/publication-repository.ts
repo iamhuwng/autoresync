@@ -1125,6 +1125,7 @@ implements BookAssemblyPublicationRepository<BookAssemblyPublicationResult> {
         };
       }
 
+      const rawCurrentWire = serializeScope<BookAssemblyPublicationResult>(parsed, bookId);
       const visible = operationId ? this.withoutPreparedOperation(parsed, operationId) : parsed;
       // Publication mutations intentionally update their supplied scope in
       // place. Preserve the durable pre-mutation wire state before invoking
@@ -1139,7 +1140,7 @@ implements BookAssemblyPublicationRepository<BookAssemblyPublicationResult> {
       }
       const nextScope = mutation.next ?? visible;
       const nextWire = serializeScope<BookAssemblyPublicationResult>(nextScope, bookId);
-      await this.prepareImmutableDiff(bookId, currentWire, nextWire);
+      await this.prepareImmutableDiff(bookId, currentWire, nextWire, rawCurrentWire);
 
       const nextPointer = nextWire.current;
       if (stable(nextPointer) !== stable(currentWire.current)) {
@@ -1200,6 +1201,9 @@ implements BookAssemblyPublicationRepository<BookAssemblyPublicationResult> {
   }
 
   private async prepareExact(path: string, value: unknown): Promise<void> {
+    if (await this.rtdb.writeIfMatch(path, value, 'null_etag')) {
+      return;
+    }
     const existing = await this.rtdb.readWithEtag<unknown>(path);
     if (existing.data !== null && existing.data !== undefined) {
       if (stable(existing.data) !== stable(value)) {
@@ -1220,9 +1224,11 @@ implements BookAssemblyPublicationRepository<BookAssemblyPublicationResult> {
     current: Record<string, unknown>,
     next: Record<string, unknown>,
     families: readonly string[],
+    alreadyPersisted?: Record<string, unknown>,
   ): Promise<void> {
     for (const family of families) {
       const before = isRecord(current[family]) ? current[family] as Record<string, unknown> : {};
+      const persisted = isRecord(alreadyPersisted?.[family]) ? alreadyPersisted![family] as Record<string, unknown> : {};
       const after = isRecord(next[family]) ? next[family] as Record<string, unknown> : {};
       if (Object.keys(before).some((key) => !(key in after))) {
         throw new Error(`book_assembly_publication_immutable_delete:${family}`);
@@ -1231,6 +1237,12 @@ implements BookAssemblyPublicationRepository<BookAssemblyPublicationResult> {
         if (key in before) {
           if (stable(before[key]) !== stable(value)) {
             throw new Error(`book_assembly_publication_immutable_update:${family}/${key}`);
+          }
+          continue;
+        }
+        if (key in persisted) {
+          if (stable(persisted[key]) !== stable(value)) {
+            throw new Error(`book_assembly_publication_immutable_conflict:${childPath(bookId, `${family}/${key}`)}`);
           }
           continue;
         }
@@ -1243,6 +1255,7 @@ implements BookAssemblyPublicationRepository<BookAssemblyPublicationResult> {
     bookId: string,
     current: Record<string, unknown>,
     next: Record<string, unknown>,
+    alreadyPersisted?: Record<string, unknown>,
   ): Promise<void> {
     await this.prepareFamilies(bookId, current, next, [
       'versions',
@@ -1252,7 +1265,7 @@ implements BookAssemblyPublicationRepository<BookAssemblyPublicationResult> {
       'unit_projections',
       'delivery_plans',
       'student_documents',
-    ]);
+    ], alreadyPersisted);
   }
 
   private async prepareMarkerDiff(

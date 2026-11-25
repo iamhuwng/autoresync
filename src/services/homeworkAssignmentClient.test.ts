@@ -370,4 +370,14 @@ describe('homeworkAssignmentClient', () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify(malformed), { status: 200 }));
     await expect(createPreview(previewRequest, options)).rejects.toMatchObject({ status: 502, reasonCode: 'INVALID_ASSIGNMENT_REQUEST' });
   });
+
+  it('accepts full_pdf preview source responses without a combined studentDocument pin', async () => {
+    const fullPdfBody = previewSourceResponse() as Record<string, unknown>;
+    delete fullPdfBody.studentDocument;
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(fullPdfBody), { status: 200 }));
+    const options = { workerOrigin: ['https:', '', 'book-worker.example.test'].join('/'), fetchImpl: fetchMock };
+    const result = await createPreview(previewRequest, options);
+    expect(result.studentDocument).toBeUndefined();
+    expect(result.delivery.sourceSet.strategy).toBe('full_pdf');
+  });
 });

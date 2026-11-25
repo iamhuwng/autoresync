@@ -534,11 +534,13 @@ export const resolveTrustedBookDeliveryStudentDocument = async (env: BookDeliver
     const assemblyRepository = new FirebaseRestBookAssemblyRepository({
       env: env as never, ownerId: binding.issuer.ownerId,
     });
+    const candidateByUnit = new Map<string, ReturnType<typeof resolveMaterialQualifiedAssemblyCandidate>>();
     for (const reference of qualified.activation.unitCandidates) {
       const candidateScope = await assemblyRepository.readScope(binding.book.bookId, reference.unitKey);
       const candidate = resolveMaterialQualifiedAssemblyCandidate(authority, reference.unitKey, candidateScope.candidates);
       const unit = candidate?.manifest?.units.find((entry) => entry.unitKey === reference.unitKey);
       if (!candidate || !unit) return null;
+      candidateByUnit.set(reference.unitKey, candidate);
       for (const group of unit.pageGroups) {
         if (groupFacts.has(group.pageGroupKey)) return null;
         groupFacts.set(group.pageGroupKey, { ...group, unitKey: unit.unitKey });
@@ -551,8 +553,12 @@ export const resolveTrustedBookDeliveryStudentDocument = async (env: BookDeliver
       if (!activity || groups.some((group) => !group)
         || groups.some((group) => group!.unitKey !== activity.unitKey
           || !group!.activityKeys.includes(activity.activityKey))) return null;
-      const candidateScope = await assemblyRepository.readScope(binding.book.bookId, activity.unitKey);
-      const candidate = resolveMaterialQualifiedAssemblyCandidate(authority, activity.unitKey, candidateScope.candidates);
+      let candidate = candidateByUnit.get(activity.unitKey);
+      if (candidate === undefined) {
+        const candidateScope = await assemblyRepository.readScope(binding.book.bookId, activity.unitKey);
+        candidate = resolveMaterialQualifiedAssemblyCandidate(authority, activity.unitKey, candidateScope.candidates);
+        candidateByUnit.set(activity.unitKey, candidate);
+      }
       const slot = candidate?.manifest?.units.find((entry) => entry.unitKey === activity.unitKey)
         ?.activitySlots.find((entry) => entry.activityKey === activity.activityKey);
       const allowedSources = new Map(binding.sourceSet.sources.map((source) => [source.sourceKey, source.sourceVersionId]));

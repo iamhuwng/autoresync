@@ -225,7 +225,7 @@ describe('BookPdfViewer', () => {
       url: 'https://worker.example/v1/book-delivery/document/opaque-1',
       httpHeaders: { Authorization: 'Bearer id-token' },
       length: pdfBytes.byteLength,
-      rangeChunkSize: 64 * 1024,
+      rangeChunkSize: 512 * 1024,
       stopAtErrors: true,
     }));
     expect(getDocument.mock.calls[0]?.[0]).not.toHaveProperty('range');

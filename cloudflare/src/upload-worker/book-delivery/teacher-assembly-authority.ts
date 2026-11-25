@@ -77,7 +77,7 @@ export interface TeacherAssemblySourceVersion {
 
 /** Provider coordinates for 09B only. Never serialize this object to a browser. */
 export interface TeacherAssemblyAuthorizedSource extends BookSourceVersionStorageIdentity {
-  readonly provider: 'b2';
+  readonly provider: 'b2' | 'oci';
   readonly bucket: string;
   readonly objectKey: string;
 }
@@ -226,8 +226,8 @@ export const parseTeacherAssemblyDocumentRoute = (request: Request): TeacherAsse
 const validStorage = (
   source: TeacherAssemblyAuthorizedSource,
   route: TeacherAssemblyDocumentRoute,
-): boolean => source.provider === 'b2'
-  && source.providerKind === 'backblaze-b2-s3'
+): boolean => (source.provider === 'b2' || source.provider === 'oci')
+  && (source.providerKind === 'backblaze-b2-s3' || source.providerKind === 'oci-object-storage-s3')
   && source.bookId === route.bookId
   && (route.studentDocument || source.sourceVersionId === route.sourceVersionId)
   && safeId(source.storageLocationId)

@@ -1,5 +1,9 @@
 # PRD-0040 Preflight Ledger
 
+## 2026-11-25 Book PDF (PRD0062) V1 Academic Record & Homework Visibility change record
+
+PR #331 touches `AcademicRecordPage.tsx` (adding a `BOOK ACTIVITY RESULTS` section backed by `academicRecordBookResults.service.ts`), `StudentHomeworkListPage.tsx` (including Book homework summary projections in tab counters via `studentBookHomeworkSummary.service.ts`), and `src/config/featureRegistry.ts`. Canonical saved-result shells (`ResultSlidePanel`, `ResultDetailModal`, `LegacyResultDetailView`), `ResultDetailPage` dispatch, RTDB `test_results/{resultId}` rules, and teacher visibility/ownership boundaries remain unchanged. Verified by `AcademicRecordPage.test.tsx`, `academicRecordBookResults.service.test.ts`, `StudentHomeworkListPage.test.tsx`, `studentBookHomeworkSummaryRules.test.ts`, `cloudflare/test/student-book-homework-summary.test.ts`, and live browser E2E QA on spare (`luyentap-pdf-qa-20261021`).
+
 ## 2026-11-25 Shared external audio (BYO Backblaze B2) rollout change record
 
 PR #326 touches saved-result playback (`SavedSectionAudio.tsx`, `SharedSavedResultCore.tsx`, `SharedSavedResultCore.test.tsx`), `testResults.service.ts` (preserving optional external-audio metadata on saved results), `StudentHomeworkDetailPage.tsx`, and `src/config/featureRegistry.ts` (external-audio observability actions). Canonical saved-result shells (`ResultSlidePanel`, `ResultDetailModal`, `LegacyResultDetailView`), entry owners, RTDB `test_results/{resultId}` read rules, and release-state/teacher-ownership boundaries remain unchanged. Saved-result B2 audio replay verifies canonical `test_results/{resultId}` read permission via the caller's Firebase ID token before issuing a short-lived presigned playback URL.

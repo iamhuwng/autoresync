@@ -10,12 +10,14 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     createSubmission,
     getStudentSubmissionsForHomework,
-    HomeworkSubmissionError
+    HomeworkSubmissionError,
+    type StudentHomeworkListRecord,
 } from '../services/homeworkSubmissionService';
 import { getHomeworkById } from '../services/homeworkManager';
 import type { HomeworkSubmission, HomeworkAssignment } from '../types/homework.types';
 import type { ClassSummary } from '../types/class.types';
 import { isBookHomeworkCompatibilityProjection } from '../services/book-homework/bookHomeworkCompatibilityProjection.service';
+import type { StudentBookHomeworkSummaryRecord } from '../services/book-homework/studentBookHomeworkSummary.types';
 
 // ============================================================================
 // TYPES
@@ -296,6 +298,89 @@ export interface StudentHomeworkItem {
     canSubmit: boolean;
     canViewFeedback: boolean;
     status: 'not_started' | 'in_progress' | 'submitted' | 'graded' | 'overdue';
+    bookProgressSummary?: StudentBookHomeworkSummaryRecord | null;
+}
+
+export function deriveStudentHomeworkItemStatus(
+    record: Pick<StudentHomeworkListRecord, 'homework' | 'submission' | 'isOverdue' | 'bookProgressSummary'>,
+): StudentHomeworkItem['status'] {
+    const { homework, submission, isOverdue, bookProgressSummary } = record;
+    let status: StudentHomeworkItem['status'] = 'not_started';
+
+    if (isBookHomeworkCompatibilityProjection(homework) || bookProgressSummary != null) {
+        if (bookProgressSummary) {
+            if (bookProgressSummary.isComplete || bookProgressSummary.status === 'completed') {
+                status = (
+                    bookProgressSummary.scoredCount > 0
+                    && bookProgressSummary.scoredCount === bookProgressSummary.submittedCount
+                    && bookProgressSummary.pendingReviewCount === 0
+                )
+                    ? 'graded'
+                    : 'submitted';
+            } else if (bookProgressSummary.status === 'in_progress' || bookProgressSummary.submittedCount > 0) {
+                status = 'in_progress';
+            } else {
+                status = 'not_started';
+            }
+        }
+    } else if (submission) {
+        if (submission.status === 'in_progress') {
+            status = 'in_progress';
+        } else if (submission.status === 'graded') {
+            status = 'graded';
+        } else if (submission.status === 'submitted') {
+            status = 'submitted';
+        }
+    }
+
+    if (isOverdue && status !== 'submitted' && status !== 'graded') {
+        status = 'overdue';
+    }
+
+    return status;
+}
+
+export function transformStudentHomeworkListRecords(
+    items: readonly StudentHomeworkListRecord[],
+): Pick<
+    UseStudentHomeworkListReturn,
+    'homeworkItems' | 'notStarted' | 'inProgress' | 'completed' | 'overdue'
+> {
+    const homeworkItems: StudentHomeworkItem[] = items.map((item) => {
+        const {
+            homework,
+            submission,
+            attemptsUsed,
+            attemptsRemaining,
+            isOverdue,
+            canSubmit,
+            canViewFeedback,
+        } = item;
+        const status = deriveStudentHomeworkItemStatus(item);
+
+        return {
+            homework,
+            latestSubmission: submission,
+            bestSubmission: submission?.status === 'submitted' || submission?.status === 'graded'
+                ? submission
+                : null,
+            attemptsUsed,
+            attemptsRemaining,
+            isOverdue,
+            canSubmit,
+            canViewFeedback,
+            status,
+            bookProgressSummary: item.bookProgressSummary ?? null,
+        };
+    });
+
+    return {
+        homeworkItems,
+        notStarted: homeworkItems.filter((item) => item.status === 'not_started'),
+        inProgress: homeworkItems.filter((item) => item.status === 'in_progress'),
+        completed: homeworkItems.filter((item) => item.status === 'submitted' || item.status === 'graded'),
+        overdue: homeworkItems.filter((item) => item.status === 'overdue'),
+    };
 }
 
 export interface UseStudentHomeworkListReturn {
@@ -353,45 +438,7 @@ export function useStudentHomeworkList(
 
             if (!isMounted.current || requestGeneration !== requestGenerationRef.current) return;
 
-            const now = Date.now();
-
-            // Transform and categorize items
-            const transformedItems: StudentHomeworkItem[] = items.map(item => {
-                const { homework, submission, attemptsUsed, attemptsRemaining, isOverdue, canSubmit, canViewFeedback } = item;
-
-                // Determine overall status
-                let status: StudentHomeworkItem['status'] = 'not_started';
-                if (submission) {
-                    if (submission.status === 'in_progress') {
-                        status = 'in_progress';
-                    } else if (submission.status === 'graded') {
-                        status = 'graded';
-                    } else if (submission.status === 'submitted') {
-                        status = 'submitted';
-                    }
-                }
-                if (isOverdue && status !== 'submitted') {
-                    status = 'overdue';
-                }
-
-                // Get best submission
-                const completedSubmissions = items
-                    .find(i => i.homework.id === homework.id)?.submission;
-
-                return {
-                    homework,
-                    latestSubmission: submission,
-                    bestSubmission: submission?.status === 'submitted' || submission?.status === 'graded'
-                        ? submission
-                        : null,
-                    attemptsUsed,
-                    attemptsRemaining,
-                    isOverdue,
-                    canSubmit,
-                    canViewFeedback,
-                    status
-                };
-            });
+            const { homeworkItems: transformedItems } = transformStudentHomeworkListRecords(items);
 
             setHomeworkItems(transformedItems);
             lastSuccessfulStudentIdRef.current = studentId;

@@ -315,4 +315,36 @@ describe('StudentCourseDetailPage', () => {
         });
         expect((ref as any).mock.calls.map((call: unknown[]) => call[1])).not.toContain('tests/reading-v2-1');
     });
+
+    it('counts book-delivery materials toward module completion and overall progress', async () => {
+        (getMaterialsByCourse as any).mockResolvedValue([
+            { id: 'lm1', courseId: 'c1', moduleId: 'm1', materialId: 't1', order: 0, isCopy: false },
+            {
+                id: 'book-mat-1',
+                courseId: 'c1',
+                moduleId: 'm1',
+                materialId: 'book-delivery-1',
+                order: 1,
+                isCopy: false,
+                materialKind: 'book-delivery',
+                bookDeliveryPlacement: {
+                    displayTitle: 'Book Practice Unit',
+                },
+            },
+        ]);
+        (getStudentCourseProgress as any).mockResolvedValue({
+            completedMaterials: {
+                t1: true,
+                'book-delivery-1': true,
+            },
+        });
+
+        renderPage();
+
+        await waitFor(() => {
+            expect(screen.getByText('2 of 2 materials completed')).toBeInTheDocument();
+        });
+        expect(screen.getByText('Book Practice Unit')).toBeInTheDocument();
+        expect(screen.getByText('100%')).toBeInTheDocument();
+    });
 });

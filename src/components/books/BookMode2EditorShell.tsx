@@ -70,6 +70,11 @@ const getCurrentFirebaseIdToken = async (): Promise<string> => {
   return user ? user.getIdToken(true) : '';
 };
 
+const getPreviewFirebaseIdToken = async (forceRefresh = false): Promise<string> => {
+  const user = getAuth().currentUser;
+  return user ? user.getIdToken(forceRefresh) : '';
+};
+
 const configuredUploadWorkflow = (sourceKey = 'main'): SourceUploadBrowserWorkflow | null => {
   const controlUrl = import.meta.env.VITE_BOOK_SOURCE_CONTROL_WORKER_URL?.trim();
   const reconciliationUrl = import.meta.env.VITE_BOOK_SOURCE_RECONCILIATION_WORKER_URL?.trim();
@@ -87,6 +92,7 @@ const configuredUploadWorkflow = (sourceKey = 'main'): SourceUploadBrowserWorkfl
   return createSourceUploadBrowserWorkflow({
     control,
     state: createSourceUploadSessionStatePort({ scopeKey: sourceKey }),
+    sourceKey,
     allowedB2Origins: [b2Origin],
   });
 };
@@ -470,7 +476,11 @@ const BookMode2EditorShell = ({
         assemblyRepository={resolvedAssemblyRepository}
         assemblyMigrationClient={resolvedAssemblyMigrationClient}
         componentPdfActivationClient={resolvedComponentPdfActivationClient}
-        componentStudentDocumentSourceVersionId={componentStudentDocumentSourceVersionId}
+        componentStudentDocumentSourceVersionId={
+          componentStudentDocumentSourceVersionId
+          ?? recoveredComponentPdfActivation?.studentDocument.sourceVersionId
+          ?? null
+        }
         componentPdfActivationRecovery={recoveredComponentPdfActivation}
         activityAuthoring={resolvedActivityAuthoring}
         assemblySourceVersions={resolvedAssemblySourceVersions}
@@ -485,7 +495,7 @@ const BookMode2EditorShell = ({
         assemblySourceSetRevision={assemblySourceSetRevision}
         sourceSetAttachmentClient={resolvedSourceSetAttachmentClient}
         assemblyPreviewDocuments={assemblyPreviewDocuments}
-        assemblyPreviewGetIdToken={assemblyPreviewGetIdToken}
+        assemblyPreviewGetIdToken={assemblyPreviewGetIdToken ?? getPreviewFirebaseIdToken}
         assemblyCandidateRuntimePreview={assemblyCandidateRuntimePreview}
         assemblyPreviewClient={resolvedAssemblyPreviewClient}
         onDirtyChange={onDirtyChange}

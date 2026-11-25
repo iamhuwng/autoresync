@@ -16,7 +16,7 @@ const MAX_ZOOM = 3;
 const MIN_ZOOM = 0.5;
 const ZOOM_STEP = 0.1;
 const DEFAULT_CUSTOM_ZOOM = 1;
-const RANGE_CHUNK_SIZE = 64 * 1024;
+const RANGE_CHUNK_SIZE = 512 * 1024;
 
 type LoadStatus =
   | { readonly state: 'loading'; readonly message: string }

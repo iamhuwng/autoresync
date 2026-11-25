@@ -198,7 +198,7 @@ type ByteRange = {
 };
 
 const safeIdentity = (source: BookSourceVersionStorageIdentity): boolean =>
-  source.providerKind === 'backblaze-b2-s3'
+  (source.providerKind === 'backblaze-b2-s3' || source.providerKind === 'oci-object-storage-s3')
   && source.providerFileId.length > 0
   && source.providerFileVersionId.length > 0
   && source.providerObjectKey.length > 0

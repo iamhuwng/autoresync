@@ -1,17 +1,20 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { useState } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HomeworkCreateModal, type BookHomeworkRecoveryState } from './HomeworkCreateModal';
 import { createHomework } from '../../services/homeworkManager';
 import { createBookHomeworkAssignmentViaWorker, createHomeworkAssignmentViaWorker } from '../../services/homeworkAssignmentClient';
 import type { BookHomeworkPreviewSource } from '../../services/book-homework/bookHomeworkPreview.service';
+import { toast } from '../modern/ToastNotification';
 
 const mockGetAllTests = vi.fn();
 const mockGetClasses = vi.fn();
 const mockGetClass = vi.fn();
 const mockLoadBookHomeworkPreviewSource = vi.fn();
 const mockTrackAction = vi.fn();
+const mockDatabaseGet = vi.fn();
+const mockDatabaseRef = vi.fn((_db: unknown, path: string) => ({ path }));
 
 const bookPreviewSource: BookHomeworkPreviewSource = {
     delivery: {
@@ -156,6 +159,11 @@ vi.mock('./TemplateSaveModal', () => ({
 
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: { uid: 'teacher-1' } }) }));
 vi.mock('../../services/notificationProducerClient', () => ({ notifyCommittedEvent: vi.fn() }));
+vi.mock('../../services/firebase', () => ({ database: {} }));
+vi.mock('firebase/database', () => ({
+    ref: (...args: any[]) => mockDatabaseRef(...(args as [unknown, string])),
+    get: (...args: any[]) => mockDatabaseGet(...args),
+}));
 
 vi.mock('../modern/ToastNotification', () => ({
     default: () => null,
@@ -168,8 +176,13 @@ vi.mock('../modern/ToastNotification', () => ({
 }));
 
 describe('HomeworkCreateModal', () => {
+    afterEach(() => {
+        vi.unstubAllEnvs();
+    });
+
     beforeEach(() => {
         vi.clearAllMocks();
+        mockDatabaseGet.mockResolvedValue({ exists: () => false, val: () => null });
         mockGetClasses.mockResolvedValue([]);
         mockGetClass.mockResolvedValue(null);
         mockGetAllTests.mockResolvedValue([
@@ -1427,7 +1440,7 @@ describe('HomeworkCreateModal', () => {
             expect(createHomework).toHaveBeenCalledWith(expect.objectContaining({
                 materialTitle: 'Selected Reading Passages',
                 materialType: 'reading-passage-set',
-                readingPassageSet: {
+                    readingPassageSet: {
                     titleSnapshot: 'Selected Reading Passages',
                     items: [
                         expect.objectContaining({ order: 1, passageMaterialId: 'passage-1' }),
@@ -1436,5 +1449,172 @@ describe('HomeworkCreateModal', () => {
                 },
             }));
         });
+    });
+
+    it('hides the Books filter when Book rollout flags are disabled', async () => {
+        vi.stubEnv('VITE_MATERIAL_BOOKS', 'disabled');
+        vi.stubEnv('VITE_BOOK_ACTIVITY_ASSIGN_PLACE_PRESENTATION', 'disabled');
+
+        render(
+            <HomeworkCreateModal
+                isOpen={true}
+                onClose={vi.fn()}
+                onSuccess={vi.fn()}
+            />,
+        );
+
+        expect(await screen.findByText('Owned Private Test')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Books' })).not.toBeInTheDocument();
+        expect(mockDatabaseGet).not.toHaveBeenCalled();
+    });
+
+    it('lists owned PDF books under the Books filter and blocks unpublished selections cleanly', async () => {
+        vi.stubEnv('VITE_MATERIAL_BOOKS', 'enabled');
+        vi.stubEnv('VITE_BOOK_ACTIVITY_ASSIGN_PLACE_PRESENTATION', 'enabled');
+        mockDatabaseGet.mockResolvedValue({
+            exists: () => true,
+            val: () => ({
+                'book-draft': { bookId: 'book-draft', bookMode: 'pdf', title: 'Draft PDF Book', status: 'draft-empty' },
+                'book-legacy': { bookId: 'book-legacy', bookMode: 'legacy', title: 'Legacy Book', status: 'published' },
+                'book-archived': { bookId: 'book-archived', bookMode: 'pdf', title: 'Archived PDF Book', status: 'archived' },
+            }),
+        });
+        const readBookCurrentPublication = vi.fn().mockResolvedValue(null);
+
+        render(
+            <HomeworkCreateModal
+                isOpen={true}
+                onClose={vi.fn()}
+                onSuccess={vi.fn()}
+                readBookCurrentPublication={readBookCurrentPublication}
+            />,
+        );
+
+        const booksBtn = await screen.findByRole('button', { name: 'Books' });
+        fireEvent.click(booksBtn);
+        expect(await screen.findByText('Draft PDF Book')).toBeInTheDocument();
+        expect(screen.getByText('PDF Book')).toBeInTheDocument();
+        expect(screen.queryByText('Legacy Book')).not.toBeInTheDocument();
+        expect(screen.queryByText('Archived PDF Book')).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByText('Draft PDF Book'));
+        fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+
+        await waitFor(() => {
+            expect(readBookCurrentPublication).toHaveBeenCalledWith('book-draft');
+            expect(toast.warning).toHaveBeenCalledWith(
+                'Publish at least one Unit in this Book before assigning it as homework.',
+            );
+        });
+        expect(screen.queryByText('📚 Assign Book Homework')).not.toBeInTheDocument();
+    });
+
+    it('enters Book Homework handoff from a published PDF book, switches units, and supports returning to materials', async () => {
+        vi.stubEnv('VITE_MATERIAL_BOOKS', 'enabled');
+        vi.stubEnv('VITE_BOOK_ACTIVITY_ASSIGN_PLACE_PRESENTATION', 'enabled');
+        mockDatabaseGet.mockResolvedValue({
+            exists: () => true,
+            val: () => ({
+                'book-1': { bookId: 'book-1', bookMode: 'pdf', title: 'Book Preview Fixture', status: 'published' },
+            }),
+        });
+        mockGetClasses.mockResolvedValue([{ id: 'class-1', name: 'Class 1', studentCount: 1 }]);
+        mockGetClass.mockResolvedValue({
+            id: 'class-1',
+            name: 'Class 1',
+            students: { 'student-1': { id: 'student-1', name: 'Student 1', status: 'active' } },
+        });
+        mockLoadBookHomeworkPreviewSource.mockResolvedValue(bookPreviewWorkerSource);
+        const readBookCurrentPublication = vi.fn().mockResolvedValue({
+            pointer: {
+                publicationId: 'publication-1',
+                publicationRevision: 1,
+                manifestVersionId: 'manifest-1',
+                bookRevision: 1,
+                sourceSetRevision: 1,
+                inputFingerprint: 'fp-1',
+                updatedAt: '2026-10-01T00:00:00.000Z',
+                updatedByCommandId: 'cmd-1',
+            },
+            units: [
+                { unitKey: 'unit-1', activitySlots: [], pageGroups: [] },
+                { unitKey: 'unit-2', activitySlots: [], pageGroups: [] },
+            ],
+        });
+
+        const firstModal = render(
+            <HomeworkCreateModal
+                isOpen={true}
+                onClose={vi.fn()}
+                onSuccess={vi.fn()}
+                readBookCurrentPublication={readBookCurrentPublication}
+            />,
+        );
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Books' }));
+        fireEvent.click(await screen.findByText('Book Preview Fixture'));
+        fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+
+        expect(await screen.findByText('📚 Assign Book Homework')).toBeInTheDocument();
+        expect(mockTrackAction).toHaveBeenCalledWith('selectBookHomeworkMaterial', {
+            bookId: 'book-1',
+            unitCount: 2,
+        });
+
+        const unitSelect = screen.getByLabelText('Published unit');
+        expect(unitSelect).toHaveValue('unit-1');
+        fireEvent.change(unitSelect, { target: { value: 'unit-2' } });
+        expect(unitSelect).toHaveValue('unit-2');
+
+        fireEvent.change(screen.getByLabelText('Book Homework class'), { target: { value: 'class-1' } });
+        fireEvent.click(await screen.findByLabelText('Student 1'));
+        fireEvent.click(screen.getByRole('button', { name: /Load Preview/i }));
+
+        await waitFor(() => {
+            expect(mockLoadBookHomeworkPreviewSource).toHaveBeenCalledWith(expect.objectContaining({
+                bookId: 'book-1',
+                target: { kind: 'unit', bookId: 'book-1', nodeKey: 'unit-2' },
+                classId: 'class-1',
+                selectedRecipientIds: ['student-1'],
+            }));
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Cancel preview' }));
+        expect(toast.info).toHaveBeenCalled();
+        firstModal.unmount();
+
+        render(
+            <HomeworkCreateModal
+                isOpen={true}
+                onClose={vi.fn()}
+                onSuccess={vi.fn()}
+                readBookCurrentPublication={readBookCurrentPublication}
+            />,
+        );
+        fireEvent.click(await screen.findByRole('button', { name: 'Books' }));
+        fireEvent.click(await screen.findByText('Book Preview Fixture'));
+        fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+        expect(await screen.findByText('📚 Assign Book Homework')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /Back to materials/i }));
+        expect(await screen.findByText('📚 Select Material')).toBeInTheDocument();
+    });
+
+    it('falls back to all materials when preselectedMaterialFilter is book while Books picker is disabled', async () => {
+        vi.stubEnv('VITE_MATERIAL_BOOKS', 'disabled');
+        vi.stubEnv('VITE_BOOK_ACTIVITY_ASSIGN_PLACE_PRESENTATION', 'disabled');
+
+        render(
+            <HomeworkCreateModal
+                isOpen={true}
+                onClose={vi.fn()}
+                onSuccess={vi.fn()}
+                preselectedMaterialFilter="book"
+            />,
+        );
+
+        expect(await screen.findByText('Owned Private Test')).toBeInTheDocument();
+        expect(screen.getByText('Shared Public Test')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Books' })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'All' })).toHaveClass('active');
     });
 });

@@ -220,7 +220,7 @@ describe('generated Book RTDB rule manifest and composer', () => {
     expect(sourceSha256(fragment49DRaw))
       .toBe('e6532d1d98b1642a529547cf5ec015e61de8e5c0bafae94ede4ef3eac4cf1aa5');
     expect(sourceSha256(fragment44Raw))
-      .toBe('9df815724e30e82607db771e82773338d6938e5f129182c15f725227b51a1f5d');
+      .toBe('acfcde65b8637dea4059a4f7c17e7af8757f3aa4943d87b508824e526b3f8f44');
     expect(sourceSha256(fragment20ARaw))
       .toBe('d288db0c09572b43f212c94a3082fe9519b6eeccff73ad7f24172c3a612db160');
     expect(trustedPreviewSource).toContain('Object.keys(events).length <= 64');

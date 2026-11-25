@@ -23,6 +23,7 @@ import {
   deriveRevokedBookSourceVersionIds,
   isBookHomeworkDocumentScheduleOpen,
   studentDocumentOperationMatchesDescriptor,
+  teacherPreviewSourceOperation,
   defaultRuntimeFactory,
 } from '../src/upload-worker/book-source/document';
 import { bookHomeworkRecipientAuthorityId, bookHomeworkRecipientDeliveryBindingId } from '../src/upload-worker/book-homework/identity';
@@ -816,5 +817,52 @@ describe('Ticket #49 canonical source document composition', () => {
       authority,
       new Date('2026-07-30T12:00:00.000Z'),
     )).toBe(true);
+  });
+
+  it('allows verified unreviewed and ready book-source operations for owner teacher preview, while denying rejected or student-document sources', () => {
+    const checksum = { algorithm: 'sha-256' as const, value: 'a'.repeat(64) };
+    const baseOperation = {
+      status: 'verified_completed' as const,
+      sourceVersionId: 'source-v1',
+      purpose: 'book-source' as const,
+      expectedChecksum: checksum,
+      verifiedStorage: sourceLocation(),
+    };
+    const decision = {
+      decidedBy: 'teacher-1',
+      decidedAt: '2026-11-25T00:00:00.000Z',
+      sourceVersionId: 'source-v1',
+      sha256Hex: checksum.value,
+      reasonCode: 'teacher-reviewed' as const,
+    };
+
+    expect(teacherPreviewSourceOperation({
+      ...baseOperation,
+      studentSafeStatus: 'unreviewed',
+    } as never)).toBe(true);
+
+    expect(teacherPreviewSourceOperation({
+      ...baseOperation,
+      studentSafeStatus: 'ready',
+      studentSafeDecision: decision,
+    } as never)).toBe(true);
+
+    expect(teacherPreviewSourceOperation({
+      ...baseOperation,
+      studentSafeStatus: 'rejected',
+      studentSafeDecision: { ...decision, reasonCode: 'teacher-only-content' },
+    } as never)).toBe(false);
+
+    expect(teacherPreviewSourceOperation({
+      ...baseOperation,
+      purpose: 'student-document',
+      studentSafeStatus: 'unreviewed',
+    } as never)).toBe(false);
+
+    expect(teacherPreviewSourceOperation({
+      ...baseOperation,
+      studentSafeStatus: 'unreviewed',
+      studentSafeDecision: decision,
+    } as never)).toBe(false);
   });
 });

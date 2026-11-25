@@ -39,6 +39,7 @@ import type {
 import type { HomeworkIntegrity } from '../types/integrity.types'; // PRD-0036
 import type { BookHomeworkProgressProjection } from './book-homework/bookHomeworkProgress.types';
 import { validateBookHomeworkProgressProjection } from './book-homework/bookHomeworkProgress.service';
+import type { StudentBookHomeworkSummaryRecord } from './book-homework/studentBookHomeworkSummary.types';
 import { resolveBookHomeworkWorkerOrigin } from './homeworkAssignmentClient';
 import { notifyCommittedEvent } from './notificationProducerClient';
 import { startListeningHomework } from '../features/assessment/listening/runtime/listeningSubmissionClient';
@@ -798,6 +799,7 @@ export interface StudentHomeworkListRecord {
     lastRemindedAt?: number;
     reminderCount: number;
     isExempted: boolean;
+    readonly bookProgressSummary?: StudentBookHomeworkSummaryRecord | null;
 }
 
 export function buildStudentHomeworkListRecords(

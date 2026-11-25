@@ -4,6 +4,7 @@ import { createFirebaseVerifier } from './firebase-verification.js';
 import { isApprovedOrigin } from './cors-policy.js';
 import { canonicalBookRouteManifest } from './book-routes/manifest.ts';
 import type { CanonicalBookRouteDescriptor } from './book-routes/types.ts';
+import { parseAllowedOrigins } from '../book-source-worker/allowed-origin.ts';
 import {
   createBookRouteHandlerResolver,
   type BookRouteHandlersOptions,
@@ -185,11 +186,12 @@ const sourceOriginFailure = (
   descriptor: CanonicalBookRouteDescriptor,
 ): { readonly code: 'invalid_deployment' | 'cors_origin_denied'; readonly status: 500 | 403 } | null => {
   if (descriptor.domain !== 'source-upload') return null;
-  if (typeof env.BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN !== 'string'
-    || !env.BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN.trim()) {
+  const allowedOrigins = parseAllowedOrigins(env.BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN);
+  if (allowedOrigins.length === 0) {
     return { code: 'invalid_deployment', status: 500 };
   }
-  if (request.headers.get('Origin') !== env.BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN.trim()) {
+  const requestOrigin = request.headers.get('Origin');
+  if (!requestOrigin || !allowedOrigins.includes(requestOrigin)) {
     return { code: 'cors_origin_denied', status: 403 };
   }
   return null;

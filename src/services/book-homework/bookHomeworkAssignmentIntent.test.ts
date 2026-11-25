@@ -181,4 +181,33 @@ describe('createBookHomeworkAssignmentIntent', () => {
       createId: () => '00000000-0000-4000-8000-000000000001',
     })).toThrow(/presentation title is unavailable/iu);
   });
+
+  it('allows full_pdf assignment intents without a combined studentDocument pin while keeping component_pdfs strict', () => {
+    const fullDraft = draft();
+    const fullManifest = { ...fullDraft.manifest };
+    delete (fullManifest as Record<string, unknown>).studentDocument;
+    const command = createBookHomeworkAssignmentIntent({
+      source: { ...source, studentDocument: undefined },
+      draft: { ...fullDraft, manifest: fullManifest },
+      createId: () => '00000000-0000-4000-8000-000000000001',
+    });
+    expect(command.intent.expectedStudentDocument).toBeUndefined();
+
+    const componentSource = {
+      ...source,
+      studentDocument: undefined,
+      delivery: {
+        ...source.delivery,
+        sourceSet: {
+          ...source.delivery.sourceSet,
+          strategy: 'component_pdfs' as const,
+        },
+      },
+    };
+    expect(() => createBookHomeworkAssignmentIntent({
+      source: componentSource,
+      draft: { ...fullDraft, manifest: fullManifest },
+      createId: () => '00000000-0000-4000-8000-000000000001',
+    })).toThrow(/trusted combined document preview is unavailable/iu);
+  });
 });

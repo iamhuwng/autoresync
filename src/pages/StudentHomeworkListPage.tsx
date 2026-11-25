@@ -386,22 +386,6 @@ export const StudentHomeworkListPage: React.FC = () => {
         overdue,
     } = useResolvedStudentHomeworkList(user?.uid || '');
 
-    const legacyHomeworkItems = homeworkItems.filter(
-        (item) => !isBookHomeworkCompatibilityProjection(item.homework),
-    );
-    const legacyNotStarted = notStarted.filter(
-        (item) => !isBookHomeworkCompatibilityProjection(item.homework),
-    );
-    const legacyInProgress = inProgress.filter(
-        (item) => !isBookHomeworkCompatibilityProjection(item.homework),
-    );
-    const legacyCompleted = completed.filter(
-        (item) => !isBookHomeworkCompatibilityProjection(item.homework),
-    );
-    const legacyOverdue = overdue.filter(
-        (item) => !isBookHomeworkCompatibilityProjection(item.homework),
-    );
-
     const handleStartHomework = async (item: StudentHomeworkItem, event?: React.MouseEvent) => {
         if (event) {
             event.stopPropagation();
@@ -504,13 +488,13 @@ export const StudentHomeworkListPage: React.FC = () => {
     const getTabItems = (): StudentHomeworkItem[] => {
         switch (activeTab) {
             case 'not_started':
-                return legacyNotStarted;
+                return notStarted;
             case 'in_progress':
-                return legacyInProgress;
+                return inProgress;
             case 'completed':
-                return legacyCompleted;
+                return completed;
             case 'overdue':
-                return legacyOverdue;
+                return overdue;
             default:
                 return homeworkItems;
         }
@@ -521,8 +505,8 @@ export const StudentHomeworkListPage: React.FC = () => {
         return [...items].sort((left, right) => sortMode === 'latest'
             ? (right.homework.createdAt ?? 0) - (left.homework.createdAt ?? 0)
             : right.homework.scheduling.dueDate - left.homework.scheduling.dueDate);
-    }, [activeTab, homeworkItems, legacyNotStarted, legacyInProgress, legacyCompleted, legacyOverdue, sortMode]);
-    const dueSoonItems = legacyHomeworkItems.filter((item) => {
+    }, [activeTab, homeworkItems, notStarted, inProgress, completed, overdue, sortMode]);
+    const dueSoonItems = homeworkItems.filter((item) => {
         const dueDate = item.homework.scheduling?.dueDate;
         if (!dueDate) {
             return false;
@@ -531,15 +515,15 @@ export const StudentHomeworkListPage: React.FC = () => {
         const diff = dueDate - Date.now();
         return diff > 0 && diff <= 2 * 24 * 60 * 60 * 1000 && item.status !== 'submitted' && item.status !== 'graded';
     });
-    const nextDueItem = [...legacyHomeworkItems]
+    const nextDueItem = [...homeworkItems]
         .filter((item) => item.homework.scheduling?.dueDate && item.status !== 'submitted' && item.status !== 'graded')
         .sort((left, right) => left.homework.scheduling.dueDate - right.homework.scheduling.dueDate)[0] || null;
     const summaryCards = [
         { label: 'Assignments', value: homeworkItems.length, color: studentTokens.textPrimary, hint: 'Total assigned tasks' },
-        { label: 'Not Started', value: legacyNotStarted.length, color: studentTokens.textPrimary, hint: 'Awaiting first attempt' },
-        { label: 'In Progress', value: legacyInProgress.length, color: studentTokens.accent, hint: 'Currently working on' },
-        { label: 'Completed', value: legacyCompleted.length, color: '#4c5458', hint: 'Submitted or graded' },
-        { label: 'Overdue', value: legacyOverdue.length, color: '#9e3f4e', hint: 'Past due date' },
+        { label: 'Not Started', value: notStarted.length, color: studentTokens.textPrimary, hint: 'Awaiting first attempt' },
+        { label: 'In Progress', value: inProgress.length, color: studentTokens.accent, hint: 'Currently working on' },
+        { label: 'Completed', value: completed.length, color: '#4c5458', hint: 'Submitted or graded' },
+        { label: 'Overdue', value: overdue.length, color: '#9e3f4e', hint: 'Past due date' },
     ];
 
     const renderCenterContent = () => {
@@ -772,19 +756,19 @@ export const StudentHomeworkListPage: React.FC = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     <div style={localStyles.rightMetricRow}>
                         <span style={localStyles.rightMetricLabel}>Not Started</span>
-                        <span style={localStyles.rightMetricValue}>{legacyNotStarted.length}</span>
+                        <span style={localStyles.rightMetricValue}>{notStarted.length}</span>
                     </div>
                     <div style={localStyles.rightMetricRow}>
                         <span style={{ ...localStyles.rightMetricLabel, color: studentTokens.accent }}>In Progress</span>
-                        <span style={localStyles.rightMetricValue}>{legacyInProgress.length}</span>
+                        <span style={localStyles.rightMetricValue}>{inProgress.length}</span>
                     </div>
                     <div style={localStyles.rightMetricRow}>
                         <span style={{ ...localStyles.rightMetricLabel, color: '#4c5458' }}>Completed</span>
-                        <span style={localStyles.rightMetricValue}>{legacyCompleted.length}</span>
+                        <span style={localStyles.rightMetricValue}>{completed.length}</span>
                     </div>
                     <div style={{ ...localStyles.rightMetricRow, paddingTop: 8, borderTop: `1px solid ${studentTokens.borderWhisper}` }}>
                         <span style={{ ...localStyles.rightMetricLabel, color: '#9e3f4e' }}>Overdue</span>
-                        <span style={{ ...localStyles.rightMetricValue, color: '#9e3f4e' }}>{legacyOverdue.length}</span>
+                        <span style={{ ...localStyles.rightMetricValue, color: '#9e3f4e' }}>{overdue.length}</span>
                     </div>
                 </div>
 
@@ -808,7 +792,7 @@ export const StudentHomeworkListPage: React.FC = () => {
                 <StudentSidebar
                     user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined}
                     activePage="homework"
-                    pendingHomeworkCount={legacyNotStarted.length}
+                    pendingHomeworkCount={notStarted.length}
                 />
             )}
             rightPanel={renderRightPanel()}
@@ -836,7 +820,7 @@ export const StudentHomeworkListPage: React.FC = () => {
                     { key: 'not_started', label: 'Not Started' },
                     { key: 'in_progress', label: 'In Progress' },
                     { key: 'completed', label: 'Completed' },
-                    ...(legacyOverdue.length > 0 ? [{ key: 'overdue', label: 'Overdue' }] : []),
+                    ...(overdue.length > 0 ? [{ key: 'overdue', label: 'Overdue' }] : []),
                     ].map((tab) => (
                     <button
                         key={tab.key}

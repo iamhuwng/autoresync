@@ -50,7 +50,12 @@ import {
 import {
   FirebaseRestBookHomeworkCompletionRepository,
   BookHomeworkCompletionRepositoryError,
+  type BookHomeworkCompletionRepositoryEnv,
 } from '../book-homework/completion-repository.ts';
+import {
+  buildStudentBookHomeworkSummary,
+  writeStudentBookHomeworkSummary,
+} from '../book-homework/student-summary-projection.ts';
 import {
   bookHomeworkRecipientAuthorityId,
   readBookHomeworkRecipientAuthority,
@@ -72,6 +77,7 @@ export type BookRuntimeCanonicalEnv =
   & BookRuntimeWorkerEnv
   & BookRuntimeRepositoryEnv
   & BookDeliveryRepositoryEnv
+  & BookHomeworkCompletionRepositoryEnv
   & {
     readonly BOOK_RESULT_PROJECTION_ENABLED?: string;
     readonly BOOK_RESULT_READ_GOOGLE_SA_KEY?: string;
@@ -324,7 +330,7 @@ export const createBookRuntimeProductionDependencies = (
       if (!stored || stored.value.visibility.status !== 'committed') {
         throw new BookHomeworkCompletionRepositoryError('homework_completion_authority_unavailable');
       }
-      await completionRepository.project({
+      const projected = await completionRepository.project({
         authority: stored.value,
         binding,
         terminal: {
@@ -333,6 +339,17 @@ export const createBookRuntimeProductionDependencies = (
           completion: result.completion,
           index: result.index,
         },
+      });
+      const summary = buildStudentBookHomeworkSummary({
+        studentId: binding.context.recipientId,
+        homeworkId: binding.context.contextId,
+        bookId: stored.value.bookManifest.book.bookId ?? null,
+        projection: projected.projection,
+        facts: projected.facts ?? {},
+      });
+      await writeStudentBookHomeworkSummary({
+        env,
+        summary,
       });
     },
     linkIntegrityReport: async ({ binding, result, env: runtimeEnv }) => {
