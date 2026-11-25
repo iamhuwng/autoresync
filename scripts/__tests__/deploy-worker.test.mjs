@@ -55,6 +55,9 @@ test('qualification config enables spare localhost ports without changing produc
   for (const file of productionFiles) {
     const source = await readFile(new URL(file, import.meta.url), 'utf8');
     assert.equal(source.includes('SPARE_ALLOWED_LOCALHOST_PORTS'), false, file);
+    if (file === '../../cloudflare/wrangler.jsonc') {
+      assert.equal(source.includes('luyentap-pdf-qa-20261021'), false, file);
+    }
   }
 });
 

@@ -1375,4 +1375,47 @@ describe('BookAssemblyWorkspace', () => {
     expect(onDirtyChange).toHaveBeenLastCalledWith(false);
   });
 
+  it('re-requires teacher choice when a resolved mapping change is edited again to another page', async () => {
+    const user = userEvent.setup();
+    const repo = repository();
+    const base = candidate();
+    const unit = base.manifest!.units[0];
+    const current = {
+      ...base,
+      manifest: {
+        ...base.manifest!,
+        units: [{
+          ...unit,
+          activitySlots: [{ activityKey: 'activity-1', order: 1, contextRequirement: 'optional' as const, pageGroupKeys: ['pages-1'] }],
+          pageGroups: [{ pageGroupKey: 'pages-1', sourceKey: 'full', pages: [1], activityKeys: ['activity-1'], mode: 'activity' as const }],
+        }],
+      },
+    };
+    renderWorkspace({ initialCandidate: current, repository: repo });
+
+    await user.clear(screen.getByLabelText('Activity key'));
+    await user.type(screen.getByLabelText('Activity key'), 'activity-1');
+    await user.clear(screen.getByLabelText('One-based physical pages'));
+    await user.type(screen.getByLabelText('One-based physical pages'), '2');
+    await user.clear(screen.getByLabelText('Default physical page'));
+    await user.type(screen.getByLabelText('Default physical page'), '2');
+    await user.click(screen.getByRole('button', { name: 'Add mapping' }));
+
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Candidate reconciliation' })).toHaveTextContent('1 unresolved'));
+    await user.click(screen.getByRole('button', { name: 'Use proposed' }));
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Candidate reconciliation' })).toHaveTextContent('0 unresolved'));
+
+    await user.clear(screen.getByLabelText('Activity key'));
+    await user.type(screen.getByLabelText('Activity key'), 'activity-1');
+    await user.clear(screen.getByLabelText('One-based physical pages'));
+    await user.type(screen.getByLabelText('One-based physical pages'), '3');
+    await user.clear(screen.getByLabelText('Default physical page'));
+    await user.type(screen.getByLabelText('Default physical page'), '3');
+    await user.click(screen.getByRole('button', { name: 'Add mapping' }));
+
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Candidate reconciliation' })).toHaveTextContent('1 unresolved'));
+    await user.click(screen.getAllByRole('button', { name: 'Save draft' })[0]);
+    expect(repo.replace).not.toHaveBeenCalled();
+  });
+
 });

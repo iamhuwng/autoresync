@@ -544,4 +544,56 @@ describe('canonical #49 source upload composition', () => {
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({ code: 'cors_origin_denied' });
   });
+
+  it('supports comma-separated allowed origins and fails closed on wildcard or malformed origins', async () => {
+    const router = createBookRouter({
+      firebaseVerifier: { verifyAuthorizationHeader: async () => ({ valid: true, uid: 'teacher-1' }) },
+      routeHandlers: { sourceUploadHandlers: { begin: vi.fn() } },
+    });
+    const multiEnv = {
+      ...env,
+      BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN: 'http://localhost:5173, http://localhost:5174',
+    };
+    const allowedPreflight = await router.fetch(
+      new Request('https://book.example/v1/book-source/books/book-1/upload/begin', {
+        method: 'OPTIONS',
+        headers: {
+          Origin: 'http://localhost:5174',
+          'Access-Control-Request-Method': 'POST',
+          'Access-Control-Request-Headers': 'Authorization, Content-Type',
+        },
+      }),
+      multiEnv,
+    );
+    expect(allowedPreflight.status).toBe(204);
+    expect(allowedPreflight.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:5174');
+
+    const deniedPreflight = await router.fetch(
+      new Request('https://book.example/v1/book-source/books/book-1/upload/begin', {
+        method: 'OPTIONS',
+        headers: {
+          Origin: 'https://unlisted.example',
+          'Access-Control-Request-Method': 'POST',
+        },
+      }),
+      multiEnv,
+    );
+    expect(deniedPreflight.status).toBe(403);
+    expect(await deniedPreflight.json()).toEqual({ code: 'cors_origin_denied' });
+
+    for (const invalidAllowed of ['*', 'http://localhost:5173, *', 'https://example.com/path']) {
+      const invalidPreflight = await router.fetch(
+        new Request('https://book.example/v1/book-source/books/book-1/upload/begin', {
+          method: 'OPTIONS',
+          headers: {
+            Origin: 'http://localhost:5173',
+            'Access-Control-Request-Method': 'POST',
+          },
+        }),
+        { ...env, BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN: invalidAllowed },
+      );
+      expect(invalidPreflight.status).toBe(500);
+      expect(await invalidPreflight.json()).toEqual({ code: 'invalid_deployment' });
+    }
+  });
 });

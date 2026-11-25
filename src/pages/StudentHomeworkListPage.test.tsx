@@ -1,6 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { HomeworkAssignment } from '../types/homework.types';
+import { transformStudentHomeworkListRecords } from '../hooks/useHomeworkSubmission';
+import { isBookHomeworkCompatibilityProjection } from '../services/book-homework/bookHomeworkCompatibilityProjection.service';
+import { buildBookHomeworkListRecord } from '../services/book-homework/bookHomeworkStudentList.service';
+import type { StudentBookHomeworkSummaryRecord } from '../services/book-homework/studentBookHomeworkSummary.types';
 import { StudentHomeworkListPage } from './StudentHomeworkListPage';
 
 const {
@@ -49,21 +54,32 @@ vi.mock('../context/StudentShellDataContext', () => ({
   useResolvedStudentHomeworkList: (...args: unknown[]) => useResolvedStudentHomeworkListMock(...args),
 }));
 
+vi.mock('../services/firebase', () => ({
+  database: {},
+  auth: {},
+  firestore: {},
+}));
+
 vi.mock('../services/homeworkSubmissionService', () => ({
   createSubmission: (...args: unknown[]) => createSubmissionMock(...args),
 }));
 
 vi.mock('../components/layout/StudentLayout', () => ({
-  StudentLayout: ({ children, rightPanel }: any) => (
+  StudentLayout: ({ children, sidebar, rightPanel }: any) => (
     <div>
+      <div>{sidebar}</div>
       <div>{children}</div>
-      <div>{rightPanel}</div>
+      <div data-testid="right-panel">{rightPanel}</div>
     </div>
   ),
 }));
 
 vi.mock('../components/layout/StudentSidebar', () => ({
-  StudentSidebar: () => <div>Sidebar</div>,
+  StudentSidebar: ({ pendingHomeworkCount }: { pendingHomeworkCount?: number }) => (
+    <div data-testid="student-sidebar" data-pending-homework-count={pendingHomeworkCount ?? 0}>
+      Sidebar
+    </div>
+  ),
 }));
 
 vi.mock('../components/layout/studentLayoutStyles', () => ({
@@ -528,5 +544,234 @@ describe('StudentHomeworkListPage', () => {
     expect(trackActionMock).toHaveBeenCalledWith('refreshHomeworkList', {
       source: 'stale_content_error',
     });
+  });
+
+  it('accurately categorizes Book compatibility assignments across summary cards, tabs, due-soon widgets, and sidebar count without inflating overdue or pending counts for completed work', () => {
+    const now = Date.now();
+
+    const makeGenuineBookAssignment = (
+      id: string,
+      title: string,
+      dueDate: number,
+      createdAt: number,
+    ): HomeworkAssignment => ({
+      schemaVersion: 1,
+      assignmentKind: 'book_homework_compatibility',
+      id,
+      createdBy: 'teacher-1',
+      createdAt,
+      updatedAt: createdAt,
+      materialId: `book-${id}`,
+      materialTitle: title,
+      materialType: 'book',
+      materialSkill: 'mixed',
+      title,
+      target: { type: 'students', studentIds: ['student-1'] },
+      scheduling: { dueDate },
+      config: {
+        timerMinutes: null,
+        maxAttempts: null,
+        feedbackTiming: 'never',
+        lateSubmissionAllowed: false,
+      },
+      visibility: {
+        showTimer: false,
+        showAttempts: false,
+        showDueDate: true,
+        showQuestionCount: false,
+        showDuration: false,
+      },
+      archived: false,
+      tags: [],
+      bookHomeworkCompatibility: {
+        schemaVersion: 1,
+        assignmentId: id,
+        sourceSagaRevision: 1,
+        sourceFingerprint: `fp-${id}`,
+      },
+    } as unknown as HomeworkAssignment);
+
+    const makeSummary = (
+      homeworkId: string,
+      overrides: Partial<StudentBookHomeworkSummaryRecord>,
+    ): StudentBookHomeworkSummaryRecord => ({
+      schemaVersion: 1,
+      studentId: 'student-1',
+      homeworkId,
+      bookId: `book-${homeworkId}`,
+      status: 'not_started',
+      isComplete: false,
+      submittedCount: 0,
+      requiredCount: 2,
+      scoredCount: 0,
+      pendingReviewCount: 0,
+      latestSubmittedAt: 0,
+      updatedAt: now,
+      activities: [],
+      ...overrides,
+    });
+
+    // 1. Completed Book homework with earliest past dueDate -> MUST land in Completed, NEVER Overdue or nextDueItem
+    const bookCompletedPastDueHw = makeGenuineBookAssignment(
+      'hw-book-completed-past',
+      'Book PDF Completed Past Due',
+      now - 2 * 86_400_000,
+      500,
+    );
+    // 2. Completed Book homework due within 24h -> MUST land in Completed, NEVER dueSoonItems or Not Started
+    const bookCompletedDueSoonHw = makeGenuineBookAssignment(
+      'hw-book-completed-soon',
+      'Book PDF Completed Due Soon',
+      now + 4 * 3_600_000,
+      450,
+    );
+    // 3. Uncompleted overdue Book homework -> lands in Overdue and becomes nextDueItem
+    const bookOverdueHw = makeGenuineBookAssignment(
+      'hw-book-overdue',
+      'Book PDF Overdue Incomplete',
+      now - 86_400_000,
+      400,
+    );
+    // 4. In-progress Book homework due within 24h -> lands in In Progress and counts in dueSoonItems
+    const bookInProgressHw = makeGenuineBookAssignment(
+      'hw-book-in-progress',
+      'Book PDF In Progress Soon',
+      now + 12 * 3_600_000,
+      300,
+    );
+    // 5. Not-started Book homework due in 5 days -> lands in Not Started and pendingHomeworkCount (not dueSoonItems)
+    const bookNotStartedHw = makeGenuineBookAssignment(
+      'hw-book-not-started',
+      'Book PDF Not Started Future',
+      now + 5 * 86_400_000,
+      200,
+    );
+
+    for (const fixture of [
+      bookCompletedPastDueHw,
+      bookCompletedDueSoonHw,
+      bookOverdueHw,
+      bookInProgressHw,
+      bookNotStartedHw,
+    ]) {
+      expect(isBookHomeworkCompatibilityProjection(fixture)).toBe(true);
+    }
+
+    const listRecords = [
+      buildBookHomeworkListRecord(
+        bookCompletedPastDueHw,
+        now,
+        makeSummary('hw-book-completed-past', {
+          status: 'completed',
+          isComplete: true,
+          submittedCount: 2,
+          requiredCount: 2,
+          scoredCount: 2,
+          pendingReviewCount: 0,
+          latestSubmittedAt: now - 3 * 86_400_000,
+        }),
+      ),
+      buildBookHomeworkListRecord(
+        bookCompletedDueSoonHw,
+        now,
+        makeSummary('hw-book-completed-soon', {
+          status: 'completed',
+          isComplete: true,
+          submittedCount: 2,
+          requiredCount: 2,
+          scoredCount: 1,
+          pendingReviewCount: 1,
+          latestSubmittedAt: now - 3_600_000,
+        }),
+      ),
+      buildBookHomeworkListRecord(
+        bookOverdueHw,
+        now,
+        makeSummary('hw-book-overdue', {
+          status: 'in_progress',
+          isComplete: false,
+          submittedCount: 1,
+          requiredCount: 2,
+          scoredCount: 1,
+          pendingReviewCount: 0,
+          latestSubmittedAt: now - 2 * 86_400_000,
+        }),
+      ),
+      buildBookHomeworkListRecord(
+        bookInProgressHw,
+        now,
+        makeSummary('hw-book-in-progress', {
+          status: 'in_progress',
+          isComplete: false,
+          submittedCount: 1,
+          requiredCount: 3,
+          scoredCount: 0,
+          pendingReviewCount: 1,
+          latestSubmittedAt: now - 1_800_000,
+        }),
+      ),
+      buildBookHomeworkListRecord(bookNotStartedHw, now, null),
+    ];
+
+    const categorized = transformStudentHomeworkListRecords(listRecords);
+    expect(categorized.completed.map((item) => item.homework.id)).toEqual([
+      'hw-book-completed-past',
+      'hw-book-completed-soon',
+    ]);
+    expect(categorized.completed[0]?.status).toBe('graded');
+    expect(categorized.completed[0]?.isOverdue).toBe(false);
+    expect(categorized.completed[1]?.status).toBe('submitted');
+    expect(categorized.notStarted.map((item) => item.homework.id)).toEqual(['hw-book-not-started']);
+    expect(categorized.inProgress.map((item) => item.homework.id)).toEqual(['hw-book-in-progress']);
+    expect(categorized.overdue.map((item) => item.homework.id)).toEqual(['hw-book-overdue']);
+
+    useResolvedStudentHomeworkListMock.mockReturnValue({
+      ...categorized,
+      isLoading: false,
+      error: null,
+      refreshData: vi.fn(),
+    });
+
+    render(<StudentHomeworkListPage />);
+
+    const summaryCardValue = (label: string) => {
+      const card = screen.getAllByText(label)
+        .find((el) => el.parentElement?.textContent?.includes('Total assigned tasks')
+          || el.parentElement?.textContent?.includes('Awaiting first attempt')
+          || el.parentElement?.textContent?.includes('Currently working on')
+          || el.parentElement?.textContent?.includes('Submitted or graded')
+          || el.parentElement?.textContent?.includes('Past due date'))!.parentElement!;
+      return card.textContent;
+    };
+    expect(summaryCardValue('Assignments')).toContain('5');
+    expect(summaryCardValue('Not Started')).toContain('1');
+    expect(summaryCardValue('In Progress')).toContain('1');
+    expect(summaryCardValue('Completed')).toContain('2');
+    expect(summaryCardValue('Overdue')).toContain('1');
+
+    // StudentSidebar pendingHomeworkCount reflects only genuine notStarted items (1), not completed Book homeworks
+    expect(screen.getByTestId('student-sidebar')).toHaveAttribute('data-pending-homework-count', '1');
+
+    // Right-rail Due Soon callout & nextDueItem exclude completed Book homeworks
+    const rightPanel = screen.getByTestId('right-panel');
+    expect(rightPanel).toHaveTextContent('1 assignment');
+    expect(rightPanel).toHaveTextContent('Book PDF Overdue Incomplete');
+    expect(rightPanel).not.toHaveTextContent('Book PDF Completed Past Due');
+    expect(rightPanel).not.toHaveTextContent('Book PDF Completed Due Soon');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Completed' }));
+    expect(screen.getByText('Book PDF Completed Past Due')).toBeInTheDocument();
+    expect(screen.getByText('Book PDF Completed Due Soon')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Not Started' }));
+    expect(screen.getByText('Book PDF Not Started Future')).toBeInTheDocument();
+    expect(screen.queryByText('Book PDF Completed Past Due')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'In Progress' }));
+    expect(screen.getByText('Book PDF In Progress Soon')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Overdue' }));
+    expect(screen.getByText('Book PDF Overdue Incomplete')).toBeInTheDocument();
+    expect(screen.queryByText('Book PDF Completed Past Due')).not.toBeInTheDocument();
   });
 });

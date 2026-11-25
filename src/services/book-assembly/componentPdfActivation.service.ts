@@ -8,6 +8,7 @@ import type { NormalizedActivity } from '../../types/bookActivity.types';
 export const COMPONENT_PDF_ACTIVATION_RECEIPT_LIMIT = 32;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
 const HASH = /^(?:[a-f0-9]{64}|fnv1a64:[a-f0-9]{16})$/iu;
+const ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 
 export interface ComponentPdfActivationInput {
   readonly operationId: string;
@@ -40,6 +41,11 @@ const fingerprint = (value: unknown): string => {
 
 export const fingerprintComponentPdfActivationValue = fingerprint;
 
+export interface ComponentPdfActivationPreparation {
+  readonly componentReservationIds: readonly string[];
+  readonly studentDocumentReservationId: string;
+}
+
 export interface ComponentPdfActivationCommandInput {
   readonly operationId: string;
   readonly ownerId: string;
@@ -48,7 +54,8 @@ export interface ComponentPdfActivationCommandInput {
   readonly expectedSourceSetRevision: number;
   readonly sourceSet: SourceSetCandidate;
   readonly manifest: BookAssemblyManifestCandidate;
-  readonly studentDocumentSourceVersionId: string;
+  readonly studentDocumentSourceVersionId?: string;
+  readonly preparation?: ComponentPdfActivationPreparation;
   readonly activatedAt: string;
 }
 
@@ -61,6 +68,9 @@ export interface ComponentPdfActivationActivitySnapshot {
 }
 
 export interface ComponentPdfActivationPorts {
+  readonly prepareStudentDocument?: (
+    preparation: ComponentPdfActivationPreparation,
+  ) => Promise<ComponentStudentDocument>;
   readonly readStudentDocument: (
     bookId: string,
     sourceVersionId: string,
@@ -102,6 +112,7 @@ export const fingerprintComponentPdfActivation = (input: ComponentPdfActivationI
   unitCandidates: input.unitCandidates,
   studentDocument: input.studentDocument,
   activities: input.activities,
+  activatedAt: input.activatedAt,
 });
 
 export const createComponentPdfActivationReceipt = (
@@ -120,6 +131,7 @@ export const createComponentPdfActivationReceipt = (
     || !ID.test(input.studentDocument.sourceVersionId)
     || input.studentDocument.descriptorRevision !== input.expectedSourceSetRevision + 1
     || !HASH.test(input.studentDocument.descriptorFingerprint)
+    || !ISO_UTC.test(input.activatedAt)
     || !Number.isFinite(Date.parse(input.activatedAt))) throw new Error('invalid_component_pdf_activation');
 
   const unitKeys = new Set(input.unitCandidates.map((item) => item.unitKey));
@@ -160,27 +172,33 @@ export const activeComponentPdfActivation = (book: {
 }): MaterialBookSetupActivation | null => {
   const history = book.setupActivations;
   if (!history || history.length === 0 || history.length > COMPONENT_PDF_ACTIVATION_RECEIPT_LIMIT) return null;
-  const valid = history.every((receipt) => {
+  const normalized: MaterialBookSetupActivation[] = [];
+  for (const receipt of history) {
     try {
-      if (receipt.schemaVersion !== 1 || receipt.ownerId !== book.ownerId || receipt.bookId !== book.bookId
+      const hydratedActivities = receipt.activities === undefined
+        ? []
+        : Array.isArray(receipt.activities) ? receipt.activities : null;
+      if (!hydratedActivities
+        || receipt.schemaVersion !== 1 || receipt.ownerId !== book.ownerId || receipt.bookId !== book.bookId
         || receipt.bookRevision < 1 || receipt.sourceSetRevision < 1
         || receipt.studentDocument.descriptorRevision !== receipt.sourceSetRevision
+        || !Array.isArray(receipt.unitCandidates)
         || !orderedUnique(receipt.unitCandidates, (item) => item.unitKey)
         || receipt.unitCandidates.length === 0
-        || !orderedUnique(receipt.activities, (item) => `${item.unitKey}:${item.activityKey}`)) return false;
+        || !orderedUnique(hydratedActivities, (item) => `${item.unitKey}:${item.activityKey}`)) return null;
       const expected = createComponentPdfActivationReceipt({
         operationId: receipt.operationId, ownerId: receipt.ownerId, bookId: receipt.bookId,
         expectedBookRevision: receipt.bookRevision - 1,
         expectedSourceSetRevision: receipt.sourceSetRevision - 1,
         sourceSet: receipt.sourceSet, unitCandidates: receipt.unitCandidates,
-        studentDocument: receipt.studentDocument, activities: receipt.activities,
+        studentDocument: receipt.studentDocument, activities: hydratedActivities,
         activatedAt: receipt.activatedAt,
       });
-      return expected.inputFingerprint === receipt.inputFingerprint;
-    } catch { return false; }
-  });
-  if (!valid) return null;
-  const receipt = history.at(-1)!;
+      if (expected.inputFingerprint !== receipt.inputFingerprint) return null;
+      normalized.push(expected);
+    } catch { return null; }
+  }
+  const receipt = normalized.at(-1)!;
   return receipt.bookRevision === book.bookRevision
     && receipt.sourceSetRevision === book.sourceSetRevision
     && stable(receipt.sourceSet) === stable(book.sourceSet) ? receipt : null;
@@ -219,18 +237,57 @@ export const activateComponentPdf = async (
   if (!ID.test(input.operationId) || !ID.test(input.ownerId) || !ID.test(input.bookId)
     || input.manifest.bookId !== input.bookId
     || stable(input.manifest.sourceSet) !== stable(input.sourceSet)
-    || input.sourceSet.sourceStrategy !== 'component_pdfs') {
+    || input.sourceSet.sourceStrategy !== 'component_pdfs'
+    || !ISO_UTC.test(input.activatedAt) || !Number.isFinite(Date.parse(input.activatedAt))
+    || (input.studentDocumentSourceVersionId === undefined) === (input.preparation === undefined)) {
     throw new Error('invalid_component_pdf_activation_command');
+  }
+  if (input.preparation) {
+    const { componentReservationIds, studentDocumentReservationId } = input.preparation;
+    if (!Array.isArray(componentReservationIds)
+      || componentReservationIds.length < 2
+      || componentReservationIds.length !== input.sourceSet.sources.length
+      || !ID.test(studentDocumentReservationId)
+      || componentReservationIds.some((reservationId) => !ID.test(reservationId))
+      || new Set(componentReservationIds).size !== componentReservationIds.length
+      || componentReservationIds.includes(studentDocumentReservationId)) {
+      throw new Error('invalid_component_pdf_activation_command');
+    }
   }
   const unitKeys = input.manifest.units.map((unit) => unit.unitKey).sort();
   if (unitKeys.length === 0 || new Set(unitKeys).size !== unitKeys.length) {
     throw new Error('invalid_component_pdf_activation_units');
   }
 
-  const descriptor = await ports.readStudentDocument(input.bookId, input.studentDocumentSourceVersionId);
-  if (!descriptor || descriptor.sourceVersionId !== input.studentDocumentSourceVersionId
+  const descriptor = input.preparation
+    ? (ports.prepareStudentDocument ? await ports.prepareStudentDocument(input.preparation) : null)
+    : await ports.readStudentDocument(input.bookId, input.studentDocumentSourceVersionId!);
+  const orderedSources = [...input.sourceSet.sources].sort((left, right) => left.sourceOrder - right.sourceOrder);
+  const descriptorMatchesSourceSet = (candidate: ComponentStudentDocument): boolean => {
+    if (candidate.logicalSourceKey !== 'student-document'
+      || candidate.components.length !== orderedSources.length) return false;
+    let nextPage = 1;
+    for (let index = 0; index < orderedSources.length; index += 1) {
+      const source = orderedSources[index]!;
+      const part = candidate.components[index]!;
+      if (part.sourceKey !== source.sourceKey
+        || part.sourceVersionId !== source.sourceVersionId
+        || part.sourceOrder !== source.sourceOrder
+        || part.ownerNodeKey !== source.ownerNodeKey
+        || !Number.isSafeInteger(part.localPageCount) || part.localPageCount < 1
+        || part.combinedStartPage !== nextPage
+        || part.combinedEndPage !== nextPage + part.localPageCount - 1) return false;
+      nextPage += part.localPageCount;
+    }
+    return nextPage - 1 === candidate.physicalPageCount;
+  };
+  if (!descriptor
+    || !ID.test(descriptor.sourceVersionId)
+    || (input.studentDocumentSourceVersionId !== undefined
+      && descriptor.sourceVersionId !== input.studentDocumentSourceVersionId)
     || descriptor.descriptorRevision !== input.expectedSourceSetRevision + 1
-    || descriptor.studentSafeStatus !== 'ready') {
+    || descriptor.studentSafeStatus !== 'ready'
+    || !descriptorMatchesSourceSet(descriptor)) {
     throw new Error('component_pdf_activation_descriptor_unavailable');
   }
 

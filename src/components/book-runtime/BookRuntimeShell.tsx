@@ -158,6 +158,33 @@ interface ActivityResolution {
   readonly error: string | null;
 }
 
+const deriveFullPdfPageGroups = (
+  deliveryProjection: BookRuntimeProjection,
+  request: BookRuntimeDeliveryDocumentRequest | BookRuntimeStudentDocumentRequest | null,
+): readonly BookRuntimePageGroupContext[] => {
+  if (deliveryProjection.sourceSet.strategy !== 'full_pdf' || !request || !('sourceKey' in request)) return [];
+  const byKey = new Map<string, Set<number>>();
+  for (const placement of deliveryProjection.activities) {
+    const pages = (placement.sourceContext.sourcePageScopes ?? [])
+      .filter((scope) => scope.sourceKey === request.sourceKey)
+      .flatMap((scope) => scope.pages)
+      .filter((page) => Number.isSafeInteger(page) && page >= 1);
+    if (pages.length === 0) continue;
+    for (const pageGroupKey of placement.sourceContext.pageGroupKeys) {
+      let set = byKey.get(pageGroupKey);
+      if (!set) {
+        set = new Set<number>();
+        byKey.set(pageGroupKey, set);
+      }
+      pages.forEach((page) => set!.add(page));
+    }
+  }
+  return [...byKey.entries()].map(([pageGroupKey, pages]) => ({
+    pageGroupKey,
+    combinedPhysicalPages: [...pages].sort((left, right) => left - right),
+  }));
+};
+
 const resolveActivities = (
   deliveryProjection: BookRuntimeProjection,
   activities: readonly BookRuntimeShellActivity[],
@@ -172,7 +199,10 @@ const resolveActivities = (
         && source?.sourceKey === candidateRequest.sourceKey
         && source.sourceVersionId === candidateRequest.sourceVersionId)
     ? candidateRequest : null;
-  const pageGroups = Array.isArray(deliveryProjection.pageGroups) ? deliveryProjection.pageGroups : [];
+  const declaredPageGroups = Array.isArray(deliveryProjection.pageGroups) ? deliveryProjection.pageGroups : [];
+  const pageGroups = declaredPageGroups.length > 0
+    ? declaredPageGroups
+    : deriveFullPdfPageGroups(deliveryProjection, request);
   if (!request || pageGroups.length === 0) return { activities: [], pageGroups, request, error: 'Book document context is unavailable or stale.' };
   const byId = new Map<string, BookRuntimeShellActivity[]>();
   for (const activity of activities) {

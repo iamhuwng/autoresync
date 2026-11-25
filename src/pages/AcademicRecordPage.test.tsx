@@ -4,7 +4,13 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation, useSearchParams } from 'react-router-dom';
 import React from 'react';
 
-const { mockResults, useMediaQueryMock } = vi.hoisted(() => ({
+const {
+    mockResults,
+    useMediaQueryMock,
+    navigateToMock,
+    trackActionMock,
+    useResolvedStudentHomeworkListMock,
+} = vi.hoisted(() => ({
     mockResults: [
         {
             resultId: 'res-1',
@@ -71,6 +77,9 @@ const { mockResults, useMediaQueryMock } = vi.hoisted(() => ({
         },
     ] as any[],
     useMediaQueryMock: vi.fn(),
+    navigateToMock: vi.fn(),
+    trackActionMock: vi.fn(),
+    useResolvedStudentHomeworkListMock: vi.fn(),
 }));
 
 vi.mock('../hooks/useAuth', () => ({
@@ -81,9 +90,19 @@ vi.mock('../hooks/useAuth', () => ({
     }),
 }));
 
+vi.mock('../hooks/useNavigation', () => ({
+    useNavigation: () => ({
+        navigateTo: navigateToMock,
+    }),
+}));
+
+vi.mock('../context/StudentShellDataContext', () => ({
+    useResolvedStudentHomeworkList: (...args: unknown[]) => useResolvedStudentHomeworkListMock(...args),
+}));
+
 vi.mock('../hooks/useFeatureTracking', () => ({
     useFeatureTracking: () => ({
-        trackAction: vi.fn(),
+        trackAction: trackActionMock,
     }),
 }));
 
@@ -255,6 +274,10 @@ const UrlInspector: React.FC = () => {
 
 import { AcademicRecordPage } from './AcademicRecordPage';
 import * as progressiveFeedbackService from '../services/progressiveFeedback.service';
+import { isBookHomeworkCompatibilityProjection } from '../services/book-homework/bookHomeworkCompatibilityProjection.service';
+import { bookResultGroupKey } from '../services/book-activity/results/bookResult.types';
+import { createBookResultRouteHandle } from '../services/bookResult.browser';
+import type { StudentHomeworkItem } from '../hooks/useHomeworkSubmission';
 
 interface RenderOptions {
     initialPath?: string;
@@ -297,6 +320,16 @@ describe('AcademicRecordPage query-param management', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         useMediaQueryMock.mockReturnValue(false);
+        useResolvedStudentHomeworkListMock.mockReturnValue({
+            homeworkItems: [],
+            isLoading: false,
+            error: null,
+            refreshData: vi.fn(),
+            notStarted: [],
+            inProgress: [],
+            completed: [],
+            overdue: [],
+        });
     });
 
     it('shows the Course tab, removes the Writing tab, and keeps overview browse sections removed', async () => {
@@ -458,5 +491,166 @@ describe('AcademicRecordPage query-param management', () => {
         expect(screen.getByLabelText('Filter by time period')).toHaveStyle({ width: '100%' });
         expect(screen.getByRole('button', { name: 'Last 3 Months' })).toHaveStyle({ minHeight: '44px', minWidth: '44px' });
         expect(screen.getByRole('button', { name: 'IELTS' })).toHaveStyle({ minHeight: '44px', minWidth: '44px' });
+    });
+
+    it('synchronously derives Book Activity Results from shell summaries, filters dateRange in memory without fetches, and opens RESULT_DETAIL on click', async () => {
+        const currentYearStart = new Date(new Date().getFullYear(), 0, 1).getTime();
+        const recentSubmittedAt = Math.max(currentYearStart + 1_000, Date.now() - 5 * 24 * 60 * 60 * 1000);
+        const priorYearSubmittedAt = new Date(new Date().getFullYear() - 1, 5, 15).getTime();
+        const refreshHomeworkMock = vi.fn();
+        const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+        const makeBookItem = (
+            id: string,
+            title: string,
+            submittedAt: number,
+            activityId: string,
+            scoreLabel: string,
+        ): StudentHomeworkItem => ({
+            homework: {
+                schemaVersion: 1,
+                assignmentKind: 'book_homework_compatibility',
+                id,
+                createdBy: 'teacher-1',
+                createdAt: 1_700_000_000_000,
+                updatedAt: 1_700_000_000_000,
+                materialId: `material-${id}`,
+                materialTitle: title,
+                materialType: 'book',
+                materialSkill: 'mixed',
+                title,
+                target: { type: 'students', studentIds: ['user-1'] },
+                scheduling: { dueDate: Date.now() + 86_400_000 },
+                config: {
+                    timerMinutes: null,
+                    maxAttempts: null,
+                    feedbackTiming: 'never',
+                    lateSubmissionAllowed: false,
+                },
+                visibility: {
+                    showTimer: false,
+                    showAttempts: false,
+                    showDueDate: true,
+                    showQuestionCount: false,
+                    showDuration: false,
+                },
+                archived: false,
+                tags: [],
+                bookHomeworkCompatibility: {
+                    schemaVersion: 1,
+                    assignmentId: id,
+                    sourceSagaRevision: 1,
+                    sourceFingerprint: `fp-${id}`,
+                },
+            } as StudentHomeworkItem['homework'],
+            latestSubmission: null,
+            bestSubmission: null,
+            attemptsUsed: 1,
+            attemptsRemaining: null,
+            isOverdue: false,
+            canSubmit: false,
+            canViewFeedback: true,
+            status: 'graded',
+            bookProgressSummary: {
+                schemaVersion: 1,
+                studentId: 'user-1',
+                homeworkId: id,
+                bookId: 'book-1',
+                status: 'completed',
+                isComplete: true,
+                submittedCount: 1,
+                requiredCount: 1,
+                scoredCount: 1,
+                pendingReviewCount: 0,
+                latestSubmittedAt: submittedAt,
+                updatedAt: submittedAt,
+                activities: [
+                    {
+                        activityId,
+                        order: 1,
+                        submitted: true,
+                        submittedAt,
+                        gradingState: 'scored',
+                        score: { earnedScore: 9, maximumScore: 10, displayScore: scoreLabel },
+                    },
+                ],
+            },
+        });
+
+        const recentBookItem = makeBookItem('book-hw-1', 'PDF Workbook', recentSubmittedAt, 'activity-1', '9/10');
+        const archiveBookItem = makeBookItem('book-hw-old', 'Prior Year Workbook', priorYearSubmittedAt, 'activity-old', '7/10');
+
+        expect(isBookHomeworkCompatibilityProjection(recentBookItem.homework)).toBe(true);
+        expect(isBookHomeworkCompatibilityProjection(archiveBookItem.homework)).toBe(true);
+
+        useResolvedStudentHomeworkListMock.mockReturnValue({
+            homeworkItems: [recentBookItem, archiveBookItem],
+            isLoading: false,
+            error: null,
+            refreshData: refreshHomeworkMock,
+            notStarted: [],
+            inProgress: [],
+            completed: [recentBookItem, archiveBookItem],
+            overdue: [],
+        });
+
+        try {
+            renderPage();
+
+            await waitFor(() => {
+                expect(screen.getByTestId('result-timeline')).toBeInTheDocument();
+            });
+
+            // Synchronous selector: immediately present once overview renders, zero Worker fetch
+            expect(screen.getByRole('heading', { name: 'Book Activity Results' })).toBeInTheDocument();
+            const recentButton = screen.getByRole('button', { name: /PDF Workbook — Activity 1/i });
+            expect(recentButton).not.toHaveTextContent('activity-1');
+            expect(recentButton).toHaveTextContent('Scored');
+            expect(recentButton).toHaveTextContent('9/10');
+            expect(screen.getByRole('button', { name: /Prior Year Workbook — Activity 1/i })).toBeInTheDocument();
+
+            // Switch to Last 3 Months -> filters out prior-year activity in memory
+            fireEvent.click(screen.getByRole('button', { name: 'Last 3 Months' }));
+            await waitFor(() => {
+                expect(screen.getByTestId('result-timeline')).toBeInTheDocument();
+            });
+            expect(screen.getByRole('button', { name: /PDF Workbook — Activity 1/i })).toBeInTheDocument();
+            expect(screen.queryByRole('button', { name: /Prior Year Workbook — Activity 1/i })).not.toBeInTheDocument();
+
+            // Switch to YTD -> still excludes prior-year activity in memory
+            fireEvent.click(screen.getByRole('button', { name: 'YTD' }));
+            await waitFor(() => {
+                expect(screen.getByTestId('result-timeline')).toBeInTheDocument();
+            });
+            expect(screen.getByRole('button', { name: /PDF Workbook — Activity 1/i })).toBeInTheDocument();
+            expect(screen.queryByRole('button', { name: /Prior Year Workbook — Activity 1/i })).not.toBeInTheDocument();
+
+            // Switch back to All Time -> restores prior-year activity in memory without homework/Worker fetches
+            fireEvent.click(screen.getByRole('button', { name: 'All Time' }));
+            expect(screen.getByRole('button', { name: /Prior Year Workbook — Activity 1/i })).toBeInTheDocument();
+            expect(refreshHomeworkMock).not.toHaveBeenCalled();
+            expect(fetchSpy).not.toHaveBeenCalled();
+
+            fireEvent.click(screen.getByRole('button', { name: /PDF Workbook — Activity 1/i }));
+
+            const expectedHandle = createBookResultRouteHandle({
+                bookId: 'book-1',
+                studentId: 'user-1',
+                groupKey: bookResultGroupKey('user-1', 'activity-1'),
+                homeworkId: 'book-hw-1',
+            });
+
+            expect(trackActionMock).toHaveBeenCalledWith('openBookActivityResult', {
+                homeworkId: 'book-hw-1',
+                activityId: 'activity-1',
+            });
+            expect(navigateToMock).toHaveBeenCalledWith(
+                'RESULT_DETAIL',
+                { resultId: expectedHandle },
+                { reason: 'student_academic_record_book_activity_result' },
+            );
+        } finally {
+            fetchSpy.mockRestore();
+        }
     });
 });

@@ -896,9 +896,15 @@ describe('BookPdfFlowWorkspace student preview', () => {
     await user.click(screen.getByRole('button', { name: 'Preview as a student' }));
     await user.click(screen.getByRole('button', { name: 'Approve this preview' }));
     await user.click(screen.getByRole('button', { name: /Publish$/i }));
+    expect(screen.getByRole('heading', { name: 'Ready to publish this Book?' })).toBeInTheDocument();
+    expect(screen.queryByText(/Unit 1 is published/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Unit 2 and existing homework are unchanged/i)).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Publish Book' }));
     expect(screen.getByRole('dialog', { name: 'Publish 2 approved Units?' })).toHaveTextContent('unit-b, unit-a');
     await user.click(screen.getByRole('button', { name: 'Publish approved Units' }));
+    expect(await screen.findAllByText('Book is published')).not.toHaveLength(0);
+    expect(screen.queryByText(/Unit 1 is published/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Unit 2 and existing homework are unchanged/i)).not.toBeInTheDocument();
     expect(preview).toHaveBeenCalledTimes(2);
     expect(approve).toHaveBeenCalledTimes(2);
     expect(publishComponent).toHaveBeenCalledWith(expect.objectContaining({

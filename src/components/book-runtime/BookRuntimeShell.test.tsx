@@ -215,6 +215,14 @@ describe('BookRuntimeShell', () => {
       ...delivery(),
       sourceSet: { strategy: 'full_pdf' as const, sources: [{ sourceKey: 'pdf', sourceVersionId: 'source-1', lifecycle: 'verified-usable' as const, localPageScope: request.localPageScope }] },
       documentRequests: [request],
+      pageGroups: [],
+      activities: delivery().activities.map((activity) => ({
+        ...activity,
+        sourceContext: {
+          ...activity.sourceContext,
+          sourcePageScopes: [{ sourceKey: 'pdf', pages: [1, 2] }],
+        },
+      })),
     };
     const { rerender } = render(<BookRuntimeShell {...shellProps({ deliveryProjection: fullPdf, viewer: { ...viewer, render: renderViewer } })} />);
     expect(renderViewer).toHaveBeenCalledWith(expect.objectContaining({ request }));

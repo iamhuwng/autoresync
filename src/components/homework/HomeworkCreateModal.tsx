@@ -1,5 +1,18 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { getAuth } from 'firebase/auth';
+import { get, ref } from 'firebase/database';
 import { useAuth } from '../../contexts/AuthContext';
+import { database } from '../../services/firebase';
+import { isMaterialBooksEnabled, normalizePrd0052FeatureFlagMode } from '../../config/readingV2FeatureFlags';
+import {
+    BOOK_ACTIVITY_ROLLOUT_GATES,
+    getBookActivityRolloutGateModes,
+    isBookActivityRolloutGateEnabled,
+} from '../../config/bookActivityRolloutGates';
+import {
+    createBookAssemblyPreviewClient,
+    type BookAssemblyCurrentPublication,
+} from '../../services/book-assembly/assemblyPublication.client';
 import { HomeworkConfigPanel } from './HomeworkConfigPanel';
 import { HomeworkTagChips } from './HomeworkTagChips';
 import { StudentGroupSelector } from './StudentGroupSelector';
@@ -62,7 +75,8 @@ interface HomeworkCreateModalProps {
     onSuccess: () => void | boolean | Promise<void | boolean>;
     preselectedMaterialId?: string;
     preselectedMaterial?: Material;
-    preselectedMaterialFilter?: 'all' | 'test' | 'thcs-test' | 'reading-passage' | 'reading-passage-set';
+    preselectedMaterialFilter?: 'all' | 'test' | 'thcs-test' | 'reading-passage' | 'reading-passage-set' | 'book';
+    readBookCurrentPublication?: (bookId: string) => Promise<BookAssemblyCurrentPublication | null>;
     preselectedTarget?: HomeworkTarget;
     onTargetConfirmed?: (target: HomeworkTarget) => void;
     skipTargetSelection?: boolean;
@@ -112,7 +126,7 @@ type Step = 'material' | 'target' | 'config' | 'review';
 interface Material {
     id: string;
     title: string;
-    type: HomeworkMaterialType;
+    type: HomeworkMaterialType | 'book';
     skill: HomeworkMaterialSkill;
     questionCount?: number;
     duration?: number;
@@ -241,6 +255,7 @@ export function HomeworkCreateModal({
     createHomeworkAssignment,
     preselectedBookHomework,
     bookHomeworkHandoff,
+    readBookCurrentPublication,
     loadBookHomeworkPreviewSource = createBookHomeworkPreviewSource,
     onBookHomeworkConfirm,
     onBookHomeworkForkBeforeAssign,
@@ -258,7 +273,14 @@ export function HomeworkCreateModal({
     const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
     const [materials, setMaterials] = useState<Material[]>([]);
     const [materialSearch, setMaterialSearch] = useState('');
-    const [materialFilter, setMaterialFilter] = useState<'all' | 'test' | 'thcs-test' | 'reading-passage' | 'reading-passage-set'>('all');
+    const [materialFilter, setMaterialFilter] = useState<'all' | 'test' | 'thcs-test' | 'reading-passage' | 'reading-passage-set' | 'book'>('all');
+    const [selectedBookHandoff, setSelectedBookHandoff] = useState<{
+        bookId: string;
+        bookTitle: string;
+        unitKey: string;
+        availableUnitKeys: readonly string[];
+    } | null>(null);
+    const [loadingBookPublication, setLoadingBookPublication] = useState(false);
 
     // Phase 3: THCS homework dialog state
     const [showThcsDialog, setShowThcsDialog] = useState(false);
@@ -318,10 +340,19 @@ export function HomeworkCreateModal({
         tone: 'success' | 'error';
     } | null>(null);
 
+    const showBooksPicker = isMaterialBooksEnabled(
+        normalizePrd0052FeatureFlagMode(import.meta.env.VITE_MATERIAL_BOOKS),
+    )
+        && isBookActivityRolloutGateEnabled(
+            BOOK_ACTIVITY_ROLLOUT_GATES.assignPlace,
+            getBookActivityRolloutGateModes(import.meta.env),
+        )
+        && !onConfigureNext;
+    const effectiveBookHomeworkHandoff = bookHomeworkHandoff ?? selectedBookHandoff;
     const recoveredBookHomework = bookHomeworkRecovery === undefined
         ? bookHomeworkCommandIds.current
         : bookHomeworkRecovery;
-    const contextBookId = preselectedBookHomework?.delivery.book.bookId ?? bookHomeworkHandoff?.bookId;
+    const contextBookId = preselectedBookHomework?.delivery.book.bookId ?? effectiveBookHomeworkHandoff?.bookId;
     const canUseRecoveredBookHomework = Boolean(
         recoveredBookHomework
         && user?.uid
@@ -351,8 +382,8 @@ export function HomeworkCreateModal({
             preselectedBookHomework.classId || '',
             (preselectedBookHomework.selectedRecipientIds || []).join(','),
         ].join(':')
-        : bookHomeworkHandoff
-            ? ['handoff', bookHomeworkHandoff.bookId, bookHomeworkHandoff.unitKey, bookHomeworkHandoff.bookTitle].join(':')
+        : effectiveBookHomeworkHandoff
+            ? ['handoff', effectiveBookHomeworkHandoff.bookId, effectiveBookHomeworkHandoff.unitKey, effectiveBookHomeworkHandoff.bookTitle].join(':')
             : 'none';
 
     // Load materials
@@ -446,8 +477,11 @@ export function HomeworkCreateModal({
             return;
         }
 
-        setMaterialFilter(preselectedMaterialFilter || 'all');
-    }, [isOpen, preselectedMaterialFilter]);
+        const nextFilter = preselectedMaterialFilter === 'book' && !showBooksPicker
+            ? 'all'
+            : (preselectedMaterialFilter || 'all');
+        setMaterialFilter(nextFilter);
+    }, [isOpen, preselectedMaterialFilter, showBooksPicker]);
 
     useEffect(() => {
         if (!showTemplateSaveModal || !user?.uid) {
@@ -513,7 +547,27 @@ export function HomeworkCreateModal({
                     material.isPublic === true && !isOwnedMaterial(material, user?.uid)
                 ));
 
-            setMaterials(visibleMaterials);
+            let ownedBookMaterials: Material[] = [];
+            if (showBooksPicker && user?.uid) {
+                try {
+                    const booksSnap = await get(ref(database, `material_catalog/book_indexes/by_owner/${user.uid}`));
+                    const rawBooks = booksSnap.exists() ? (booksSnap.val() as Record<string, any> | null) : null;
+                    if (rawBooks && typeof rawBooks === 'object') {
+                        ownedBookMaterials = Object.entries(rawBooks)
+                            .filter(([, entry]) => entry && entry.bookMode === 'pdf' && entry.status !== 'archived')
+                            .map(([bookId, entry]) => ({
+                                id: typeof entry.bookId === 'string' && entry.bookId ? entry.bookId : bookId,
+                                title: typeof entry.title === 'string' && entry.title.trim() ? entry.title : 'Untitled PDF Book',
+                                type: 'book' as const,
+                                skill: 'mixed' as const,
+                            }));
+                    }
+                } catch (bookErr) {
+                    console.warn('Could not load owned PDF books:', bookErr);
+                }
+            }
+
+            setMaterials([...visibleMaterials, ...ownedBookMaterials]);
         } catch (err) {
             console.error('Error loading materials:', err);
             setError(err instanceof Error ? err.message : 'Failed to load materials');
@@ -593,7 +647,7 @@ export function HomeworkCreateModal({
         if (selectedMaterial?.type === 'thcs-test' && configuredThcsInput) {
             return configuredThcsInput;
         }
-        if (!selectedMaterial || !isTargetValid() || !isConfigValid()) {
+        if (!selectedMaterial || selectedMaterial.type === 'book' || !isTargetValid() || !isConfigValid()) {
             return null;
         }
 
@@ -638,6 +692,53 @@ export function HomeworkCreateModal({
             if (selectedMaterial.type === 'thcs-test' && !onConfigureNext) {
                 setThcsDialogTest(selectedMaterial);
                 setShowThcsDialog(true);
+                return;
+            }
+            if (selectedMaterial.type === 'book' && !onConfigureNext) {
+                setLoadingBookPublication(true);
+                setError(null);
+                try {
+                    const reader = readBookCurrentPublication ?? (() => {
+                        const workerOrigin = import.meta.env.VITE_BOOK_ASSEMBLY_WORKER_URL?.trim();
+                        if (!workerOrigin) return null;
+                        return createBookAssemblyPreviewClient({
+                            baseUrl: workerOrigin,
+                            getIdToken: async () => getAuth().currentUser?.getIdToken() ?? '',
+                        }).readCurrentPublication;
+                    })();
+                    if (!reader) {
+                        toast.error('Book publication service is not configured.');
+                        return;
+                    }
+                    const publication = await reader(selectedMaterial.id);
+                    if (!publication || publication.units.length === 0) {
+                        toast.warning('Publish at least one Unit in this Book before assigning it as homework.');
+                        return;
+                    }
+                    const unitKeys = publication.units.map((unit) => unit.unitKey);
+                    trackAction('selectBookHomeworkMaterial', {
+                        bookId: selectedMaterial.id,
+                        unitCount: unitKeys.length,
+                    });
+                    invalidateBookHomeworkPreview();
+                    setSelectedClass(null);
+                    setSelectedStudents([]);
+                    setStudents([]);
+                    setSelectedBookHandoff({
+                        bookId: selectedMaterial.id,
+                        bookTitle: selectedMaterial.title,
+                        unitKey: unitKeys[0]!,
+                        availableUnitKeys: unitKeys,
+                    });
+                } catch (err) {
+                    const message = err instanceof Error && err.message
+                        ? err.message
+                        : 'Could not verify Book publication status.';
+                    toast.error(message);
+                    setError(message);
+                } finally {
+                    setLoadingBookPublication(false);
+                }
                 return;
             }
             setCurrentStep('target');
@@ -798,7 +899,7 @@ export function HomeworkCreateModal({
     };
 
     const handleBookHomeworkPreviewLoad = async (): Promise<void> => {
-        if (!bookHomeworkHandoff || !selectedClass || selectedStudents.length === 0) return;
+        if (!effectiveBookHomeworkHandoff || !selectedClass || selectedStudents.length === 0) return;
 
         const requestId = ++bookPreviewRequestId.current;
         const classId = selectedClass.id;
@@ -807,11 +908,11 @@ export function HomeworkCreateModal({
         setError(null);
         try {
             const source = await loadBookHomeworkPreviewSource({
-                bookId: bookHomeworkHandoff.bookId,
-                target: { kind: 'unit', bookId: bookHomeworkHandoff.bookId, nodeKey: bookHomeworkHandoff.unitKey },
+                bookId: effectiveBookHomeworkHandoff.bookId,
+                target: { kind: 'unit', bookId: effectiveBookHomeworkHandoff.bookId, nodeKey: effectiveBookHomeworkHandoff.unitKey },
                 classId,
                 selectedRecipientIds: recipientIds,
-                title: bookHomeworkHandoff.bookTitle,
+                title: effectiveBookHomeworkHandoff.bookTitle,
             });
             if (requestId !== bookPreviewRequestId.current) return;
             setBookHomeworkSource(source);
@@ -1013,6 +1114,8 @@ export function HomeworkCreateModal({
             bookHomeworkCommandIds.current = null;
         }
         setBookHomeworkSource(null);
+        setSelectedBookHandoff(null);
+        setLoadingBookPublication(false);
         setBookStudentsLoading(false);
         setBookPreviewLoading(false);
         setCurrentStep('material');
@@ -1064,7 +1167,7 @@ export function HomeworkCreateModal({
         return matchesSearch && matchesFilter;
     });
     const activeBookHomeworkSource = preselectedBookHomework || bookHomeworkSource || activeBookHomeworkRecovery?.source;
-    const isBookHomeworkFlow = Boolean(activeBookHomeworkSource || bookHomeworkHandoff);
+    const isBookHomeworkFlow = Boolean(activeBookHomeworkSource || effectiveBookHomeworkHandoff);
     const isEmbeddedThcsFlow = selectedMaterial?.type === 'thcs-test' && Boolean(onConfigureNext);
 
     return (
@@ -1133,17 +1236,39 @@ export function HomeworkCreateModal({
                             onCancel={handleBookHomeworkCancel}
                             onForkBeforeAssign={onBookHomeworkForkBeforeAssign}
                             onAction={trackAction}
-                            loadTargetPreview={bookHomeworkHandoff && selectedClass ? (target) => loadBookHomeworkPreviewSource({
-                                bookId: bookHomeworkHandoff.bookId,
+                            loadTargetPreview={effectiveBookHomeworkHandoff && selectedClass ? (target) => loadBookHomeworkPreviewSource({
+                                bookId: effectiveBookHomeworkHandoff.bookId,
                                 target,
                                 classId: selectedClass.id,
                                 selectedRecipientIds: selectedStudents,
-                                title: bookHomeworkHandoff.bookTitle,
+                                title: effectiveBookHomeworkHandoff.bookTitle,
                             }) : undefined}
                         />
-                    ) : bookHomeworkHandoff ? (
+                    ) : effectiveBookHomeworkHandoff ? (
                         <div className="step-content">
                             <h3 className="step-title">📚 Assign Book Homework</h3>
+                            {!bookHomeworkHandoff && selectedBookHandoff && selectedBookHandoff.availableUnitKeys.length > 1 && (
+                                <div className="field-group">
+                                    <label className="field-label" htmlFor="book-homework-unit">Published unit</label>
+                                    <select
+                                        id="book-homework-unit"
+                                        aria-label="Published unit"
+                                        className="config-select"
+                                        value={selectedBookHandoff.unitKey}
+                                        onChange={(event) => {
+                                            invalidateBookHomeworkPreview();
+                                            const nextUnitKey = event.currentTarget.value;
+                                            setSelectedBookHandoff((current) => current
+                                                ? { ...current, unitKey: nextUnitKey }
+                                                : null);
+                                        }}
+                                    >
+                                        {selectedBookHandoff.availableUnitKeys.map((unitKey) => (
+                                            <option key={unitKey} value={unitKey}>{unitKey}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
                             <div className="field-group">
                                 <label className="field-label" htmlFor="book-homework-class">Class</label>
                                 <select
@@ -1185,6 +1310,22 @@ export function HomeworkCreateModal({
                             )}
 
                             <div className="modal-footer">
+                                {!bookHomeworkHandoff && selectedBookHandoff && (
+                                    <button
+                                        type="button"
+                                        className="back-btn"
+                                        onClick={() => {
+                                            invalidateBookHomeworkPreview();
+                                            setSelectedClass(null);
+                                            setSelectedStudents([]);
+                                            setStudents([]);
+                                            setSelectedBookHandoff(null);
+                                        }}
+                                        disabled={bookPreviewLoading || submitting}
+                                    >
+                                        ← Back to materials
+                                    </button>
+                                )}
                                 <button className="cancel-btn" onClick={() => handleClose()} disabled={submitting}>Cancel</button>
                                 <button
                                     className="next-btn"
@@ -1230,6 +1371,14 @@ export function HomeworkCreateModal({
                                     >
                                         THCS-THPT
                                     </button>
+                                    {showBooksPicker && (
+                                        <button
+                                            className={`filter-btn ${materialFilter === 'book' ? 'active' : ''}`}
+                                            onClick={() => setMaterialFilter('book')}
+                                        >
+                                            Books
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 
@@ -1248,13 +1397,19 @@ export function HomeworkCreateModal({
                                             <div className="material-info">
                                                 <h4 className="material-title">{material.title}</h4>
                                                 <div className="material-meta">
-                                                    <span className="badge">{material.type === 'thcs-test' ? 'THCS-THPT' : material.type}</span>
+                                                    <span className="badge">
+                                                        {material.type === 'thcs-test'
+                                                            ? 'THCS-THPT'
+                                                            : material.type === 'book'
+                                                                ? 'PDF Book'
+                                                                : material.type}
+                                                    </span>
                                                     {material.isPublicLibrary && (
                                                         <span className="badge" style={{ background: '#ede9fe', color: '#6d28d9' }}>
                                                             Public Library
                                                         </span>
                                                     )}
-                                                    {material.type !== 'thcs-test' && (
+                                                    {material.type !== 'thcs-test' && material.type !== 'book' && (
                                                         <span className="badge">{material.skill}</span>
                                                     )}
                                                     {material.type === 'thcs-test' && material.gradeLevel && (
@@ -1650,12 +1805,17 @@ export function HomeworkCreateModal({
                                 form={currentStep === 'config' && isEmbeddedThcsFlow ? 'thcs-homework-config' : undefined}
                                 onClick={currentStep === 'config' && isEmbeddedThcsFlow ? undefined : handleNext}
                                 disabled={
+                                    loadingBookPublication ||
                                     (currentStep === 'material' && !selectedMaterial) ||
                                     (currentStep === 'target' && !isTargetValid()) ||
                                     (currentStep === 'config' && (isEmbeddedThcsFlow ? !thcsConfigValid : !isConfigValid()))
                                 }
                             >
-                                {currentStep === 'config' ? nextButtonLabel : 'Next →'}
+                                {loadingBookPublication
+                                    ? 'Checking book...'
+                                    : currentStep === 'config'
+                                        ? nextButtonLabel
+                                        : 'Next →'}
                             </button>
                         ) : (
                             <button

@@ -364,7 +364,7 @@ const assertPreviewSourceResponse = (
         || new Set(body.selectedRecipientIds).size !== body.selectedRecipientIds.length
         || !isRecord(body.initialTarget)
         || JSON.stringify(body.initialTarget) !== JSON.stringify(requestedTarget)
-        || !isRecord(body.studentDocument)
+        || (body.studentDocument !== undefined && !isRecord(body.studentDocument))
         || !isRecord(body.targetPreview)) invalid();
 
     const delivery = body.delivery as Record<string, unknown>;
@@ -431,19 +431,21 @@ const assertPreviewSourceResponse = (
         && isRecord(entry.localPageScope)
         && (entry.localPageScope.kind === 'all' || entry.localPageScope.kind === 'pages')
         && Array.isArray(entry.localPageScope.pages))) invalid();
-    const document = body.studentDocument as Record<string, unknown>;
+    const document = isRecord(body.studentDocument) ? body.studentDocument : null;
     const preview = body.targetPreview as Record<string, unknown>;
-    if (!isSafeId(document.sourceVersionId)
+    if (sourceSet.strategy === 'component_pdfs' && !document) invalid();
+    if (document && (!isSafeId(document.sourceVersionId)
         || !Number.isSafeInteger(document.descriptorRevision) || Number(document.descriptorRevision) < 0
-        || typeof document.sha256Hex !== 'string' || !/^[a-f0-9]{64}$/u.test(document.sha256Hex)
-        || typeof preview.fingerprint !== 'string' || preview.fingerprint.length === 0
+        || typeof document.sha256Hex !== 'string' || !/^[a-f0-9]{64}$/u.test(document.sha256Hex))) invalid();
+    if (typeof preview.fingerprint !== 'string' || preview.fingerprint.length === 0
         || !Array.isArray(preview.rows) || preview.rows.length === 0
         || !preview.rows.every(isRecord)
         || !Number.isSafeInteger(preview.includedCount) || Number(preview.includedCount) < 1
         || !Number.isSafeInteger(preview.excludedCount) || Number(preview.excludedCount) < 0
         || !isRecord(preview.excludedReasonCounts)) invalid();
     if (sourceSet.strategy === 'component_pdfs'
-        && (Number(document.descriptorRevision) < 1
+        && (!document
+            || Number(document.descriptorRevision) < 1
             || document.sha256Hex === '0'.repeat(64)
             || !Array.isArray(document.components)
             || document.components.length < 2)) invalid();

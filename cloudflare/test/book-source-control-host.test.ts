@@ -414,4 +414,41 @@ describe('book source control host', () => {
       { providerFileId: 'file-1' },
     ), env)).status).toBe(400);
   });
+
+  it('echoes any exact comma-separated allowed origin and omits CORS headers otherwise', async () => {
+    const host = createBookSourceControlHost({
+      verifier,
+      service: {
+        begin: vi.fn(),
+        complete: vi.fn(),
+        status: vi.fn(async () => ({
+          reservationId: 'reservation-1',
+          bookId: 'book-1',
+          sourceVersionId: 'source-version-1',
+          status: 'reserved' as const,
+          retryKind: 'none' as const,
+        })),
+      },
+    });
+    const multiEnv = {
+      ...env,
+      BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN: 'http://localhost:5173, https://luyentap-pdf-qa-20261021.web.app',
+    };
+
+    const allowedResponse = await host.fetch(
+      new Request('https://control.example/v1/book-source/books/book-1/upload/reservation-1/status', {
+        headers: { authorization: 'Bearer token', origin: 'https://luyentap-pdf-qa-20261021.web.app' },
+      }),
+      multiEnv,
+    );
+    expect(allowedResponse.headers.get('access-control-allow-origin')).toBe('https://luyentap-pdf-qa-20261021.web.app');
+
+    const wildcardResponse = await host.fetch(
+      new Request('https://control.example/v1/book-source/books/book-1/upload/reservation-1/status', {
+        headers: { authorization: 'Bearer token', origin: 'http://localhost:5173' },
+      }),
+      { ...env, BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN: '*' },
+    );
+    expect(wildcardResponse.headers.get('access-control-allow-origin')).toBeNull();
+  });
 });

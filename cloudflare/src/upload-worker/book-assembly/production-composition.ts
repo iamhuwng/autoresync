@@ -260,10 +260,12 @@ export const resolveReadyActiveStudentDocument = async (
   ownerId: string,
   bookId: string,
   suppliedAuthority?: Awaited<ReturnType<typeof authority>>,
+  suppliedPublicationScope?: Awaited<ReturnType<FirebaseRestBookAssemblyPublicationRepository['readScope']>>,
 ) => {
   const bookAuthority = suppliedAuthority ?? await authority(env, ownerId, bookId, 'preview');
   if (!bookAuthority) return null;
-  const scope = await new FirebaseRestBookAssemblyPublicationRepository({ env: env as never, ownerId }).readScope(bookId);
+  const scope = suppliedPublicationScope
+    ?? await new FirebaseRestBookAssemblyPublicationRepository({ env: env as never, ownerId }).readScope(bookId);
   const qualified = resolveActiveComponentStudentDocument(bookAuthority, scope);
   if (!qualified) return null;
   const access = sourceUploadAccess(env);
@@ -322,19 +324,31 @@ const sourceIsFullPdfPublicationReady = async (
 
 const bindings = (env: Env) => new FirebaseRestUnitActivityBindingRepository({ env: env as never });
 
-const materialQualified = async (env: Env, ownerId: string, bookId: string, unitKey: string) => {
-  const bookAuthority = await authority(env, ownerId, bookId, 'current');
+const materialQualified = async (
+  env: Env,
+  ownerId: string,
+  bookId: string,
+  unitKey: string,
+  supplied?: {
+    readonly bookAuthority?: Awaited<ReturnType<typeof authority>>;
+    readonly publicationScope?: Awaited<ReturnType<FirebaseRestBookAssemblyPublicationRepository['readScope']>>;
+    readonly assemblyScope?: Awaited<ReturnType<FirebaseRestBookAssemblyRepository['readScope']>>;
+  },
+) => {
+  const bookAuthority = supplied?.bookAuthority ?? await authority(env, ownerId, bookId, 'current');
   if (!bookAuthority) return null;
   const activation = activeComponentPdfActivation(bookAuthority);
   if (!activation) return null;
-  const descriptor = (await new FirebaseRestBookAssemblyPublicationRepository({
+  const pubScope = supplied?.publicationScope ?? await new FirebaseRestBookAssemblyPublicationRepository({
     env: env as never,
     ownerId,
-  }).readScope(bookId)).studentDocuments?.[activation.studentDocument.sourceVersionId];
+  }).readScope(bookId);
+  const descriptor = pubScope.studentDocuments?.[activation.studentDocument.sourceVersionId];
   if (!descriptor
     || descriptor.descriptorRevision !== activation.studentDocument.descriptorRevision
     || fingerprintComponentPdfActivationValue(descriptor) !== activation.studentDocument.descriptorFingerprint) return null;
-  const scope = await new FirebaseRestBookAssemblyRepository({ env: env as never, ownerId }).readScope(bookId, unitKey);
+  const scope = supplied?.assemblyScope
+    ?? await new FirebaseRestBookAssemblyRepository({ env: env as never, ownerId }).readScope(bookId, unitKey);
   const candidate = resolveMaterialQualifiedAssemblyCandidate(bookAuthority, unitKey, scope.candidates);
   return candidate ? { activation, candidate } : null;
 };
@@ -347,13 +361,23 @@ const activities = async (
   activityKeys: readonly string[],
   suppliedAuthority?: Awaited<ReturnType<typeof authority>>,
   suppliedCandidate?: Awaited<ReturnType<typeof authoringCandidate>>,
+  suppliedComponentCache?: {
+    readonly publicationScope?: Awaited<ReturnType<FirebaseRestBookAssemblyPublicationRepository['readScope']>>;
+    readonly assemblyScope?: Awaited<ReturnType<FirebaseRestBookAssemblyRepository['readScope']>>;
+    readonly ownerRoot?: Awaited<ReturnType<FirebaseRestBookActivityAuthoringRepository['readOwnerRoot']>>;
+  },
 ) => {
   const bookAuthority = suppliedAuthority ?? await authority(env, ownerId, bookId, unitKey);
   const qualified = bookAuthority?.sourceSet.sourceStrategy === 'full_pdf'
     ? suppliedCandidate ?? await authoringCandidate(env, ownerId, bookId, unitKey, bookAuthority)
-    : (await materialQualified(env, ownerId, bookId, unitKey))?.candidate;
+    : (await materialQualified(env, ownerId, bookId, unitKey, {
+      bookAuthority,
+      publicationScope: suppliedComponentCache?.publicationScope,
+      assemblyScope: suppliedComponentCache?.assemblyScope,
+    }))?.candidate;
   if (!qualified) return {};
-  const root = await new FirebaseRestBookActivityAuthoringRepository({ env: env as never }).readOwnerRoot(ownerId);
+  const root = suppliedComponentCache?.ownerRoot
+    ?? await new FirebaseRestBookActivityAuthoringRepository({ env: env as never }).readOwnerRoot(ownerId);
   const output: Record<string, { activityKey: string; ownerId: string; revision: number; lifecycle: 'draft'; activity: NormalizedActivity }> = {};
   for (const activityKey of activityKeys) {
     const reference = bookAuthority?.sourceSet.sourceStrategy === 'full_pdf'
@@ -380,7 +404,18 @@ const activities = async (
   return output;
 };
 
-const lineage = async (env: Env, ownerId: string, bookId: string, unitKey: string, suppliedAuthority?: Awaited<ReturnType<typeof authority>>, suppliedCandidate?: Awaited<ReturnType<typeof authoringCandidate>>) => {
+const lineage = async (
+  env: Env,
+  ownerId: string,
+  bookId: string,
+  unitKey: string,
+  suppliedAuthority?: Awaited<ReturnType<typeof authority>>,
+  suppliedCandidate?: Awaited<ReturnType<typeof authoringCandidate>>,
+  suppliedComponentCache?: {
+    readonly publicationScope?: Awaited<ReturnType<FirebaseRestBookAssemblyPublicationRepository['readScope']>>;
+    readonly assemblyScope?: Awaited<ReturnType<FirebaseRestBookAssemblyRepository['readScope']>>;
+  },
+) => {
   const bookAuthority = suppliedAuthority ?? await authority(env, ownerId, bookId, unitKey);
   if (bookAuthority?.sourceSet.sourceStrategy === 'full_pdf') {
     const candidate = suppliedCandidate ?? await authoringCandidate(env, ownerId, bookId, unitKey, bookAuthority);
@@ -393,7 +428,11 @@ const lineage = async (env: Env, ownerId: string, bookId: string, unitKey: strin
     }
     return result;
   }
-  const qualified = await materialQualified(env, ownerId, bookId, unitKey);
+  const qualified = await materialQualified(env, ownerId, bookId, unitKey, {
+    bookAuthority,
+    publicationScope: suppliedComponentCache?.publicationScope,
+    assemblyScope: suppliedComponentCache?.assemblyScope,
+  });
   if (!qualified) return {};
   const result: Record<string, { activityId: string; lastActivityVersionId?: string; lastActivityVersion?: number }> = {};
   qualified.activation.activities
@@ -478,7 +517,9 @@ const activateComponentPdfInProduction = async (
   };
   await assertValidatedDraft();
 
-  const prepareStudentDocument = command.preparation ? async () => {
+  const prepareStudentDocument = command.preparation ? async (
+    preparation: NonNullable<ComponentPdfActivationCommandInput['preparation']>,
+  ) => {
     const account = validateBookSourceUploadAccountState(await new FirebaseRtdbRestClient({
       env: env as never, fetchImpl: globalThis.fetch, getAccessToken: attachmentAccess.getAccessToken,
     }).readValue(sourceUploadAccountPath(attachmentAccess.accountId)));
@@ -508,8 +549,8 @@ const activateComponentPdfInProduction = async (
       bookId: command.bookId,
       descriptorRevision: command.expectedSourceSetRevision + 1,
       sourceSet: command.sourceSet as Extract<typeof command.sourceSet, { sourceStrategy: 'component_pdfs' }>,
-      components: command.preparation!.componentReservationIds.map(completed),
-      studentDocument: completed(command.preparation!.studentDocumentReservationId),
+      components: preparation.componentReservationIds.map(completed),
+      studentDocument: completed(preparation.studentDocumentReservationId),
       publicationRepository,
     });
     return result.descriptor;
@@ -765,66 +806,223 @@ export const createProductionBookAssemblyRouteOptions = (): Pick<BookRouteHandle
         ? isFullPdfPublicationSourceReady(suppliedAuthority.sourceVersionAuthority.getSourceVersion(sourceVersionId))
         : sourceIsFullPdfPublicationReady(env as Env, actorId, bookId, sourceVersionId),
     },
-    componentPdf: {
-      // Reuse immutable reads across the multi-unit publication command.
-      readUser: async ({ env, actorId }) => new FirebaseRestBookActivityAuthoringRepository({ env: env as never })
-        .readValue(`users/${actorId}`),
-      readAuthority: (() => {
-        let cached: Promise<BookAssemblyBookAuthority | null> | undefined;
-        return ({ env, actorId, bookId }) => cached ??= authority(env as Env, actorId, bookId, 'publication');
-      })(),
-      readWholeActivationApprovalInput: (() => {
-        const cache = new Map<string, Promise<any>>();
-        return ({ env, actorId, bookId }) => {
+    componentPdf: (() => {
+      const createRequestScope = (shared?: {
+        readonly readPublicationScope?: (bookId: string) => Promise<Awaited<ReturnType<FirebaseRestBookAssemblyPublicationRepository['readScope']>>>;
+      }) => {
+        const authorityCache = new Map<string, Promise<Awaited<ReturnType<typeof authority>>>>();
+        const publicationScopeCache = new Map<string, Promise<Awaited<ReturnType<FirebaseRestBookAssemblyPublicationRepository['readScope']>>>>();
+        const assemblyScopeCache = new Map<string, Promise<Awaited<ReturnType<FirebaseRestBookAssemblyRepository['readScope']>>>>();
+        const ownerRootCache = new Map<string, Promise<Awaited<ReturnType<FirebaseRestBookActivityAuthoringRepository['readOwnerRoot']>>>>();
+        const readyStudentDocCache = new Map<string, Promise<Awaited<ReturnType<typeof resolveReadyActiveStudentDocument>>>>();
+        const approvalTokenCache = new Map<string, () => Promise<string>>();
+        const authorityTokenCache = new Map<string, () => Promise<string>>();
+        const wholeCallCounts = new Map<string, number>();
+        let activityRepo: FirebaseRestBookActivityAuthoringRepository | undefined;
+        let assemblyRepoByOwner: Map<string, FirebaseRestBookAssemblyRepository> | undefined;
+        const getActivityRepo = (env: Env) => activityRepo ??= new FirebaseRestBookActivityAuthoringRepository({ env: env as never });
+        const getAssemblyRepo = (env: Env, ownerId: string) => {
+          assemblyRepoByOwner ??= new Map();
+          let repo = assemblyRepoByOwner.get(ownerId);
+          if (!repo) {
+            repo = new FirebaseRestBookAssemblyRepository({ env: env as never, ownerId });
+            assemblyRepoByOwner.set(ownerId, repo);
+          }
+          return repo;
+        };
+        const getAuthorityToken = (env: Env, actorId: string, bookId: string) => {
           const key = `${actorId}/${bookId}`;
-          const prior = cache.get(key);
-          if (prior) return prior;
-          const value = (async () => {
-        const bookAuthority = await authority(env as Env, actorId, bookId, 'publication');
-        const activation = activeComponentPdfActivation(bookAuthority ?? {});
-        const document = await resolveReadyActiveStudentDocument(env as Env, actorId, bookId);
-        if (!bookAuthority || !activation || !document) return null;
-        const units = [];
-        for (const reference of activation.unitCandidates) {
-          const qualified = await materialQualified(env as Env, actorId, bookId, reference.unitKey);
-          if (!qualified || qualified.candidate.candidateId !== reference.candidateId
-            || qualified.candidate.revision !== reference.candidateRevision) return null;
-          units.push({ ...reference, manifest: qualified.candidate.manifest });
-        }
+          let provider = authorityTokenCache.get(key);
+          if (!provider) {
+            provider = claimProvider(env, actorId, bookId, 'publication');
+            authorityTokenCache.set(key, provider);
+          }
+          return provider;
+        };
+
+        const getAuthority = (env: Env, actorId: string, bookId: string) => {
+          const key = `${actorId}/${bookId}`;
+          let entry = authorityCache.get(key);
+          if (!entry) {
+            entry = createFirebaseBookSourceAuthorityReader({
+              ...env,
+              BOOK_SOURCE_UPLOAD_ACCOUNT_ID: typeof env.BOOK_SOURCE_UPLOAD_ACCOUNT_ID === 'string' ? env.BOOK_SOURCE_UPLOAD_ACCOUNT_ID : '',
+              getFirebaseAuthToken: getAuthorityToken(env, actorId, bookId),
+            }).read({ ownerId: actorId, bookId });
+            authorityCache.set(key, entry);
+          }
+          return entry;
+        };
+        const readFreshAuthority = async (env: Env, actorId: string, bookId: string) => {
+          const prior = await getAuthority(env, actorId, bookId);
+          if (!prior) return null;
+          // Fresh live RTDB read of the mutable Material Book row using the already-minted publication claim token.
+          const freshBook = record(await new FirebaseRtdbRestClient({
+            env: env as never,
+            fetchImpl: globalThis.fetch,
+            firebaseAuthToken: true,
+            getFirebaseAuthToken: getAuthorityToken(env, actorId, bookId),
+          }).readValue(MATERIAL_BOOK_PATH(bookId)));
+          if (!freshBook) return null;
+          const sameMutableTuple = freshBook.ownerId === prior.ownerId
+            && freshBook.bookId === prior.bookId
+            && freshBook.bookMode === prior.bookMode
+            && freshBook.bookRevision === prior.bookRevision
+            && freshBook.sourceSetRevision === prior.sourceSetRevision
+            && fingerprintComponentPdfActivationValue(freshBook.sourceSet) === fingerprintComponentPdfActivationValue(prior.sourceSet)
+            && fingerprintComponentPdfActivationValue(freshBook.setupActivations ?? null)
+              === fingerprintComponentPdfActivationValue(prior.setupActivations ?? null);
+          if (sameMutableTuple) return prior;
+          return createFirebaseBookSourceAuthorityReader({
+            ...env,
+            BOOK_SOURCE_UPLOAD_ACCOUNT_ID: typeof env.BOOK_SOURCE_UPLOAD_ACCOUNT_ID === 'string' ? env.BOOK_SOURCE_UPLOAD_ACCOUNT_ID : '',
+            getFirebaseAuthToken: getAuthorityToken(env, actorId, bookId),
+          }).read({ ownerId: actorId, bookId });
+        };
+        const getPublicationScope = (env: Env, actorId: string, bookId: string) => {
+          const key = `${actorId}/${bookId}`;
+          let entry = publicationScopeCache.get(key);
+          if (!entry) {
+            entry = shared?.readPublicationScope
+              ? shared.readPublicationScope(bookId)
+              : new FirebaseRestBookAssemblyPublicationRepository({ env: env as never, ownerId: actorId }).readScope(bookId);
+            publicationScopeCache.set(key, entry);
+          }
+          return entry;
+        };
+        const getAssemblyScope = (env: Env, actorId: string, bookId: string, unitKey: string) => {
+          const key = `${actorId}/${bookId}/${unitKey}`;
+          let entry = assemblyScopeCache.get(key);
+          if (!entry) {
+            entry = getAssemblyRepo(env, actorId).readScope(bookId, unitKey);
+            assemblyScopeCache.set(key, entry);
+          }
+          return entry;
+        };
+        const getOwnerRoot = (env: Env, ownerId: string) => {
+          let entry = ownerRootCache.get(ownerId);
+          if (!entry) {
+            entry = getActivityRepo(env).readOwnerRoot(ownerId);
+            ownerRootCache.set(ownerId, entry);
+          }
+          return entry;
+        };
+        const getReadyStudentDocument = (
+          env: Env,
+          actorId: string,
+          bookId: string,
+          bookAuthority: NonNullable<Awaited<ReturnType<typeof authority>>>,
+          pubScope: Awaited<ReturnType<FirebaseRestBookAssemblyPublicationRepository['readScope']>>,
+          sourceVersionId: string,
+        ) => {
+          const key = `${actorId}/${bookId}/${sourceVersionId}`;
+          let entry = readyStudentDocCache.get(key);
+          if (!entry) {
+            entry = resolveReadyActiveStudentDocument(env, actorId, bookId, bookAuthority, pubScope);
+            readyStudentDocCache.set(key, entry);
+          }
+          return entry;
+        };
+
         return {
-          ownerId: actorId, bookId, bookRevision: bookAuthority.bookRevision,
-          sourceSetRevision: bookAuthority.sourceSetRevision, sourceSet: bookAuthority.sourceSet,
-          activationReceipt: activation, units, studentDocument: document.descriptor,
-          registryVersion: typeof env.BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION === 'string'
-            ? env.BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION : '',
-          activities: activation.activities,
+          readUser: ({ env, actorId }: { readonly env: unknown; readonly actorId: string }) =>
+            getActivityRepo(env as Env).readValue(`users/${actorId}`),
+          readAuthority: ({ env, actorId, bookId }: { readonly env: unknown; readonly actorId: string; readonly bookId: string }) =>
+            getAuthority(env as Env, actorId, bookId),
+          readCandidate: async ({ env, actorId, bookId, unitKey, candidateId }: {
+            readonly env: unknown; readonly actorId: string; readonly bookId: string; readonly unitKey: string; readonly candidateId: string;
+          }) => (await getAssemblyScope(env as Env, actorId, bookId, unitKey)).candidates?.[candidateId] ?? null,
+          readWholeActivationApprovalInput: async ({ env, actorId, bookId }: { readonly env: unknown; readonly actorId: string; readonly bookId: string }) => {
+            const key = `${actorId}/${bookId}`;
+            const callIndex = wholeCallCounts.get(key) ?? 0;
+            wholeCallCounts.set(key, callIndex + 1);
+            // Planning pass reuses per-request authority; final TOCTOU guard re-reads fresh live Material Book row.
+            const bookAuthority = callIndex === 0
+              ? await getAuthority(env as Env, actorId, bookId)
+              : await readFreshAuthority(env as Env, actorId, bookId);
+            const activation = activeComponentPdfActivation(bookAuthority ?? {});
+            if (!bookAuthority || !activation) return null;
+            const pubScope = await getPublicationScope(env as Env, actorId, bookId);
+            const document = await getReadyStudentDocument(
+              env as Env, actorId, bookId, bookAuthority, pubScope, activation.studentDocument.sourceVersionId,
+            );
+            if (!document) return null;
+            const units = [];
+            for (const reference of activation.unitCandidates) {
+              const assemblyScope = await getAssemblyScope(env as Env, actorId, bookId, reference.unitKey);
+              const qualified = await materialQualified(env as Env, actorId, bookId, reference.unitKey, {
+                bookAuthority,
+                publicationScope: pubScope,
+                assemblyScope,
+              });
+              if (!qualified || qualified.candidate.candidateId !== reference.candidateId
+                || qualified.candidate.revision !== reference.candidateRevision) return null;
+              units.push({ ...reference, manifest: qualified.candidate.manifest });
+            }
+            return {
+              ownerId: actorId, bookId, bookRevision: bookAuthority.bookRevision,
+              sourceSetRevision: bookAuthority.sourceSetRevision, sourceSet: bookAuthority.sourceSet,
+              activationReceipt: activation, units, studentDocument: document.descriptor,
+              registryVersion: typeof (env as Env).BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION === 'string'
+                ? (env as Env).BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION : '',
+              activities: activation.activities,
+            };
+          },
+          readActivities: async ({ env, ownerId, bookId, unitKey, activityKeys }: {
+            readonly env: unknown; readonly ownerId: string; readonly bookId: string; readonly unitKey?: string; readonly activityKeys: readonly string[];
+          }) => {
+            if (activityKeys.length === 0 || typeof ownerId !== 'string' || typeof bookId !== 'string' || typeof unitKey !== 'string') {
+              return {};
+            }
+            const [bookAuthority, publicationScope, assemblyScope, ownerRoot] = await Promise.all([
+              getAuthority(env as Env, ownerId, bookId),
+              getPublicationScope(env as Env, ownerId, bookId),
+              getAssemblyScope(env as Env, ownerId, bookId, unitKey),
+              getOwnerRoot(env as Env, ownerId),
+            ]);
+            return activities(env as Env, ownerId, bookId, unitKey, activityKeys, bookAuthority, undefined, {
+              publicationScope,
+              assemblyScope,
+              ownerRoot,
+            });
+          },
+          readLineage: async ({ env, actorId, bookId, unitKey }: {
+            readonly env: unknown; readonly actorId: string; readonly bookId: string; readonly unitKey: string;
+          }) => {
+            const [bookAuthority, publicationScope, assemblyScope] = await Promise.all([
+              getAuthority(env as Env, actorId, bookId),
+              getPublicationScope(env as Env, actorId, bookId),
+              getAssemblyScope(env as Env, actorId, bookId, unitKey),
+            ]);
+            return lineage(env as Env, actorId, bookId, unitKey, bookAuthority, undefined, {
+              publicationScope,
+              assemblyScope,
+            });
+          },
+          readPreviewApproval: ({ env, actorId, bookId, unitKey, approvalId }: {
+            readonly env: unknown; readonly actorId: string; readonly bookId: string; readonly unitKey: string; readonly approvalId: string;
+          }) => {
+            const key = `${actorId}/${bookId}/${unitKey}/${approvalId}`;
+            let getToken = approvalTokenCache.get(key);
+            if (!getToken) {
+              getToken = approvalClaimProvider(env as Env, actorId, bookId, unitKey, approvalId, 'book_assembly_publication_approval');
+              approvalTokenCache.set(key, getToken);
+            }
+            // Reuse the claim token within this request, but always read live RTDB so mid-flight revocations are caught.
+            return new FirebaseRestBookAssemblyPreviewApprovalRepository({
+              env: env as never,
+              getFirebaseAuthToken: getToken,
+            }).read(bookId, unitKey, approvalId);
+          },
+          // Component publication remains closed until Lane S/P pins a verified
+          // student-document descriptor. Private components stay authoring-only.
+          sourceIsPreviewReady: async () => false,
         };
-          })();
-          cache.set(key, value);
-          return value;
-        };
-      })(),
-      readActivities: ({ env, ownerId, bookId, unitKey, activityKeys }) => activityKeys.length === 0 ? Promise.resolve({}) : typeof ownerId === 'string'
-         && typeof bookId === 'string' && typeof unitKey === 'string'
-         ? activities(env as Env, ownerId, bookId, unitKey, activityKeys)
-         : Promise.resolve({}),
-      readLineage: ({ env, actorId, bookId, unitKey }) => lineage(env as Env, actorId, bookId, unitKey),
-      readPreviewApproval: (() => {
-        const cache = new Map<string, Promise<unknown>>();
-        return ({ env, actorId, bookId, unitKey, approvalId }) => {
-          const key = `${bookId}/${unitKey}/${approvalId}`;
-          const prior = cache.get(key);
-          if (prior) return prior;
-          const value = new FirebaseRestBookAssemblyPreviewApprovalRepository({ env: env as never,
-            getFirebaseAuthToken: approvalClaimProvider(env as Env, actorId, bookId, unitKey, approvalId, 'book_assembly_publication_approval')
-          }).read(bookId, unitKey, approvalId);
-          cache.set(key, value);
-          return value;
-        };
-      })(),
-      // Component publication remains closed until Lane S/P pins a verified
-      // student-document descriptor. Private components stay authoring-only.
-      sourceIsPreviewReady: async () => false,
-    },
+      };
+      return {
+        ...createRequestScope(),
+        createRequestScope,
+      };
+    })(),
   },
 });

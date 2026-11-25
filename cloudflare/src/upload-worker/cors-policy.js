@@ -62,9 +62,22 @@ export const parseSpareAllowedLocalhostOrigins = (env) => {
   return origins;
 };
 
+const SPARE_FIREBASE_PROJECT_ID = 'luyentap-pdf-qa-20261021';
+const SPARE_HOSTED_ORIGINS = new Set([
+  'https://luyentap-pdf-qa-20261021.web.app',
+]);
+
+const isSpareHostedOrigin = (origin, env) => (
+  env?.FIREBASE_PROJECT_ID === SPARE_FIREBASE_PROJECT_ID
+  && parseSpareAllowedLocalhostOrigins(env).size > 0
+  && SPARE_HOSTED_ORIGINS.has(origin)
+);
+
 export const isApprovedOrigin = (origin, env) => (
   typeof origin === 'string'
-  && (APPROVED_ORIGINS.has(origin) || parseSpareAllowedLocalhostOrigins(env).has(origin))
+  && (APPROVED_ORIGINS.has(origin)
+    || parseSpareAllowedLocalhostOrigins(env).has(origin)
+    || isSpareHostedOrigin(origin, env))
 );
 
 export const isApprovedProductionAppOrigin = (origin) => (

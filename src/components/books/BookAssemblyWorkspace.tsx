@@ -572,11 +572,11 @@ const BookAssemblyWorkspace = ({
       || recovery.sourceSetRevision !== effectiveSourceSetRevision
       || recovery.studentDocument.descriptorRevision !== effectiveSourceSetRevision
       || JSON.stringify(recovery.sourceSet) !== JSON.stringify(manifest.sourceSet)
-      || activeComponentPdfActivation({
+      || !activeComponentPdfActivation({
         ownerId: recovery.ownerId, bookId, bookRevision: effectiveBookRevision,
         sourceSetRevision: effectiveSourceSetRevision, sourceSet: recovery.sourceSet,
         setupActivations: [recovery],
-      }) !== recovery) return null;
+      })) return null;
     const manifestFingerprint = fingerprintComponentPdfActivationValue(manifest as unknown as BookAssemblyManifestCandidate);
     const manifestUnitKeys = manifest.units.map(({ unitKey }) => unitKey).sort();
     const recoveryUnitKeys = recovery.unitCandidates.map(({ unitKey }) => unitKey).sort();
@@ -2096,7 +2096,7 @@ const BookAssemblyWorkspace = ({
       return (
         <section className="book-assembly-mockup" aria-labelledby="book-assembly-mockup-review-title">
           {reconciliationReport.issues.length > 0 && <div className="pbf-surface"><div className="pbf-callout is-warn"><strong>One small change needs your decision</strong><span>Activity 1 now points to new pages. Choose whether to keep the new pages.</span></div><div className="pbf-actions" style={{ marginTop: 14 }}><button type="button" className="pbf-button pbf-button-primary" onClick={() => void applyExactReconciliationRepair()}>Keep the new pages</button><button type="button" className="pbf-button" onClick={recordTeacherChoiceNeeded}>Keep the old page</button></div></div>}
-          <div className="pbf-surface"><h3 id="book-assembly-mockup-review-title">Everything needed for Unit 1</h3><ul className="pbf-checklist" style={{ marginTop: 14 }}><li>PDF files are ready</li><li>Book structure and Unit content are ready</li><li>Every activity has connected pages</li><li>Changes have been reviewed</li></ul><div className="pbf-actions" style={{ justifyContent: 'flex-end', marginTop: 17 }}><span className={`pbf-status${mockupReviewReady ? ' is-good' : ' is-warn'}`}>{mockupReviewReady ? 'Ready for preview' : 'Save draft first'}</span><button type="button" className="pbf-button pbf-button-primary" disabled={!repository || !mockupHasPages || status === 'saving'} onClick={() => void save()}>{status === 'saving' ? 'Saving…' : 'Save draft'}</button>{componentSetupButton}</div></div>
+          <div className="pbf-surface"><h3 id="book-assembly-mockup-review-title">{strategy === 'component_pdfs' ? 'Everything needed for this Book' : 'Everything needed for Unit 1'}</h3><ul className="pbf-checklist" style={{ marginTop: 14 }}><li>PDF files are ready</li><li>Book structure and Unit content are ready</li><li>Every activity has connected pages</li><li>Changes have been reviewed</li></ul><div className="pbf-actions" style={{ justifyContent: 'flex-end', marginTop: 17 }}><span className={`pbf-status${mockupReviewReady ? ' is-good' : ' is-warn'}`}>{mockupReviewReady ? 'Ready for preview' : 'Save draft first'}</span><button type="button" className="pbf-button pbf-button-primary" disabled={!repository || !mockupHasPages || status === 'saving'} onClick={() => void save()}>{status === 'saving' ? 'Saving…' : 'Save draft'}</button>{componentSetupButton}</div></div>
           {(validationMessage || errorMessage) && <p className="book-assembly-guided__error" role="alert" style={{ marginTop: 14 }}>{validationMessage ?? errorMessage}</p>}
           <div className="book-assembly-guided__footer-actions pbf-actions" style={{ justifyContent: 'flex-end', marginTop: 18 }}><button type="button" className="pbf-button" onClick={() => setGuidedStep('pages')}>Back</button><button type="button" className="pbf-button pbf-button-primary" disabled={!candidate || candidate.lifecycle !== 'validated'} onClick={() => setGuidedStep('review')}>Continue</button></div>
         </section>

@@ -133,4 +133,33 @@ describe('spare localhost CORS policy', () => {
       expect(response.status).toBe(403);
     }
   });
+
+  it('approves hosted spare QA origin only when spare project and localhost port binding are active', async () => {
+    const hostedOrigin = 'https://luyentap-pdf-qa-20261021.web.app';
+    const spareHostedEnv = { ...spareEnv, FIREBASE_PROJECT_ID: 'luyentap-pdf-qa-20261021' };
+
+    expect((await bookRouter(bookPreflight(hostedOrigin), spareHostedEnv))?.status).toBe(204);
+    expect((await documentWorker.fetch(preflight(hostedOrigin, '/document', 'GET', 'authorization'), spareHostedEnv)).status).toBe(204);
+
+    for (const rejectedEnv of [
+      productionEnv,
+      { FIREBASE_PROJECT_ID: 'temp-a1437', ...spareEnv },
+      { FIREBASE_PROJECT_ID: 'luyentap-pdf-qa-20261021' },
+    ]) {
+      expect((await bookRouter(bookPreflight(hostedOrigin), rejectedEnv))?.status).toBe(403);
+      expect((await documentWorker.fetch(preflight(hostedOrigin, '/document', 'GET', 'authorization'), rejectedEnv)).status).toBe(403);
+    }
+
+    for (const lookalike of [
+      'https://luyentap-pdf-qa-20261021.web.app.evil.com',
+      'https://luyentap-pdf-qa-20261021.web.app/',
+      'http://luyentap-pdf-qa-20261021.web.app',
+      'https://luyentap-pdf-qa-20261021--qualification.web.app',
+    ]) {
+      expect((await bookRouter(bookPreflight(lookalike), spareHostedEnv))?.status).toBe(403);
+      expect((await documentWorker.fetch(preflight(lookalike, '/document', 'GET', 'authorization'), spareHostedEnv)).status).toBe(403);
+    }
+
+    expect(isApprovedLocalAppOrigin(hostedOrigin, spareHostedEnv)).toBe(false);
+  });
 });

@@ -748,7 +748,22 @@ const resolveCanonical = async (
   const classId = command.intent.target.classId;
   await authorizeClassRecipients(options, command.ownerId, classId, selected);
 
-  const publication = await loadPublication(options, command, target, selected[0]!);
+  const scopeCache = new Map<string, Promise<Awaited<ReturnType<NonNullable<BookHomeworkCanonicalResolverOptions['readPublicationScope']>>>>>();
+  const readPublicationScopeOnce = options.readPublicationScope
+    ? (bookId: string) => {
+      let pending = scopeCache.get(bookId);
+      if (!pending) {
+        pending = options.readPublicationScope!(bookId);
+        scopeCache.set(bookId, pending);
+      }
+      return pending;
+    }
+    : undefined;
+  const scopedOptions = readPublicationScopeOnce
+    ? { ...options, readPublicationScope: readPublicationScopeOnce }
+    : options;
+
+  const publication = await loadPublication(scopedOptions, command, target, selected[0]!);
   try { assertPublishedBookDeliveryPublication(publication); } catch (error) {
     fail('invalid-publication', error instanceof Error ? error.message : 'Published Delivery reference is invalid.');
   }
@@ -767,8 +782,8 @@ const resolveCanonical = async (
   }
   publicationTargetMatches(target, publication);
 
-  const scope = options.readPublicationScope
-    ? await options.readPublicationScope(command.intent.bookId)
+  const scope = readPublicationScopeOnce
+    ? await readPublicationScopeOnce(command.intent.bookId)
     : undefined;
   if (publication.sourceSet.strategy === 'component_pdfs' && !scope) {
     fail('not-ready', 'Book Homework requires one complete student-safe PDF.');

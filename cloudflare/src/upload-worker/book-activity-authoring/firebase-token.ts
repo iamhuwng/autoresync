@@ -647,13 +647,9 @@ export const createFirebaseClaimTokenProvider = (options: {
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
   const now = options.now ?? Date.now;
   const cache = new Map<string, { readonly token: string; readonly expiresAt: number }>();
+  const inflight = new Map<string, Promise<string>>();
 
-  return async (claims: BookFirebaseClaimTuple): Promise<string> => {
-    assertClaims(claims);
-    const key = `${projectId}\u0000${apiKey}\u0000${serviceIdentity}\u0000${claimTuple(claims)}`;
-    const cached = cache.get(key);
-    if (cached && now() < cached.expiresAt - 60_000) return cached.token;
-
+  const exchange = async (key: string, claims: BookFirebaseClaimTuple): Promise<string> => {
     const issuedAt = Math.floor(now() / 1000);
     const customToken = await new SignJWT({
       iss: serviceAccount.client_email,
@@ -721,5 +717,19 @@ export const createFirebaseClaimTokenProvider = (options: {
     const lifetime = Math.max(60_000, Number(exchanged.expiresIn) * 1000 || 3600_000);
     cache.set(key, { token: exchanged.idToken, expiresAt: now() + lifetime });
     return exchanged.idToken;
+  };
+
+  return async (claims: BookFirebaseClaimTuple): Promise<string> => {
+    assertClaims(claims);
+    const key = `${projectId}\u0000${apiKey}\u0000${serviceIdentity}\u0000${claimTuple(claims)}`;
+    const cached = cache.get(key);
+    if (cached && now() < cached.expiresAt - 60_000) return cached.token;
+    const pending = inflight.get(key);
+    if (pending) return pending;
+    const request = exchange(key, claims).finally(() => {
+      if (inflight.get(key) === request) inflight.delete(key);
+    });
+    inflight.set(key, request);
+    return request;
   };
 };

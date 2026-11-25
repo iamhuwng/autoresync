@@ -24,7 +24,7 @@ import type {
   BookDeliveryRecord,
   BookDeliveryRepository,
 } from '../../../../src/services/book-delivery/bookDelivery.entitlement.ts';
-import { resolveBackblazeB2ProviderWiring } from '../../book-source-worker/backblaze-b2-provider-wiring.ts';
+import { resolveBookSourceProviderWiring } from '../../book-source-worker/source-provider-wiring.ts';
 import {
   assertValidBookHomeworkAuthorityRecord,
 } from '../book-homework/authority.ts';
@@ -230,6 +230,20 @@ const readySourceOperation = (operation: BookSourceUploadOperation): boolean => 
   })?.studentSafeStatus === 'ready'
 );
 
+export const teacherPreviewSourceOperation = (operation: BookSourceUploadOperation): boolean => {
+  if (operation.status !== 'verified_completed' || operation.verifiedStorage === undefined) {
+    return false;
+  }
+  const safety = readTrustedSourceSafety(operation, {
+    sourceVersionId: operation.sourceVersionId,
+    purpose: operation.purpose,
+    checksum: operation.expectedChecksum,
+  });
+  return safety !== null
+    && safety.purpose === 'book-source'
+    && safety.studentSafeStatus !== 'rejected';
+};
+
 export const findReadyStudentDocumentOperation = (
   operations: Readonly<Record<string, BookSourceUploadOperation>>,
   input: { readonly bookId: string; readonly ownerId: string; readonly sourceVersionId: string },
@@ -359,10 +373,12 @@ export const defaultRuntimeFactory = (
   env: Record<string, unknown>,
 ): BookSourceDocumentRuntime => {
   const accountId = required(env.BOOK_SOURCE_UPLOAD_ACCOUNT_ID, 'missing_book_source_upload_account_id');
-  const privateBucketName = required(
-    env.BOOK_SOURCE_B2_PRIVATE_BUCKET_NAME,
-    'missing_book_source_private_bucket_name',
-  );
+  const providerWiring = resolveBookSourceProviderWiring(env);
+  if (providerWiring.state !== 'enabled' || !providerWiring.provider) {
+    throw new Error('book_source_b2_provider_unavailable');
+  }
+  const privateBucketName = providerWiring.privateBucketName;
+  const providerTag = providerWiring.providerTag;
   if (!SAFE_ID.test(accountId) || !SAFE_ID.test(privateBucketName)) {
     throw new Error('invalid_book_source_document_configuration');
   }
@@ -396,8 +412,6 @@ export const defaultRuntimeFactory = (
       BOOK_HOMEWORK_GOOGLE_SA_KEY: account.raw,
     },
   });
-  const providerWiring = resolveBackblazeB2ProviderWiring(env);
-  if (!providerWiring.provider) throw new Error('book_source_b2_provider_unavailable');
   const provider = providerWiring.provider;
   const readAccountState = async () => validateBookSourceUploadAccountState(
     await rtdb.readValue(sourceUploadAccountPath(accountId)),
@@ -463,7 +477,7 @@ export const defaultRuntimeFactory = (
         availability: 'available',
         source: {
           ...storage,
-          provider: 'b2',
+          provider: providerTag,
           bucket: privateBucketName,
           objectKey: storage.providerObjectKey,
         },
@@ -520,7 +534,7 @@ export const defaultRuntimeFactory = (
         || !studentDocumentOperationMatchesDescriptor(operation, qualified.descriptor)) {
         throw new Error('teacher_student_document_unavailable');
       }
-      return { ...operation.verifiedStorage, provider: 'b2', bucket: privateBucketName,
+      return { ...operation.verifiedStorage, provider: providerTag, bucket: privateBucketName,
         objectKey: operation.verifiedStorage.providerObjectKey };
     },
     readTeacherSourceVersion: async (uid, { bookId, sourceVersionId }) => {
@@ -532,7 +546,7 @@ export const defaultRuntimeFactory = (
         || authority.sourceVersionAuthority.getSourceVersion(sourceVersionId)?.verifiedUsable !== true) return null;
       const accountState = await readAccountState();
       const matches = Object.values(accountState.operations).filter(
-        (operation) => readySourceOperation(operation)
+        (operation) => teacherPreviewSourceOperation(operation)
           && operation.bookId === bookId
           && operation.ownerId === uid
           && operation.sourceVersionId === sourceVersionId
@@ -550,7 +564,7 @@ export const defaultRuntimeFactory = (
         lifecycle: 'verified-usable',
         storage: {
           ...storage,
-          provider: 'b2',
+          provider: providerTag,
           bucket: privateBucketName,
           objectKey: storage.providerObjectKey,
         },
@@ -605,7 +619,7 @@ export const defaultRuntimeFactory = (
             bookId: binding.book.bookId, ownerId: binding.issuer.ownerId, sourceVersionId: descriptor.sourceVersionId,
           }) : null;
         if (descriptor && studentDocumentOperationMatchesDescriptor(operation, descriptor)) {
-          sourceLocations.push({ ...operation.verifiedStorage, provider: 'b2', bucket: privateBucketName, objectKey: operation.verifiedStorage.providerObjectKey });
+          sourceLocations.push({ ...operation.verifiedStorage, provider: providerTag, bucket: privateBucketName, objectKey: operation.verifiedStorage.providerObjectKey });
           return {
             publicationStatus: 'published', scheduleOpen,
             sourceVersionIds: [descriptor.sourceVersionId],
@@ -632,7 +646,7 @@ export const defaultRuntimeFactory = (
         const storage = matches[0]!.verifiedStorage!;
         sourceLocations.push({
           ...storage,
-          provider: 'b2',
+          provider: providerTag,
           bucket: privateBucketName,
           objectKey: storage.providerObjectKey,
         });

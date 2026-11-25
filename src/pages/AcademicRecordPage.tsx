@@ -1,6 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useNavigation } from '../hooks/useNavigation';
+import { useResolvedStudentHomeworkList } from '../context/StudentShellDataContext';
+import {
+    deriveAcademicRecordBookResults,
+    type AcademicRecordBookResultRow,
+} from '../services/academicRecordBookResults.service';
 import {
     getFilteredResults,
     getLatestResultPerTest,
@@ -346,8 +352,25 @@ const localStyles: Record<string, React.CSSProperties> = {
     },
 };
 
+/**
+ * Student Academic Record host page.
+ *
+ * Student Data-Loading Contract (`documentation/rules/student-data-loading.md`,
+ * `@doc/architecture/academic-record/academic-record-page-architecture`,
+ * `@doc/patterns/pattern-student-shell-single-data-owner`,
+ * `@doc/patterns/pattern-summary-first-detail-on-demand`):
+ * - Canonical Book Homework owner: `StudentShellDataContext` (`useResolvedStudentHomeworkList`),
+ *   hydrated once per student from the bounded RTDB read model `student_book_homework_summaries/{studentId}`.
+ * - Summary-first / zero N+1: `bookActivityResults` is derived synchronously in memory via
+ *   `deriveAcademicRecordBookResults` (zero per-card Worker fetches, zero write-on-read);
+ *   full attempt detail loads only on demand when navigating to `RESULT_DETAIL`.
+ * - Refresh & revisit policy: reuses shell-owned stale-while-revalidate homework items and
+ *   filters `dateRange` purely in memory across tab and period switches.
+ */
 export const AcademicRecordPage: React.FC = () => {
     const { user, profile } = useAuth();
+    const { navigateTo } = useNavigation('student');
+    const { homeworkItems } = useResolvedStudentHomeworkList(user?.uid || '');
     const location = useLocation();
     const [searchParams, setSearchParams] = useSearchParams();
     const { trackAction } = useFeatureTracking('academicRecords');
@@ -374,6 +397,14 @@ export const AcademicRecordPage: React.FC = () => {
     const [thcsLoading, setThcsLoading] = useState(() => Boolean(user?.uid) && !(user?.uid && academicRecordThcsCache.has(user.uid)));
     const [dateRange, setDateRange] = useState<string>('all');
     const [activeView, setActiveView] = useState<MainView>('overview');
+    const bookActivityResults = useMemo<readonly AcademicRecordBookResultRow[]>(
+        () => deriveAcademicRecordBookResults({
+            studentId: user?.uid || '',
+            homeworkItems,
+            dateRange,
+        }),
+        [dateRange, homeworkItems, user?.uid],
+    );
 
     const latestResults = useMemo(() => getLatestResultPerTest(results), [results]);
     const ieltsResults = useMemo(
@@ -534,6 +565,22 @@ export const AcademicRecordPage: React.FC = () => {
         setSearchParams({ result: resultId });
         trackAction('openSlidePanel', { resultId });
     }, [setSearchParams, trackAction]);
+
+    const handleOpenBookActivityResult = useCallback((row: AcademicRecordBookResultRow) => {
+        trackAction('openBookActivityResult', {
+            homeworkId: row.homeworkId,
+            activityId: row.activityId,
+        });
+        if (row.resultHandle) {
+            navigateTo('RESULT_DETAIL', { resultId: row.resultHandle }, {
+                reason: 'student_academic_record_book_activity_result',
+            });
+            return;
+        }
+        navigateTo('STUDENT_HOMEWORK_DETAIL', { homeworkId: row.homeworkId }, {
+            reason: 'student_academic_record_book_activity_homework',
+        });
+    }, [navigateTo, trackAction]);
 
     const handleClosePanel = useCallback(() => {
         setSearchParams({}, { replace: true });
@@ -704,6 +751,51 @@ export const AcademicRecordPage: React.FC = () => {
                         />
                     </div>
                 </section>
+
+                {bookActivityResults.length > 0 && (
+                    <section style={localStyles.viewSection} aria-labelledby="book-activity-results-title">
+                        <div style={localStyles.sectionHeader}>
+                            <h2 id="book-activity-results-title" style={localStyles.sectionTitle}>
+                                Book Activity Results
+                            </h2>
+                        </div>
+                        <div style={localStyles.sectionBody}>
+                            {bookActivityResults.map((row) => (
+                                <button
+                                    key={`${row.homeworkId}:${row.activityId}`}
+                                    type="button"
+                                    onClick={() => handleOpenBookActivityResult(row)}
+                                    style={{
+                                        width: '100%',
+                                        textAlign: 'left',
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        gap: 16,
+                                        padding: '16px 18px',
+                                        borderRadius: 12,
+                                        border: `1px solid ${studentTokens.borderSoft}`,
+                                        background: studentTokens.bgSurfaceAlt,
+                                        cursor: 'pointer',
+                                        fontFamily: 'inherit',
+                                    }}
+                                >
+                                    <span style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+                                        <span style={{ fontWeight: 600, fontSize: '0.95rem', color: studentTokens.textPrimary }}>
+                                            {row.homeworkTitle} — {row.activityLabel}
+                                        </span>
+                                        <span style={{ fontSize: '0.8rem', color: studentTokens.textMuted }}>
+                                            {row.statusLabel}
+                                        </span>
+                                    </span>
+                                    <span style={{ fontWeight: 700, fontSize: '0.95rem', color: studentTokens.accent, whiteSpace: 'nowrap' }}>
+                                        {row.scoreLabel ?? row.statusLabel}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </section>
+                )}
             </>
         );
     };

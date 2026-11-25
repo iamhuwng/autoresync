@@ -10,13 +10,15 @@ import {
 } from '../../../../src/services/book-source-delivery/sourceUpload.firebaseRtdbTransaction.ts';
 import {
   SourceUploadRtdbRepository,
+  getBookSourceUploadProviderTotals,
   sourceUploadAccountPath,
   validateBookSourceUploadAccountState,
 } from '../../../../src/services/book-source-delivery/sourceUpload.rtdbRepository.ts';
 import { createMaterialBookSourceAttachmentService } from '../../../../src/services/book-source-delivery/materialBookSourceAttachment.service.ts';
-import type {
-  BookSourceUploadAccountState,
-  BookSourceUploadOperation,
+import {
+  BOOK_SOURCE_PROVIDER_RECONCILIATION_MAX_AGE_MS,
+  type BookSourceUploadAccountState,
+  type BookSourceUploadOperation,
 } from '../../../../src/types/bookSource.types.ts';
 import type { SourceSetCandidate } from '../../../../src/types/bookAssembly.types.ts';
 import {
@@ -25,7 +27,8 @@ import {
   type BookSourceControlRoute,
   type BookSourceUploadControlService,
 } from '../../book-source-worker/control-host.ts';
-import { resolveBackblazeB2ProviderWiring } from '../../book-source-worker/backblaze-b2-provider-wiring.ts';
+import { resolveBookSourceProviderWiring } from '../../book-source-worker/source-provider-wiring.ts';
+import { OCI_S3_PROVIDER_KIND } from '../../book-source-worker/oci-s3-source-provider.ts';
 import { createBookSourceDirectPdfPageCountAdapter } from '../../book-source-worker/direct-pdf-page-count.ts';
 import type { BookRouteHandlerInput } from '../book-route-handlers.ts';
 import {
@@ -291,9 +294,107 @@ const defaultRuntimeFactory = async (
       && bookRecord.status !== 'archived'
       && (activeOwner || activeAdmin);
   };
-  const providerWiring = resolveBackblazeB2ProviderWiring(env);
-  if (!providerWiring.provider) throw new SourceUploadControlError('invalid_deployment');
+  const providerWiring = resolveBookSourceProviderWiring(env);
+  if (providerWiring.state !== 'enabled' || !providerWiring.provider) {
+    throw new SourceUploadControlError('invalid_deployment');
+  }
   const provider = providerWiring.provider;
+  const scanProviderTotals = async (): Promise<{ readonly totalBytes: number; readonly objectCount: number }> => {
+    let totalBytes = 0;
+    let objectCount = 0;
+    let continuation: string | undefined;
+    for (let pageIndex = 0; pageIndex < 20; pageIndex += 1) {
+      const page = await provider.readAccountTotalsPage({
+        storageLocationId: providerWiring.storageLocationId,
+        privateBucketId: providerWiring.privateBucketId,
+        ...(continuation === undefined ? {} : { continuation }),
+      });
+      totalBytes += page.totalBytes;
+      objectCount += page.objectCount;
+      if (!page.continuation) {
+        return { totalBytes, objectCount };
+      }
+      continuation = page.continuation;
+    }
+    throw new SourceUploadControlError('account_state_unavailable');
+  };
+  const ensureFreshOciProviderReconciliation = async (): Promise<void> => {
+    if (providerWiring.providerKind !== OCI_S3_PROVIDER_KIND) return;
+    const response = await fetch(
+      `${baseUrl}/${sourceUploadAccountPath(accountId)}.json`,
+      { headers: { Authorization: `Bearer ${await accessTokenProvider.getAccessToken()}` } },
+    );
+    if (!response.ok) throw new SourceUploadControlError('account_state_unavailable');
+    const raw = await readBoundedJson(response);
+    const now = new Date();
+    const nowMs = now.getTime();
+    const nowIso = now.toISOString();
+    if (raw === null) {
+      const totals = await scanProviderTotals();
+      if (totals.totalBytes !== 0 || totals.objectCount !== 0) {
+        throw new SourceUploadControlError('account_state_unavailable');
+      }
+      const initialState: BookSourceUploadAccountState = {
+        revision: 0,
+        capacity: {
+          trackedAccountBytes: 0,
+          temporaryBytes: 0,
+          providerReconciliation: {
+            status: 'healthy',
+            totalBytes: 0,
+            objectCount: 0,
+            completedAt: nowIso,
+          },
+        },
+        operations: {},
+      };
+      const initResponse = await fetch(
+        `${baseUrl}/${sourceUploadAccountPath(accountId)}.json`,
+        {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${await accessTokenProvider.getAccessToken()}`,
+            'Content-Type': 'application/json',
+            'if-match': 'null_etag',
+          },
+          body: JSON.stringify(initialState),
+        },
+      );
+      if (!initResponse.ok && initResponse.status !== 412) {
+        throw new SourceUploadControlError('account_state_unavailable');
+      }
+      return;
+    }
+    const state = validateBookSourceUploadAccountState(raw);
+    const snapshot = state.capacity.providerReconciliation;
+    const completedAtMs = snapshot === undefined ? Number.NaN : Date.parse(snapshot.completedAt);
+    const freshThresholdMs = BOOK_SOURCE_PROVIDER_RECONCILIATION_MAX_AGE_MS - 60_000;
+    if (snapshot?.status === 'healthy'
+      && Number.isFinite(completedAtMs)
+      && completedAtMs <= nowMs
+      && nowMs - completedAtMs <= freshThresholdMs) {
+      return;
+    }
+    const expected = getBookSourceUploadProviderTotals(state);
+    const actual = await scanProviderTotals();
+    const status = actual.totalBytes === expected.totalBytes && actual.objectCount === expected.objectCount
+      ? 'healthy' as const
+      : 'drift' as const;
+    try {
+      await repository.recordProviderReconciliation({
+        accountId,
+        expectedRevision: state.revision,
+        snapshot: {
+          status,
+          totalBytes: actual.totalBytes,
+          objectCount: actual.objectCount,
+          completedAt: nowIso,
+        },
+      });
+    } catch {
+      // Concurrent mutation updated account state; let the subsequent CAS reserve decide.
+    }
+  };
   const commonDependencies: Omit<BookSourceUploadControlDependencies, 'releaseAuthorization'> = {
     bookManagementAuthority: {
       canManageBookSource: authorizeOwner,
@@ -301,12 +402,10 @@ const defaultRuntimeFactory = async (
     },
     deployment: {
       accountId,
-      storageLocationId: required(env.BOOK_SOURCE_B2_STORAGE_LOCATION_ID, 'storage_location_id'),
-      providerKind: 'backblaze-b2-s3',
-      privateBucketId: required(env.BOOK_SOURCE_B2_PRIVATE_BUCKET_ID, 'private_bucket_id'),
-      objectKeyPrefix: typeof env.BOOK_SOURCE_B2_OBJECT_KEY_PREFIX === 'string'
-        ? env.BOOK_SOURCE_B2_OBJECT_KEY_PREFIX
-        : 'book-source/',
+      storageLocationId: providerWiring.storageLocationId,
+      providerKind: providerWiring.providerKind,
+      privateBucketId: providerWiring.privateBucketId,
+      objectKeyPrefix: providerWiring.objectKeyPrefix,
     },
     accountStateReader: { read: readAccountState },
     repository,
@@ -320,9 +419,33 @@ const defaultRuntimeFactory = async (
     releaseAuthorization: { authorizeUpload: () => true },
   });
   const service: BookSourceUploadControlService = {
-    begin: productionControl.begin,
+    begin: async (input) => {
+      if (!(await authorizeOwner({ actorId: input.actorId, bookId: input.bookId }))) {
+        throw new SourceUploadControlError('authority_denied');
+      }
+      await ensureFreshOciProviderReconciliation();
+      return productionControl.begin(input);
+    },
     decideStudentSafeSource: async (input) => {
-      const before = (await readAccountState()).operations[input.reservationId];
+      const accountState = await readAccountState();
+      let resolvedReservationId = input.reservationId;
+      let resolvedBySourceVersion = false;
+      let before = accountState.operations[resolvedReservationId];
+      if (!before) {
+        const bySourceVersion = Object.values(accountState.operations).filter(
+          (operation) => operation.ownerId === input.actorId
+            && operation.bookId === input.bookId
+            && operation.sourceVersionId === input.reservationId
+            && operation.status === 'verified_completed'
+            && operation.purpose === 'book-source'
+            && operation.studentSafeStatus !== 'rejected',
+        );
+        if (bySourceVersion.length === 1) {
+          before = bySourceVersion[0]!;
+          resolvedReservationId = before.reservationId;
+          resolvedBySourceVersion = true;
+        }
+      }
       if (!before
         || before.ownerId !== input.actorId
         || before.bookId !== input.bookId
@@ -331,9 +454,52 @@ const defaultRuntimeFactory = async (
         || before.studentSafeStatus === 'rejected') {
         throw new SourceUploadControlError('reservation_conflict');
       }
-      const result = await productionControl.decideStudentSafeSource(input);
+      let result: Awaited<ReturnType<typeof productionControl.decideStudentSafeSource>>;
+      if (resolvedBySourceVersion) {
+        if (!(await authorizeDecision({ actorId: input.actorId, bookId: input.bookId }))) {
+          throw new SourceUploadControlError('authority_denied');
+        }
+        let decidedOp = before;
+        if (before.studentSafeStatus === 'unreviewed') {
+          const next = await repository.decideStudentSafeSource({
+            accountId,
+            expectedRevision: accountState.revision,
+            reservationId: before.reservationId,
+            bookId: before.bookId,
+            actorId: input.actorId,
+            studentSafeStatus: input.studentSafeStatus,
+            studentSafeDecision: {
+              decidedBy: input.actorId,
+              decidedAt: new Date().toISOString(),
+              sourceVersionId: before.sourceVersionId,
+              sha256Hex: before.expectedChecksum.value,
+              reasonCode: input.reasonCode,
+            },
+          });
+          decidedOp = next.operations[before.reservationId]!;
+        } else if (before.studentSafeStatus !== input.studentSafeStatus
+          || before.studentSafeDecision?.sourceVersionId !== before.sourceVersionId
+          || before.studentSafeDecision.sha256Hex !== before.expectedChecksum.value
+          || before.studentSafeDecision.reasonCode !== input.reasonCode) {
+          throw new SourceUploadControlError('reservation_conflict');
+        }
+        if (!decidedOp || decidedOp.status !== 'verified_completed' || !decidedOp.studentSafeDecision) {
+          throw new SourceUploadControlError('reservation_conflict');
+        }
+        result = {
+          status: 'verified_completed',
+          reservationId: decidedOp.reservationId,
+          sourceVersionId: decidedOp.sourceVersionId,
+          checksum: decidedOp.expectedChecksum,
+          purpose: decidedOp.purpose,
+          studentSafeStatus: decidedOp.studentSafeStatus,
+          studentSafeDecision: decidedOp.studentSafeDecision,
+        };
+      } else {
+        result = await productionControl.decideStudentSafeSource(input);
+      }
       const state = await readAccountState();
-      const operation = state.operations[input.reservationId];
+      const operation = state.operations[resolvedReservationId];
       const checksum = readTrustedSourceChecksum(operation?.expectedChecksum);
       const decision = result.studentSafeDecision;
       const safety = readTrustedSourceSafety(result, {
@@ -359,7 +525,7 @@ const defaultRuntimeFactory = async (
       }
       return {
         status: 'verified_completed' as const,
-        reservationId: result.reservationId,
+        reservationId: input.reservationId,
         sourceVersionId: result.sourceVersionId,
         checksum,
         purpose: before.purpose,
@@ -416,7 +582,16 @@ const defaultRuntimeFactory = async (
       if (!(await authorizeOwner({ actorId, bookId }))) {
         throw new SourceUploadControlError('authority_denied');
       }
-      const state = await readAccountState();
+      const response = await fetch(
+        `${baseUrl}/${sourceUploadAccountPath(accountId)}.json`,
+        { headers: { Authorization: `Bearer ${await accessTokenProvider.getAccessToken()}` } },
+      );
+      if (!response.ok) throw new SourceUploadControlError('account_state_unavailable');
+      const raw = await readBoundedJson(response);
+      if (raw === null && providerWiring.providerKind === OCI_S3_PROVIDER_KIND) {
+        return { sources: [] };
+      }
+      const state = validateBookSourceUploadAccountState(raw);
       return { sources: listBookSourceProjections(state, actorId, bookId) };
     },
     requestCleanup: async ({

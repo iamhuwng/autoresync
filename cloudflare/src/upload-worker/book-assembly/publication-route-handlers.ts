@@ -1,5 +1,6 @@
 import type {
   BookAssemblyPublicationRepository,
+  BookAssemblyPublicationScope,
 } from '../../../../src/services/book-assembly/publicationRepository.ts';
 import type {
   BookAssemblyPublicationResult,
@@ -158,6 +159,11 @@ export interface ComponentPdfPublicationRoutePorts {
   readonly sourceIsPreviewReady: (
     context: BookAssemblyPublicationReaderContext & { readonly sourceVersionId: string },
   ) => Promise<boolean>;
+  readonly createRequestScope?: (
+    shared?: {
+      readonly readPublicationScope?: (bookId: string) => Promise<BookAssemblyPublicationScope<BookAssemblyPublicationResult>>;
+    },
+  ) => Omit<ComponentPdfPublicationRoutePorts, 'createRequestScope'>;
 }
 
 export interface BookAssemblyPublicationRouteOptions {
@@ -476,9 +482,26 @@ const createComponentPdfHandler = (
   return async (input) => {
     let worker: ReturnType<typeof createComponentPdfPublicationWorkerHandlers>;
     try {
+      const baseRepository = (options.repositoryFactory ?? defaultRepositoryFactory)(input.env, input.uid);
+      const initialScopeByBook = new Map<string, Promise<BookAssemblyPublicationScope<BookAssemblyPublicationResult>>>();
+      const readInitialScope = (bookId: string) => {
+        let entry = initialScopeByBook.get(bookId);
+        if (!entry) {
+          entry = baseRepository.readScope(bookId);
+          initialScopeByBook.set(bookId, entry);
+        }
+        return entry;
+      };
+      const repository: BookAssemblyPublicationRepository<BookAssemblyPublicationResult> = {
+        readScope: readInitialScope,
+        transaction: (bookId, mutate, txOptions) => baseRepository.transaction(bookId, mutate, txOptions),
+      };
+      const requestPorts = ports.createRequestScope
+        ? ports.createRequestScope({ readPublicationScope: readInitialScope })
+        : ports;
       worker = createComponentPdfPublicationWorkerHandlers({
-        readUser: (uid) => ports.readUser({ env: input.env, actorId: uid }),
-        repository: (options.repositoryFactory ?? defaultRepositoryFactory)(input.env, input.uid),
+        readUser: (uid) => requestPorts.readUser({ env: input.env, actorId: uid }),
+        repository,
         activityVersionWriter: (
           options.activityVersionWriterFactory ?? defaultActivityVersionWriterFactory
         )(input.env),
@@ -489,32 +512,32 @@ const createComponentPdfHandler = (
           unitKey,
           candidateId,
           input.uid,
-          ports.readCandidate,
+          requestPorts.readCandidate,
         ),
-        readAuthority: (bookId) => ports.readAuthority({ env: input.env, actorId: input.uid, bookId }),
-        readWholeActivationApprovalInput: (bookId) => ports.readWholeActivationApprovalInput({
+        readAuthority: (bookId) => requestPorts.readAuthority({ env: input.env, actorId: input.uid, bookId }),
+        readWholeActivationApprovalInput: (bookId) => requestPorts.readWholeActivationApprovalInput({
           env: input.env, actorId: input.uid, bookId,
         }),
-        readActivities: ({ ownerId, bookId, unitKey, activityKeys }) => ports.readActivities({
+        readActivities: ({ ownerId, bookId, unitKey, activityKeys }) => requestPorts.readActivities({
           env: input.env, actorId: input.uid,
           bookId,
           unitKey,
           ownerId,
           activityKeys,
         }),
-        readPreviewApproval: ({ bookId, unitKey, approvalId }) => ports.readPreviewApproval({
+        readPreviewApproval: ({ bookId, unitKey, approvalId }) => requestPorts.readPreviewApproval({
           env: input.env, actorId: input.uid,
           bookId,
           unitKey,
           approvalId,
         }).then(normalizePreviewApproval),
-        sourceIsPreviewReady: ({ bookId, sourceVersionId }) => ports.sourceIsPreviewReady({
+        sourceIsPreviewReady: ({ bookId, sourceVersionId }) => requestPorts.sourceIsPreviewReady({
           env: input.env, actorId: input.uid,
           bookId,
           sourceVersionId,
         }),
-        ...(ports.readLineage ? {
-          readLineage: (bookId: string, unitKey: string) => ports.readLineage!({
+        ...(requestPorts.readLineage ? {
+          readLineage: (bookId: string, unitKey: string) => requestPorts.readLineage!({
             env: input.env, actorId: input.uid,
             bookId,
             unitKey,

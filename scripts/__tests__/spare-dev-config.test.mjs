@@ -2,7 +2,14 @@ import assert from 'node:assert/strict';
 import net from 'node:net';
 import test from 'node:test';
 import { requiredProductionModes } from '../deploy-live.mjs';
-import { spareDevelopmentEnv, spareFeatureFlags, spareFirebaseProject, spareMediaOrigin, spareUploadWorker } from '../spare-dev-config.mjs';
+import {
+  spareBookSourceB2UploadOrigin,
+  spareDevelopmentEnv,
+  spareFeatureFlags,
+  spareFirebaseProject,
+  spareMediaOrigin,
+  spareUploadWorker,
+} from '../spare-dev-config.mjs';
 import { allocateFreePort, parseSpareDevArgs, resolveSparePort, SPARE_AUTO_PORT_POOL } from '../spare-dev.mjs';
 import { isLocalhostSpareOrigin } from '../release-spare-readback.mjs';
 
@@ -32,9 +39,28 @@ test('spare development replaces browser config, discards ambient Vite settings,
   assert.equal(env.VITE_R2_PUBLIC_ORIGIN, spareMediaOrigin);
   assert.equal(env.vite_homework_notification_url, undefined);
   assert.equal(env.VITE_FIREBASE_AUTH_EMULATOR_HOST, undefined);
-  assert.deepEqual(spareFeatureFlags, requiredProductionModes);
-  for (const [key, value] of Object.entries(requiredProductionModes)) {
-    assert.equal(env[key], value, `${key} should match production mode ${value}`);
+  assert.deepEqual(spareFeatureFlags, {
+    ...requiredProductionModes,
+    VITE_BOOK_ACTIVITY_CREATE_PRESENTATION: 'enabled',
+    VITE_BOOK_ACTIVITY_PUBLISH_PRESENTATION: 'enabled',
+    VITE_BOOK_ACTIVITY_ASSIGN_PLACE_PRESENTATION: 'enabled',
+    VITE_BOOK_ACTIVITY_LAUNCH_DELIVERY_PRESENTATION: 'enabled',
+    VITE_BOOK_ACTIVITY_MUTATION_PRESENTATION: 'enabled',
+    VITE_BOOK_ACTIVITY_EVALUATION_PRESENTATION: 'enabled',
+    VITE_BOOK_COURSE_PLACEMENT_PRESENTATION: 'enabled',
+  });
+  for (const [key, value] of Object.entries(spareFeatureFlags)) {
+    assert.equal(env[key], value, `${key} should match spare mode ${value}`);
+  }
+  for (const gate of [
+    'VITE_BOOK_ACTIVITY_CREATE_PRESENTATION',
+    'VITE_BOOK_ACTIVITY_PUBLISH_PRESENTATION',
+    'VITE_BOOK_ACTIVITY_ASSIGN_PLACE_PRESENTATION',
+    'VITE_BOOK_ACTIVITY_LAUNCH_DELIVERY_PRESENTATION',
+    'VITE_BOOK_ACTIVITY_MUTATION_PRESENTATION',
+    'VITE_BOOK_ACTIVITY_EVALUATION_PRESENTATION',
+  ]) {
+    assert.equal(requiredProductionModes[gate], 'disabled', `${gate} must stay disabled in production`);
   }
   assert.equal(env.VITE_READING_V2_ROLLOUT_MODE, 'public');
   assert.equal(env.VITE_READING_V2_PASSAGE_ASSET_LOBBY_VISIBILITY, 'opt-in');
@@ -42,7 +68,21 @@ test('spare development replaces browser config, discards ambient Vite settings,
   assert.equal(env.VITE_READING_PASSAGE_HOMEWORK, 'enabled');
   assert.equal(env.VITE_MATERIAL_BOOKS, 'enabled');
   assert.equal(env.VITE_MATERIAL_BOOK_EDITOR, 'enabled');
-  assert.equal(env.VITE_BOOK_ACTIVITY_CREATE_PRESENTATION, 'disabled');
+  assert.equal(env.VITE_BOOK_ACTIVITY_CREATE_PRESENTATION, 'enabled');
+  assert.equal(env.VITE_BOOK_ACTIVITY_PUBLISH_PRESENTATION, 'enabled');
+  assert.equal(env.VITE_BOOK_ACTIVITY_ASSIGN_PLACE_PRESENTATION, 'enabled');
+  assert.equal(env.VITE_BOOK_ACTIVITY_LAUNCH_DELIVERY_PRESENTATION, 'enabled');
+  assert.equal(env.VITE_BOOK_ACTIVITY_MUTATION_PRESENTATION, 'enabled');
+  assert.equal(env.VITE_BOOK_ACTIVITY_EVALUATION_PRESENTATION, 'enabled');
+  assert.equal(env.VITE_BOOK_COURSE_PLACEMENT_PRESENTATION, 'enabled');
+  assert.equal(env.VITE_BOOK_SOURCE_CONTROL_WORKER_URL, spareUploadWorker);
+  assert.equal(env.VITE_BOOK_ASSEMBLY_WORKER_URL, spareUploadWorker);
+  assert.equal(env.VITE_BOOK_DELIVERY_WORKER_URL, spareUploadWorker);
+  assert.equal(env.VITE_BOOK_HOMEWORK_WORKER_URL, spareUploadWorker);
+  assert.equal(env.VITE_BOOK_RUNTIME_WORKER_URL, spareUploadWorker);
+  assert.equal(env.VITE_BOOK_RESULT_WORKER_URL, spareUploadWorker);
+  assert.equal(env.VITE_BOOK_EVALUATION_WORKER_URL, spareUploadWorker);
+  assert.equal(env.VITE_BOOK_SOURCE_B2_UPLOAD_ORIGIN, spareBookSourceB2UploadOrigin);
 });
 
 test('spare development refuses incomplete or mismatched Firebase metadata', () => {

@@ -64,6 +64,34 @@ const contextDescription = (
   return parts.length > 0 ? parts.join('; ') : 'No source context required.';
 };
 
+const fullPdfPageGroups = (
+  binding: BookDeliveryBinding,
+): readonly BookRuntimePageGroupContext[] => {
+  if (binding.sourceSet.strategy !== 'full_pdf') return [];
+  const sourceKey = binding.sourceSet.sources[0]?.sourceKey;
+  if (!sourceKey) return [];
+  const byKey = new Map<string, Set<number>>();
+  for (const placement of binding.placements) {
+    const pages = placement.sourcePageScopes
+      .filter((scope) => scope.sourceKey === sourceKey)
+      .flatMap((scope) => scope.pages)
+      .filter((page) => Number.isSafeInteger(page) && page >= 1);
+    if (pages.length === 0) continue;
+    for (const pageGroupKey of placement.pageGroupKeys) {
+      let set = byKey.get(pageGroupKey);
+      if (!set) {
+        set = new Set<number>();
+        byKey.set(pageGroupKey, set);
+      }
+      pages.forEach((page) => set!.add(page));
+    }
+  }
+  return [...byKey.entries()].map(([pageGroupKey, pages]) => ({
+    pageGroupKey,
+    combinedPhysicalPages: [...pages].sort((left, right) => left - right),
+  }));
+};
+
 const actionFlags = (kind: BookDeliveryContextKind): BookRuntimeDeliveryProjection['actionFlags'] => ({
   canAutosave: kind === 'public' || kind === 'solo' || kind === 'preview' || kind === 'homework',
   canSubmit: kind === 'public' || kind === 'solo' || kind === 'homework',
@@ -160,7 +188,7 @@ export const createBookDeliveryProjectionResolver = (options: {
         outline: binding.outline,
         sourceSet: combined ? { strategy: 'component_pdfs' as const, sources: [] } : binding.sourceSet,
         documentRequests,
-        pageGroups: combined ? combined.pageGroups : [],
+        pageGroups: combined ? combined.pageGroups : fullPdfPageGroups(binding),
         activities: binding.placements.map((placement) => ({
           placementId: placement.placementId,
           activityId: placement.activityId,

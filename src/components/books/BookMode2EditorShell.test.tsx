@@ -11,6 +11,19 @@ import type { BookAssemblyCurrentPublication, BookAssemblyPreviewClient } from '
 import type { BookAssemblyCandidateRecord } from '../../services/book-assembly/unitAssembly.types';
 import { createComponentPdfActivationReceipt, fingerprintComponentPdfActivationValue } from '../../services/book-assembly/componentPdfActivation.service';
 import type { BookAssemblyManifestCandidate } from '../../types/bookAssembly.types';
+import { createCandidateUnitPreview } from '../../services/book-assembly/unitPreview.service';
+
+const { mockFirebaseGetIdToken } = vi.hoisted(() => ({
+  mockFirebaseGetIdToken: vi.fn(async () => 'firebase-id-token-1'),
+}));
+
+vi.mock('firebase/auth', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('firebase/auth')>();
+  return {
+    ...actual,
+    getAuth: () => ({ currentUser: { getIdToken: mockFirebaseGetIdToken } }) as unknown as ReturnType<typeof actual.getAuth>,
+  };
+});
 
 vi.mock('../../hooks/useFeatureTracking', () => ({
   useFeatureTracking: () => ({ trackAction: vi.fn() }),
@@ -32,7 +45,12 @@ const book: MaterialBookMetadata = {
   updatedBy: 'teacher-1',
 };
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+  mockFirebaseGetIdToken.mockClear();
+});
 
 const publishedUnit = (unitKey: string): BookAssemblyCurrentPublication['units'][number] => ({
   unitKey,
@@ -519,5 +537,149 @@ describe('BookMode2EditorShell', () => {
 
     expect(await screen.findByRole('heading', { name: 'Combine your PDF sections' })).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('defaults component review heading, recovered studentDocumentSourceVersionId, and Firebase preview token', async () => {
+    const user = userEvent.setup();
+    vi.stubEnv('VITE_BOOK_ASSEMBLY_WORKER_URL', 'https://worker.test');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(new Uint8Array([37, 80, 68, 70]), { status: 200 }));
+    const reviewManifest = {
+      ...componentManifest,
+      nodes: [
+        { nodeKey: 'section-a', parentNodeKey: null, nodeType: 'section' as const, order: 1 },
+        { nodeKey: 'unit-a', parentNodeKey: 'section-a', nodeType: 'unit' as const, order: 1 },
+        { nodeKey: 'section-b', parentNodeKey: null, nodeType: 'section' as const, order: 2 },
+        { nodeKey: 'unit-b', parentNodeKey: 'section-b', nodeType: 'unit' as const, order: 1 },
+      ],
+    };
+    const reviewCandidate: BookAssemblyCandidateRecord = {
+      ...componentCandidate,
+      manifest: reviewManifest,
+    };
+    const reviewActivation = createComponentPdfActivationReceipt({
+      operationId: 'activation-review',
+      ownerId: 'teacher-1',
+      bookId: 'pdf-book',
+      expectedBookRevision: 2,
+      expectedSourceSetRevision: 3,
+      sourceSet: reviewManifest.sourceSet,
+      unitCandidates: ['unit-a', 'unit-b'].map((unitKey) => ({
+        unitKey,
+        candidateId: unitKey === 'unit-a' ? 'candidate-a' : 'candidate-b',
+        candidateRevision: 1,
+        manifestFingerprint: fingerprintComponentPdfActivationValue(reviewManifest),
+      })),
+      studentDocument: componentActivation.studentDocument,
+      activities: [],
+      activatedAt: '2026-09-20T00:00:00.000Z',
+    });
+    const repository = {
+      loadCurrent: vi.fn(async () => ({
+        candidate: reviewCandidate,
+        savedActivityKeysByUnit: { 'unit-a': ['activity-a'] },
+      })),
+      replace: vi.fn(),
+      create: vi.fn(),
+      validate: vi.fn(),
+      discard: vi.fn(),
+      load: vi.fn(),
+    } as unknown as UnitAssemblyRepository;
+    const sources = reviewManifest.sourceSet.sources.map((source) => ({
+      ...source,
+      bookId: 'pdf-book',
+      physicalPageCount: 10,
+      verifiedUsable: true,
+      checksum: { algorithm: 'sha-256' as const, value: 'a'.repeat(64) },
+      purpose: 'book-source' as const,
+      studentSafeStatus: 'unreviewed' as const,
+    }));
+    const runtimePreview = createCandidateUnitPreview({
+      candidate: reviewCandidate,
+      sourceVersions: sources,
+      sourceIsPreviewReady: () => true,
+      activitiesByKey: {
+        'activity-a': {
+          activityId: 'activity-a',
+          activityVersionId: 'activity-a-v1',
+          schemaVersion: 1,
+          title: 'Activity A',
+          taskProfile: null,
+          presentationMode: 'structured',
+          contextRequirement: { mode: 'required', acceptedKinds: ['book-pages'] },
+          instructions: [{ text: 'Question A' }],
+          interaction: { family: 'choice', variant: 'v1' },
+          answerRule: { defaultPoints: 1, normalization: 'exact', requiredSelectionCount: 1 },
+          stimulus: null,
+          assetRefs: [],
+          interactions: [{
+            family: 'choice',
+            interactionId: 'choice-a',
+            prompt: 'Choose A',
+            options: ['A'],
+            itemIdentities: { family: 'choice', optionIds: ['a'] },
+            answerKey: { family: 'choice', acceptedOptionItemIds: ['a'] },
+          }],
+          scoring: { mode: 'auto-where-possible' },
+        } as never,
+      },
+      registryVersion: 'registry-v1',
+      studentDocument: {
+        descriptor: {
+          schemaVersion: 1,
+          kind: 'component-pdf-student-document',
+          sourceVersionId: reviewActivation.studentDocument.sourceVersionId,
+          descriptorRevision: 4,
+          sha256Hex: 'a'.repeat(64),
+          byteSize: 4,
+          physicalPageCount: 2,
+          compositionFingerprint: 'composition-1',
+          components: [{
+            sourceKey: 'part-a',
+            sourceVersionId: 'source-a',
+            sourceOrder: 1,
+            ownerNodeKey: 'unit-a',
+            localPageCount: 1,
+            combinedStartPage: 1,
+            combinedEndPage: 1,
+          }],
+        },
+        request: { opaqueRouteKey: 'student-doc-route', expectedByteLength: 4 },
+      },
+    });
+    const preview = vi.fn(async () => ({ preview: runtimePreview }));
+    const assemblyPreviewClient = {
+      readCurrentPublication: vi.fn(async () => null),
+      preview,
+      approve: vi.fn(),
+      publishFull: vi.fn(),
+      publishComponent: vi.fn(),
+    } as unknown as BookAssemblyPreviewClient;
+
+    render(
+      <BookMode2EditorShell
+        access="owner"
+        book={{
+          ...book,
+          bookRevision: 3,
+          sourceSetRevision: 4,
+          sourceSet: reviewManifest.sourceSet,
+          setupActivations: [reviewActivation],
+        }}
+        presentation="modal"
+        experience="guided-creation"
+        assemblyRepository={repository}
+        assemblySourceVersions={sources}
+        assemblyPreviewClient={assemblyPreviewClient}
+      />,
+    );
+
+    const previewBtn = await screen.findByRole('button', { name: /Check & preview/i });
+    await waitFor(() => expect(previewBtn).toBeEnabled());
+    await user.click(previewBtn);
+    expect(await screen.findByRole('heading', { name: 'Everything needed for this Book' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Preview as a student' }));
+
+    await waitFor(() => expect(preview).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockFirebaseGetIdToken).toHaveBeenCalledWith(false));
   });
 });

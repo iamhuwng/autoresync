@@ -991,4 +991,65 @@ describe('sourceUpload.browserWorkflow', () => {
       { reservationId: 'reservation-1', operationId: '11111111-1111-4111-8111-111111111111' },
     ]);
   });
+
+  it('decides an uploaded full PDF across browser sessions via listSourceVersions when session state is empty', async () => {
+    const checksum = 'b'.repeat(64);
+    const listSourceVersions = vi.fn(async () => [{
+      bookId: 'book-1',
+      sourceKey: 'full',
+      sourceVersionId: 'source-version-cross-session',
+      checksum: { algorithm: 'sha-256' as const, value: checksum },
+      physicalPageCount: 3,
+      verifiedUsable: true,
+      purpose: 'book-source' as const,
+      studentSafeStatus: 'unreviewed' as const,
+    }]);
+    const decideStudentSafeSource = vi.fn(async () => ({
+      status: 'verified_completed' as const,
+      reservationId: 'source-version-cross-session',
+      sourceVersionId: 'source-version-cross-session',
+      checksum: { algorithm: 'sha-256' as const, value: checksum },
+      purpose: 'book-source' as const,
+      studentSafeStatus: 'ready' as const,
+      studentSafeDecision: {
+        decidedBy: 'teacher-1',
+        decidedAt: '2026-11-25T00:00:00.000Z',
+        sourceVersionId: 'source-version-cross-session',
+        sha256Hex: checksum,
+        reasonCode: 'teacher-reviewed' as const,
+      },
+    }));
+    const workflow = createSourceUploadBrowserWorkflow({
+      control: {
+        begin: vi.fn(),
+        complete: vi.fn(),
+        decideStudentSafeSource,
+        requestCancellation: vi.fn(),
+        status: vi.fn(),
+        reconcile: vi.fn(),
+        listSourceVersions,
+      },
+      state: {
+        load: vi.fn(async () => null),
+        save: vi.fn(),
+        clear: vi.fn(),
+      },
+      sourceKey: 'full',
+      allowedB2Origins: ['https://axgsodluzsdz.compat.objectstorage.ap-singapore-1.oraclecloud.com'],
+      createOperationId: () => '22222222-2222-4222-8222-222222222222',
+    });
+
+    await expect(workflow.decideStudentSafeSource?.('book-1')).resolves.toMatchObject({
+      sourceVersionId: 'source-version-cross-session',
+      studentSafeStatus: 'ready',
+    });
+    expect(listSourceVersions).toHaveBeenCalledWith('book-1');
+    expect(decideStudentSafeSource).toHaveBeenCalledWith({
+      bookId: 'book-1',
+      reservationId: 'source-version-cross-session',
+      operationId: '22222222-2222-4222-8222-222222222222',
+      studentSafeStatus: 'ready',
+      reasonCode: 'teacher-reviewed',
+    });
+  });
 });

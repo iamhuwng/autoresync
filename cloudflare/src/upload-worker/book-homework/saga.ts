@@ -659,9 +659,10 @@ export class BookHomeworkAssignmentSaga {
       }
     }
     if (record?.state === 'compensating') return this.compensate(record, command);
-    const canonical = await this.dependencies.resolveCanonical(command);
-    const recipients = assertCanonical(command, canonical, maxRecipients);
-    const fingerprint = rootFingerprint(command, canonical);
+    const canonicalCommand = record ? { ...command, createdAt: record.createdAt } : command;
+    const canonical = await this.dependencies.resolveCanonical(canonicalCommand);
+    const recipients = assertCanonical(canonicalCommand, canonical, maxRecipients);
+    const fingerprint = rootFingerprint(canonicalCommand, canonical);
     if (record) {
       assertValidBookHomeworkSagaRecord(record);
       if (record.fingerprint !== fingerprint || record.idempotencyKey !== command.idempotencyKey) {
@@ -707,12 +708,19 @@ export class BookHomeworkAssignmentSaga {
     }
 
     try {
+      let processedAny = false;
       for (let index = 0; index < record.recipients.length; index += 1) {
-        record = await this.processRecipient(record, index, canonical, command);
+        const beforeState = record.recipients[index]?.state;
+        record = await this.processRecipient(record, index, canonical, canonicalCommand);
+        if (beforeState !== 'committed' && beforeState !== 'retained' && beforeState !== 'compensated') {
+          processedAny = true;
+        }
       }
-      const refreshedCanonical = await this.dependencies.resolveCanonical(command);
-      assertCanonical(command, refreshedCanonical, maxRecipients);
-      if (rootFingerprint(command, refreshedCanonical) !== record.fingerprint) {
+      const refreshedCanonical = processedAny
+        ? await this.dependencies.resolveCanonical(canonicalCommand)
+        : canonical;
+      assertCanonical(canonicalCommand, refreshedCanonical, maxRecipients);
+      if (rootFingerprint(canonicalCommand, refreshedCanonical) !== record.fingerprint) {
         throw new BookHomeworkSagaError('stale-input', 'Canonical publication or roster changed during fan-out.');
       }
       await this.step('visibility-commit', 'all');

@@ -97,7 +97,7 @@ const createFetchHarness = (
   };
   const etagFor = (path: string): string => {
     const relative = relativePath(path);
-    if (!etags.has(relative)) etags.set(relative, `"empty-${relative}"`);
+    if (!etags.has(relative)) etags.set(relative, readAt(path) === null ? 'null_etag' : `"existing-${relative}"`);
     return etags.get(relative)!;
   };
   const fetchImpl: typeof fetch = async (input, init) => {
@@ -577,10 +577,7 @@ describe('Book Assembly publication Firebase repository', () => {
       'current',
       'audits',
     ]);
-    const prepared = (paths: readonly string[]): string[] => paths.flatMap((path) => [
-      'GET ' + path,
-      'PUT ' + path,
-    ]);
+    const prepared = (paths: readonly string[]): string[] => paths.map((path) => 'PUT ' + path);
     const firstAttempt = [
       'GET ' + scopePath,
       'GET ' + scopePath + '/current',
@@ -598,11 +595,11 @@ describe('Book Assembly publication Firebase repository', () => {
     expect(harness.calls).toEqual([...firstAttempt, ...secondAttempt]);
     expect(harness.calls).not.toContain('PUT ' + scopePath);
     expect(harness.ifMatches).toEqual([
-      ...immutablePaths.map((path) => `"empty-${path.slice(scopePath.length + 1)}"`),
+      ...immutablePaths.map(() => 'null_etag'),
       '"scope-1"',
-      ...immutablePaths.map((path) => `"empty-${path.slice(scopePath.length + 1)}"`),
+      ...immutablePaths.map(() => 'null_etag'),
       '"scope-concurrent"',
-      ...markerPaths.map((path) => `"empty-${path.slice(scopePath.length + 1)}"`),
+      ...markerPaths.map(() => 'null_etag'),
     ]);
     expect(harness.etagRequests[0]).toBe('');
     expect(harness.etagRequests.filter((value) => value === '')).toHaveLength(2);
@@ -640,9 +637,7 @@ describe('Book Assembly publication Firebase repository', () => {
     expect(harness.calls).toEqual([
       `GET ${scopePath}`,
       `GET ${scopePath}/current`,
-      `GET ${scopePath}/audits/${auditId}`,
       `PUT ${scopePath}/audits/${auditId}`,
-      `GET ${scopePath}/operations/${operationId}`,
       `PUT ${scopePath}/operations/${operationId}`,
     ]);
   });
@@ -885,7 +880,6 @@ describe('Book Assembly publication Firebase repository', () => {
     expect(harness.calls).toEqual([
       'GET ' + scopePath,
       'GET ' + scopePath + '/current',
-      'GET ' + failedPath,
       'PUT ' + failedPath,
       'GET ' + scopePath,
     ]);

@@ -15,6 +15,7 @@ import {
   sourceUploadAccountPath,
   validateBookSourceUploadAccountState,
 } from '../../../src/services/book-source-delivery/sourceUpload.rtdbRepository.ts';
+import { isAllowedOrigin } from './allowed-origin';
 import { createBookSourceControlHost } from './control-host';
 import {
   createBackblazeB2ExactVersionCleanupAdapterFromEnv,
@@ -101,7 +102,7 @@ const unavailable = (
   const headers: Record<string, string> = { 'cache-control': 'no-store' };
   if (diagnosticCode
     && env?.BOOK_SOURCE_RECONCILIATION_DIAGNOSTICS?.trim() === 'enabled'
-    && request?.headers.get('origin') === env.BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN) {
+    && isAllowedOrigin(request?.headers.get('origin') ?? null, env.BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN)) {
     headers['x-book-source-diagnostic-code'] = diagnosticCode;
   }
   return Response.json(

@@ -23,6 +23,7 @@ import {
   type SourceUploadStatePort,
 } from './sourceUpload.client';
 import type { BookSourcePurpose } from '../../types/bookSource.types';
+import type { TrustedBookSourceVersionProjection } from '../../types/bookAssembly.types';
 
 export type SourceUploadWorkflowErrorCode =
   | 'invalid_operation'
@@ -61,6 +62,7 @@ export interface SourceUploadControlPort {
     readonly bookId: string;
     readonly reservationId: string;
   }): Promise<SourceUploadLifecycleStatus>;
+  listSourceVersions?(bookId: string): Promise<readonly TrustedBookSourceVersionProjection[]>;
 }
 
 export interface SourceUploadBrowserTransport {
@@ -103,6 +105,7 @@ export interface SourceUploadBrowserWorkflow {
 export interface SourceUploadBrowserWorkflowOptions {
   readonly control: SourceUploadControlPort;
   readonly state: SourceUploadStatePort;
+  readonly sourceKey?: string;
   readonly allowedB2Origins: readonly string[];
   readonly upload?: SourceUploadBrowserTransport;
   readonly createOperationId?: () => string;
@@ -236,6 +239,8 @@ export const createSourceUploadBrowserWorkflow = (
   const upload = options.upload ?? uploadSourcePdfDirect;
   const canceledOperations = new Set<string>();
   const attemptGenerations = new Map<string, number>();
+  const decisionOperationIds = new Map<string, string>();
+  const nextOperationId = () => options.createOperationId?.() ?? crypto.randomUUID();
 
   const nextAttemptGeneration = (operationId: string): number => {
     const next = (attemptGenerations.get(operationId) ?? 0) + 1;
@@ -321,7 +326,51 @@ export const createSourceUploadBrowserWorkflow = (
 
   const decideStudentSafeSource = async (bookId: string): Promise<DecideStudentSafeSourceResult> => {
     const before = await options.state.load(bookId);
-    if (!before || before.phase !== 'verified') {
+    if (!before) {
+      if (!options.control.listSourceVersions) {
+        throw new SourceUploadWorkflowError('invalid_operation');
+      }
+      const projections = await options.control.listSourceVersions(bookId);
+      const expectedSourceKey = options.sourceKey && options.sourceKey !== 'main'
+        ? options.sourceKey
+        : 'full';
+      const matches = projections.filter(
+        (projection) => projection.bookId === bookId
+          && projection.sourceKey === expectedSourceKey
+          && projection.verifiedUsable
+          && projection.purpose === 'book-source'
+          && projection.studentSafeStatus !== 'rejected',
+      );
+      if (matches.length !== 1) {
+        throw new SourceUploadWorkflowError('invalid_operation');
+      }
+      const source = matches[0]!;
+      const opKey = `${bookId}\u0000${source.sourceVersionId}`;
+      const operationId = decisionOperationIds.get(opKey) ?? nextOperationId();
+      decisionOperationIds.set(opKey, operationId);
+      const result = await options.control.decideStudentSafeSource({
+        bookId,
+        reservationId: source.sourceVersionId,
+        operationId,
+        studentSafeStatus: 'ready',
+        reasonCode: 'teacher-reviewed',
+      });
+      const decision = result.studentSafeDecision;
+      if (result.status !== 'verified_completed'
+        || result.reservationId !== source.sourceVersionId
+        || result.purpose !== 'book-source'
+        || result.sourceVersionId !== source.sourceVersionId
+        || result.checksum.algorithm !== 'sha-256'
+        || result.checksum.value.toLowerCase() !== source.checksum.value.toLowerCase()
+        || result.studentSafeStatus !== 'ready'
+        || decision.sourceVersionId !== source.sourceVersionId
+        || decision.sha256Hex.toLowerCase() !== source.checksum.value.toLowerCase()
+        || decision.reasonCode !== 'teacher-reviewed') {
+        throw new SourceUploadClientError('response_binding_mismatch', 502);
+      }
+      return result;
+    }
+    if (before.phase !== 'verified') {
       throw new SourceUploadWorkflowError('invalid_operation');
     }
     const result = await options.control.decideStudentSafeSource({

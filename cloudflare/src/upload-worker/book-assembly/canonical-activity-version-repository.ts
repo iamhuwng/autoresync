@@ -538,6 +538,17 @@ implements CanonicalActivityVersionWriter {
     const expectedProjection = safeProjectionFor(parsedRecord);
     const rtdb = this.rtdbForPrepare(parsedRecord);
 
+    // Fast create-if-absent path on real Firebase RTDB (1 PUT per leaf instead of GET+PUT).
+    // On 412 (existing record, concurrent race, or non-standard test mock etag), fall through
+    // to the ETag read-and-verify loop below.
+    const fastVersionCreated = await rtdb.writeIfMatch(versionPath, parsedRecord, 'null_etag');
+    if (fastVersionCreated) {
+      if (await rtdb.writeIfMatch(projectionPath, expectedProjection, 'null_etag')) {
+        this.prepared.set(versionPath, parsedRecord);
+        return { status: 'created' };
+      }
+    }
+
     for (let attempt = 0; attempt < this.maxRetries; attempt += 1) {
       const currentVersion = await rtdb.readWithEtag<unknown>(versionPath);
       const currentProjection = await rtdb.readWithEtag<unknown>(projectionPath);

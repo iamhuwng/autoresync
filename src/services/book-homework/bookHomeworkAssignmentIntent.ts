@@ -220,7 +220,8 @@ export const createBookHomeworkAssignmentIntent = (
   if (source.identity.manifestVersionId !== draft.manifest.manifestVersionId) {
     throw invalid('selected manifest version is stale.');
   }
-  if (!draft.manifest.studentDocument || !draft.manifest.targetPreview) {
+  const usesCombinedDocument = source.delivery.sourceSet.strategy === 'component_pdfs';
+  if ((usesCombinedDocument && !draft.manifest.studentDocument) || !draft.manifest.targetPreview) {
     throw invalid('trusted combined document preview is unavailable.');
   }
 
@@ -258,7 +259,7 @@ export const createBookHomeworkAssignmentIntent = (
       })),
     },
     expectedPublication,
-    expectedStudentDocument: { ...draft.manifest.studentDocument },
+    ...(draft.manifest.studentDocument === undefined ? {} : { expectedStudentDocument: { ...draft.manifest.studentDocument } }),
     expectedPreviewFingerprint: draft.manifest.targetPreview.fingerprint,
     presentation,
   };

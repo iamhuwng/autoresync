@@ -342,17 +342,20 @@ const StudentCourseDetailPage: React.FC = () => {
             }
             setTestMeta(nextTestMeta);
 
+            const isCourseMaterialCompleted = (material: CourseMaterial) => Boolean(
+                progressRes?.completedMaterials?.[material.materialId]
+                || progressRes?.completedMaterials?.[material.id],
+            );
+
             // Populate modules with materials and status
             const populated = modulesRes.map(mod => {
                 const modMaterials = materialsRes.filter(m => m.moduleId === mod.id);
-                const legacyMaterials = modMaterials.filter(m => m.materialKind !== 'book-delivery');
-                const completedCount = legacyMaterials.filter(m => progressRes?.completedMaterials?.[m.materialId]).length;
+                const completedCount = modMaterials.filter(isCourseMaterialCompleted).length;
 
                 let status: 'locked' | 'available' | 'completed' = 'available';
                 const classProgress = currentClass?.moduleProgress?.[mod.id];
                 if (classProgress) status = classProgress.status;
-                if (legacyMaterials.length > 0 && completedCount === legacyMaterials.length
-                    && legacyMaterials.length === modMaterials.length) status = 'completed';
+                if (modMaterials.length > 0 && completedCount === modMaterials.length) status = 'completed';
 
                 return { ...mod, materials: modMaterials, status, completionCount: completedCount };
             });
@@ -364,10 +367,9 @@ const StudentCourseDetailPage: React.FC = () => {
             setExpandedModule(nextExpandedModule);
 
             let nextOverallProgress = 0;
-            const legacyCourseMaterials = materialsRes.filter(m => m.materialKind !== 'book-delivery');
-            if (legacyCourseMaterials.length > 0) {
-                const totalCompleted = legacyCourseMaterials.filter(m => progressRes?.completedMaterials?.[m.materialId]).length;
-                nextOverallProgress = Math.round((totalCompleted / legacyCourseMaterials.length) * 100);
+            if (materialsRes.length > 0) {
+                const totalCompleted = materialsRes.filter(isCourseMaterialCompleted).length;
+                nextOverallProgress = Math.round((totalCompleted / materialsRes.length) * 100);
             }
             setOverallProgress(nextOverallProgress);
 
@@ -485,10 +487,7 @@ const StudentCourseDetailPage: React.FC = () => {
         );
     }
 
-    const totalMaterials = modules.reduce(
-        (acc, m) => acc + m.materials.filter(material => material.materialKind !== 'book-delivery').length,
-        0,
-    );
+    const totalMaterials = modules.reduce((acc, m) => acc + m.materials.length, 0);
     const completedMaterials = modules.reduce((acc, m) => acc + m.completionCount, 0);
 
     return (

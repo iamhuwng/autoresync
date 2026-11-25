@@ -261,6 +261,24 @@ describe('sourceUpload.browser', () => {
     });
   });
 
+  it('allows OCI S3 direct PUT when CORS does not expose x-amz-version-id', async () => {
+    const ociOrigin = 'https://axgsodluzsdz.compat.objectstorage.ap-singapore-1.oraclecloud.com';
+    const ociUrl = `${ociOrigin}/luyentap-bookpdf-qa/book-source/qualification-qa/book-1/source-1.pdf?X-Amz-Signature=sig`;
+    const file = createPdf();
+    const claim = await inspect(file);
+    await expect(uploadSourcePdfDirect({
+      file,
+      claim,
+      authority: authority({ url: ociUrl }) as never,
+      allowedB2Origins: [ociOrigin],
+    }, {
+      fetchImpl: vi.fn(async () => providerResponse(ociUrl, { headers: {} })) as typeof fetch,
+    })).resolves.toEqual({
+      providerFileId: '',
+      providerFileVersionId: '',
+    });
+  });
+
   it('passes an already inspected File through without allocating or reading it in JavaScript', async () => {
     const file = {
       name: 'boundary.pdf',

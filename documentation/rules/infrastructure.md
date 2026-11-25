@@ -162,6 +162,9 @@ On 2026-02-25, a backup Worker needed to read 25 RTDB nodes + 9 Firestore collec
 
 **Self-check:** *"Can this Worker complete ALL its work within the platform's time limit?"*
 
+> **Cloudflare Workers Free 50-Subrequest Ceiling (Book PDF Publish & Homework Fanout):**
+> When `wrangler tail` logs `Too many subrequests by single Worker invocation` (50-call Free cap) during multi-unit Component-PDF publishing (3+ units) or multi-student Book Homework fanout, **stop micro-optimizing** and follow [`documentation/system/cloudflare-workers-subrequest-limits-runbook.md`](../system/cloudflare-workers-subrequest-limits-runbook.md) (documents exact subrequest math, safe idempotent retries, and the **$5/mo Workers Paid vs client-driven chunking** decision).
+
 ### Session Lifecycle Boundary
 
 Session expiration correctness must not depend on a Worker cron, Firebase

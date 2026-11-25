@@ -4,7 +4,17 @@ export const spareFirebaseProject = 'luyentap-pdf-qa-20261021';
 export const spareHostingOrigin = `https://${spareFirebaseProject}.web.app`;
 export const spareUploadWorker = 'https://luyentap-qualification-upload-signer.iamhuwng.workers.dev';
 export const spareMediaOrigin = 'https://luyentap-qualification-media.r2.dev';
-export const spareFeatureFlags = requiredProductionModes;
+export const spareBookSourceB2UploadOrigin = 'https://axgsodluzsdz.compat.objectstorage.ap-singapore-1.oraclecloud.com';
+export const spareFeatureFlags = Object.freeze({
+  ...requiredProductionModes,
+  VITE_BOOK_ACTIVITY_CREATE_PRESENTATION: 'enabled',
+  VITE_BOOK_ACTIVITY_PUBLISH_PRESENTATION: 'enabled',
+  VITE_BOOK_ACTIVITY_ASSIGN_PLACE_PRESENTATION: 'enabled',
+  VITE_BOOK_ACTIVITY_LAUNCH_DELIVERY_PRESENTATION: 'enabled',
+  VITE_BOOK_ACTIVITY_MUTATION_PRESENTATION: 'enabled',
+  VITE_BOOK_ACTIVITY_EVALUATION_PRESENTATION: 'enabled',
+  VITE_BOOK_COURSE_PLACEMENT_PRESENTATION: 'enabled',
+});
 
 const metadataUrl = `${spareHostingOrigin}/__/firebase/init.json`;
 const firebaseKeys = {
@@ -33,7 +43,7 @@ export function spareDevelopmentEnv(browserConfig, inherited = process.env) {
   }
   return {
     ...env,
-    ...requiredProductionModes,
+    ...spareFeatureFlags,
     VITE_SPARE_ENV_VALIDATED: 'true',
     VITE_R2_UPLOAD_WORKER_URL: spareUploadWorker,
     VITE_LISTENING_AUTHORING_WORKER_URL: spareUploadWorker,
@@ -41,6 +51,18 @@ export function spareDevelopmentEnv(browserConfig, inherited = process.env) {
     VITE_LISTENING_LIVE_DELIVERY_WORKER_URL: spareUploadWorker,
     VITE_LISTENING_SOLO_DELIVERY_WORKER_URL: spareUploadWorker,
     VITE_LISTENING_RESULT_REVIEW_DELIVERY_WORKER_URL: spareUploadWorker,
+    VITE_BOOK_SOURCE_CONTROL_WORKER_URL: spareUploadWorker,
+    // Placeholder pointing at qualification upload-signer for spare QA; interrupted-upload /reconcile recovery is deferred out of V1 spare QA.
+    VITE_BOOK_SOURCE_RECONCILIATION_WORKER_URL: spareUploadWorker,
+    VITE_BOOK_ASSEMBLY_WORKER_URL: spareUploadWorker,
+    VITE_BOOK_ACTIVITY_AUTHORING_WORKER_URL: spareUploadWorker,
+    VITE_BOOK_DELIVERY_WORKER_URL: spareUploadWorker,
+    VITE_BOOK_HOMEWORK_WORKER_URL: spareUploadWorker,
+    VITE_BOOK_RUNTIME_WORKER_URL: spareUploadWorker,
+    VITE_BOOK_RESULT_WORKER_URL: spareUploadWorker,
+    VITE_BOOK_EVALUATION_WORKER_URL: spareUploadWorker,
+    VITE_BOOK_SUBMISSION_WORKER_URL: spareUploadWorker,
+    VITE_BOOK_SOURCE_B2_UPLOAD_ORIGIN: spareBookSourceB2UploadOrigin,
     VITE_R2_PUBLIC_ORIGIN: spareMediaOrigin,
   };
 }

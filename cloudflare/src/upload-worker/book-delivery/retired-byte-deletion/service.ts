@@ -150,7 +150,7 @@ const assertIdentity = (
   if (identity === null) throw new RetiredByteBlocked('stale-source-provenance');
   if (identity.bookId !== expected.bookId
     || identity.sourceVersionId !== expected.sourceVersionId
-    || identity.providerKind !== 'backblaze-b2-s3'
+    || (identity.providerKind !== 'backblaze-b2-s3' && identity.providerKind !== 'oci-object-storage-s3')
     || identity.providerFileId.length === 0
     || identity.providerFileVersionId.length === 0
     || identity.providerFileVersionId !== identity.providerFileId) {

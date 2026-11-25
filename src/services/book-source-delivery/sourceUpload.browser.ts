@@ -59,6 +59,7 @@ const REQUIRED_HEADERS = Object.freeze([
 ]);
 
 const PROVIDER_ID = /^[A-Za-z0-9._:-]{1,256}$/u;
+const OCI_S3_HOSTNAME = /^[a-z0-9-]+\.compat\.objectstorage\.[a-z0-9-]+\.oraclecloud\.com$/u;
 
 const normalizeOrigin = (value: string): string | null => {
   try {
@@ -201,7 +202,16 @@ export const uploadSourcePdfDirect = async (
     percent: 100,
   }));
 
-  const versionId = response.headers.get('x-amz-version-id')?.trim() ?? '';
+  const rawVersionId = response.headers.get('x-amz-version-id');
+  if (rawVersionId === null && OCI_S3_HOSTNAME.test(validated.url.hostname)) {
+    // OCI S3-compatible endpoints do not expose x-amz-version-id in
+    // Access-Control-Expose-Headers; /upload/complete resolves exact versionId server-side.
+    return Object.freeze({
+      providerFileId: '',
+      providerFileVersionId: '',
+    });
+  }
+  const versionId = rawVersionId?.trim() ?? '';
   if (!PROVIDER_ID.test(versionId)) {
     throw new SourceUploadBrowserError('response_binding_mismatch');
   }

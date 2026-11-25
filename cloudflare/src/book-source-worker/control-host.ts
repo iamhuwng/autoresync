@@ -1,4 +1,5 @@
 import { createFirebaseVerifier } from '../upload-worker/firebase-verification.js';
+import { isAllowedOrigin } from './allowed-origin';
 import type { SourceUploadInspectionClaim } from '../../../src/services/book-source-delivery/sourceUpload.protocol';
 import type {
   ComponentPdfSourceCandidate,
@@ -448,7 +449,7 @@ const responseHeaders = (request: Request, env: ControlHostEnv): HeadersInit => 
     vary: 'Origin',
   };
   const origin = request.headers.get('origin');
-  if (origin && origin === env.BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN) {
+  if (origin && isAllowedOrigin(origin, env.BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN)) {
     headers['access-control-allow-origin'] = origin;
     headers['access-control-allow-methods'] = 'GET, POST, OPTIONS';
     headers['access-control-allow-headers'] = 'Authorization, Content-Type, Idempotency-Key';

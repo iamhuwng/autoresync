@@ -155,4 +155,77 @@ describe('component PDF activation', () => {
     })).rejects.toThrow('component_pdf_activation_activity_unavailable');
     expect(activated).toBe(false);
   });
+
+  it('prepares the student document descriptor via prepareStudentDocument when preparation is supplied', async () => {
+    const events: string[] = [];
+    const descriptor = createComponentStudentDocument({
+      sourceVersionId: 'student-prepared-v1', descriptorRevision: 6, sha256Hex: hash('c'),
+      byteSize: 10, physicalPageCount: 2, compositionFingerprint: 'composition-1',
+      components: [
+        { sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 1, ownerNodeKey: 'unit-a', localPageCount: 1, combinedStartPage: 1, combinedEndPage: 1 },
+        { sourceKey: 'b', sourceVersionId: 'b-v1', sourceOrder: 2, ownerNodeKey: 'unit-b', localPageCount: 1, combinedStartPage: 2, combinedEndPage: 2 },
+      ],
+    });
+    const receipt = await activateComponentPdf({
+      operationId: 'operation-prep-1', ownerId: 'teacher-1', bookId: 'book-1',
+      expectedBookRevision: 3, expectedSourceSetRevision: 5,
+      sourceSet: input().sourceSet, manifest,
+      preparation: { componentReservationIds: ['res-a', 'res-b'], studentDocumentReservationId: 'res-student' },
+      activatedAt: '2026-09-20T00:00:00.000Z',
+    }, {
+      prepareStudentDocument: async (preparation) => {
+        events.push(`prepare-descriptor:${preparation.componentReservationIds.join(',')}:${preparation.studentDocumentReservationId}`);
+        return descriptor;
+      },
+      readStudentDocument: async () => { events.push('read-descriptor'); return null; },
+      stageUnitCandidate: async (candidate) => {
+        events.push(`candidate:${candidate.unitKey}`);
+        return { candidateId: candidate.candidateId, ownerId: candidate.ownerId, bookId: candidate.bookId,
+          bookRevision: candidate.bookRevision, sourceSetRevision: candidate.sourceSetRevision,
+          unitKey: candidate.unitKey, revision: 1, lifecycle: 'validated', manifest: candidate.manifest,
+          validation: { valid: true, errors: [] }, updatedAt: candidate.activatedAt };
+      },
+      readActivity: async () => { events.push('activity'); return { activityId: 'authoring-a',
+        activityCandidateId: 'activity-candidate-a', activityCandidateRevision: 2,
+        lifecycle: 'saved', payload: { prompt: 'A' } }; },
+      activateMaterialBook: async (activation) => {
+        events.push('activate');
+        return createComponentPdfActivationReceipt(activation);
+      },
+    });
+    expect(events).toEqual(['prepare-descriptor:res-a,res-b:res-student', 'candidate:unit-a', 'candidate:unit-b', 'activity', 'activate']);
+    expect(receipt.studentDocument.sourceVersionId).toBe('student-prepared-v1');
+  });
+
+  it('rejects mismatched descriptor components and invalid preparation reservations', async () => {
+    const mismatched = createComponentStudentDocument({
+      sourceVersionId: 'student-wrong-v1', descriptorRevision: 6, sha256Hex: hash('c'),
+      byteSize: 10, physicalPageCount: 2, compositionFingerprint: 'composition-1',
+      components: [
+        { sourceKey: 'a', sourceVersionId: 'a-v2-wrong', sourceOrder: 1, ownerNodeKey: 'unit-a', localPageCount: 1, combinedStartPage: 1, combinedEndPage: 1 },
+        { sourceKey: 'b', sourceVersionId: 'b-v1', sourceOrder: 2, ownerNodeKey: 'unit-b', localPageCount: 1, combinedStartPage: 2, combinedEndPage: 2 },
+      ],
+    });
+    const ports = {
+      prepareStudentDocument: async () => mismatched,
+      readStudentDocument: async () => mismatched,
+      stageUnitCandidate: async () => { throw new Error('should_not_stage'); },
+      readActivity: async () => null,
+      activateMaterialBook: async () => { throw new Error('should_not_activate'); },
+    };
+    await expect(activateComponentPdf({
+      operationId: 'operation-bad-desc', ownerId: 'teacher-1', bookId: 'book-1',
+      expectedBookRevision: 3, expectedSourceSetRevision: 5,
+      sourceSet: input().sourceSet, manifest,
+      preparation: { componentReservationIds: ['res-a', 'res-b'], studentDocumentReservationId: 'res-student' },
+      activatedAt: '2026-09-20T00:00:00.000Z',
+    }, ports)).rejects.toThrow('component_pdf_activation_descriptor_unavailable');
+    await expect(activateComponentPdf({
+      operationId: 'operation-bad-prep', ownerId: 'teacher-1', bookId: 'book-1',
+      expectedBookRevision: 3, expectedSourceSetRevision: 5,
+      sourceSet: input().sourceSet, manifest,
+      preparation: { componentReservationIds: ['res-a', 'res-a'], studentDocumentReservationId: 'res-student' },
+      activatedAt: '2026-09-20T00:00:00.000Z',
+    }, ports)).rejects.toThrow('invalid_component_pdf_activation_command');
+  });
 });

@@ -148,6 +148,9 @@ describe('Book Delivery projection resolver', () => {
       opaqueRouteKey: 'binding-full_pdf-1-full-source-full-v1',
       localPageScope: { kind: 'all', pages: [] },
     }]);
+    expect(projection.pageGroups).toEqual([
+      { pageGroupKey: 'group-1', combinedPhysicalPages: [1] },
+    ]);
     expect(projection.outline).toEqual([
       { nodeKey: 'section-1', parentNodeKey: null, nodeType: 'section', order: 1, titleSnapshot: 'Section 1' },
       { nodeKey: 'unit-1', parentNodeKey: 'section-1', nodeType: 'unit', order: 1, titleSnapshot: 'Unit 1' },
