@@ -935,6 +935,13 @@ const complete = async (
       ...(context.deferCleanup === undefined ? {} : { deferCleanup: context.deferCleanup }),
     });
   } catch (error) {
+    console.warn('book_source_page_count_failed', {
+      bookId: operation.bookId,
+      reservationId: operation.reservationId,
+      byteSize: operation.byteSize,
+      name: error instanceof Error ? error.name : typeof error,
+      message: error instanceof Error ? error.message.slice(0, 200) : undefined,
+    });
     throw providerError(error);
   }
   if (!Number.isSafeInteger(physicalPageCount) || physicalPageCount < 1 || physicalPageCount > 100_000) {

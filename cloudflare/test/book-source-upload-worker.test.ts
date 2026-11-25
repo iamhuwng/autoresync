@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createBookSourceUploadWorkerHandlers,
   listBookSourceProjections,
+  resolveReservedRetryKind,
 } from '../src/upload-worker/book-source/worker.ts';
 import {
   isActiveBookSourceAuthorityProfile,
@@ -595,5 +596,48 @@ describe('canonical #49 source upload composition', () => {
       expect(invalidPreflight.status).toBe(500);
       expect(await invalidPreflight.json()).toEqual({ code: 'invalid_deployment' });
     }
+  });
+
+  it('reports retryKind completion for a reserved upload whose exact bytes already exist in provider storage', async () => {
+    const operation = {
+      reservationId: 'reservation-1',
+      bookId: 'book-1',
+      sourceVersionId: 'source-version-1',
+      sourceKey: 'full',
+      ownerId: 'teacher-1',
+      storageLocationId: 'oci_book_primary',
+      providerKind: 'oci-object-storage-s3',
+      privateBucketId: 'luyentap-bookpdf-qa',
+      providerObjectKey: 'book-source/production/teacher-1/book-1/abc.pdf',
+      kind: 'initial' as const,
+      purpose: 'book-source' as const,
+      studentSafeStatus: 'unreviewed' as const,
+      byteSize: 48_101_966,
+      originalFilename: 'Listening_B2_Upper-intermediate.pdf',
+      expectedChecksum: { algorithm: 'sha-256' as const, value: 'a'.repeat(64) },
+      createdAt: '2026-11-25T20:59:49.948Z',
+      expiresAt: '2026-11-25T21:14:49.948Z',
+      status: 'reserved' as const,
+    };
+
+    const present = await resolveReservedRetryKind(operation, {
+      resolveCompletedObject: vi.fn(async () => ({
+        identity: {
+          ...operation,
+          checksum: operation.expectedChecksum,
+          providerFileId: 'ver-1',
+          providerFileVersionId: 'ver-1',
+        },
+        contentType: 'application/pdf',
+      })),
+    });
+    expect(present).toBe('completion');
+
+    const missing = await resolveReservedRetryKind(operation, {
+      resolveCompletedObject: vi.fn(async () => {
+        throw new Error('not_found');
+      }),
+    });
+    expect(missing).toBe('bytes');
   });
 });

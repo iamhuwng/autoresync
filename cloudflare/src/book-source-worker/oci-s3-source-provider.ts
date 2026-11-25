@@ -841,8 +841,13 @@ export class OciS3SourceProvider implements OciS3ProviderOperations {
     options?.signal?.addEventListener('abort', onAbort, { once: true });
     try {
       return await this.fetcher.call(globalThis, url, { ...init, redirect: 'manual', signal: controller.signal });
-    } catch {
+    } catch (error) {
       if (options?.signal?.aborted) throw new SourceProviderError('aborted', false);
+      console.warn('oci_s3_request_failed', {
+        method: init.method,
+        name: error instanceof Error ? error.name : typeof error,
+        message: error instanceof Error ? error.message.slice(0, 200) : undefined,
+      });
       throw new SourceProviderError('timeout', true);
     } finally {
       clearTimeout(timeout);
