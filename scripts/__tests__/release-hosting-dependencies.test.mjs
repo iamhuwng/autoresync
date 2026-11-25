@@ -175,6 +175,14 @@ test('Hosting dependency validation permits changed sharedHomeworkInputs, vite.c
   assert.doesNotThrow(() => validateHostingDependencies(local, provider));
 });
 
+test('Hosting dependency validation permits intentional production env update when scripts/deploy-live.mjs changed', () => {
+  const { local, provider } = fixture();
+  local.source.files = [...local.source.files, 'scripts/deploy-live.mjs'];
+  local.actualSource = structuredClone(local.source);
+  local.envFingerprint = '9'.repeat(64);
+  assert.doesNotThrow(() => validateHostingDependencies(local, provider));
+});
+
 test('Hosting dependency validation rejects provider configuration, storage and service drift', () => {
   for (const mutate of [
     p => { p.common.domains = []; },
