@@ -298,4 +298,72 @@ describe('bounded Book Source processor page count', () => {
     releaseRead();
     await deferredCleanup;
   }, 30_000);
+
+  it('counts a large flat-/Pages PDF with scattered page dicts in <= 4 bounded range reads', async () => {
+    const pages = 146;
+    const fillerPerPage = 40_000; // ~5.8 MB total, scattering page dicts across ~90 x 64 KiB windows
+    const encoder = new TextEncoder();
+    const offsets: number[] = [0];
+    const chunks: Uint8Array[] = [];
+    let cursor = 0;
+    const pushStr = (s: string) => {
+      const b = encoder.encode(s);
+      chunks.push(b);
+      cursor += b.byteLength;
+    };
+    const pushFill = (n: number) => {
+      const b = new Uint8Array(n);
+      b.fill(65);
+      chunks.push(b);
+      cursor += b.byteLength;
+    };
+    pushStr('%PDF-1.6\n');
+    const catalogId = 1;
+    const pagesId = 2;
+    offsets[catalogId] = cursor;
+    pushStr(`${catalogId} 0 obj\n<< /Type /Catalog /Pages ${pagesId} 0 R >>\nendobj\n`);
+    const pageIds: number[] = [];
+    let nextId = 3;
+    for (let i = 0; i < pages; i += 1) {
+      const pageId = nextId++;
+      const streamId = nextId++;
+      pageIds.push(pageId);
+      offsets[pageId] = cursor;
+      pushStr(`${pageId} 0 obj\n<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 612 792] /Contents ${streamId} 0 R >>\nendobj\n`);
+      offsets[streamId] = cursor;
+      pushStr(`${streamId} 0 obj\n<< /Length ${fillerPerPage} >>\nstream\n`);
+      pushFill(fillerPerPage);
+      pushStr('\nendstream\nendobj\n');
+    }
+    offsets[pagesId] = cursor;
+    pushStr(`${pagesId} 0 obj\n<< /Type /Pages /Count ${pages} /Kids [${pageIds.map((id) => `${id} 0 R`).join(' ')}] >>\nendobj\n`);
+    const xrefOffset = cursor;
+    const size = nextId;
+    pushStr(`xref\n0 ${size}\n`);
+    for (let id = 0; id < size; id += 1) {
+      if (id === 0) pushStr('0000000000 65535 f \n');
+      else pushStr(`${String(offsets[id]!).padStart(10, '0')} 00000 n \n`);
+    }
+    pushStr(`trailer\n<< /Size ${size} /Root ${catalogId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`);
+    const source = new Uint8Array(cursor);
+    let writePos = 0;
+    for (const c of chunks) { source.set(c, writePos); writePos += c.byteLength; }
+
+    const result = await countSource(source, {
+      maxRangeBytes: 4 * 1024 * 1024,
+      maxRangeRequests: 10,
+      maxAggregateBytes: 512 * 1024,
+    });
+    expect(result.pageCount).toBe(pages);
+    expect(result.rangeRequests).toBeLessThanOrEqual(4);
+    expect(result.bytesRead).toBeLessThanOrEqual(256 * 1024);
+  }, 30_000);
+
+  it('falls back to PDF.js when a flat /Pages node declares a mismatched /Count', async () => {
+    const tampered = new TextEncoder().encode(
+      '%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 99 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\nxref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000116 00000 n \ntrailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n187\n%%EOF\n',
+    );
+    const result = await countSource(tampered);
+    expect(result.pageCount).toBe(1);
+  }, 30_000);
 });

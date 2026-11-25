@@ -149,7 +149,34 @@ const parseServiceAccount = (env: BookSourceUploadWorkerEnv): {
   return { email, privateKey: privateKey.replace(/\\n/gu, '\n') };
 };
 
-const safeStatus = (operation: BookSourceUploadOperation) => {
+export const resolveReservedRetryKind = async (
+  operation: BookSourceUploadOperation,
+  provider: Pick<import('../../../src/services/book-source-delivery/sourceProvider.port.ts').SourceProviderPort, 'resolveCompletedObject'>,
+): Promise<'bytes' | 'completion'> => {
+  if (operation.status !== 'reserved') return 'bytes';
+  try {
+    await provider.resolveCompletedObject({
+      expected: {
+        bookId: operation.bookId,
+        sourceVersionId: operation.sourceVersionId,
+        storageLocationId: operation.storageLocationId,
+        providerKind: operation.providerKind,
+        privateBucketId: operation.privateBucketId,
+        providerObjectKey: operation.providerObjectKey,
+        checksum: operation.expectedChecksum,
+        byteSize: operation.byteSize,
+      },
+    });
+    return 'completion';
+  } catch {
+    return 'bytes';
+  }
+};
+
+const safeStatus = (
+  operation: BookSourceUploadOperation,
+  reservedRetryKind: 'bytes' | 'completion' = 'bytes',
+) => {
   const checksum = readTrustedSourceChecksum(operation.expectedChecksum);
   const safety = readTrustedSourceSafety(operation, {
     sourceVersionId: operation.sourceVersionId,
@@ -167,7 +194,7 @@ const safeStatus = (operation: BookSourceUploadOperation) => {
       || (operation.status === 'verified_completed' && operation.versionReconciliation !== undefined)
       ? 'cleanup' as const
       : operation.status === 'reserved'
-        ? 'bytes' as const
+        ? reservedRetryKind
         : 'none' as const,
     ...(operation.cleanup?.nextRetryAt || operation.versionReconciliation?.nextRetryAt
       ? { nextRetryAt: operation.cleanup?.nextRetryAt ?? operation.versionReconciliation!.nextRetryAt }
@@ -294,7 +321,7 @@ const defaultRuntimeFactory = async (
       && bookRecord.status !== 'archived'
       && (activeOwner || activeAdmin);
   };
-  const providerWiring = resolveBookSourceProviderWiring(env);
+  const providerWiring = resolveBookSourceProviderWiring(env, { maxReadBytes: 4 * 1024 * 1024 });
   if (providerWiring.state !== 'enabled' || !providerWiring.provider) {
     throw new SourceUploadControlError('invalid_deployment');
   }
@@ -410,7 +437,7 @@ const defaultRuntimeFactory = async (
     accountStateReader: { read: readAccountState },
     repository,
     provider,
-    pageCount: createBookSourceDirectPdfPageCountAdapter(provider),
+    pageCount: createBookSourceDirectPdfPageCountAdapter(provider, { maxRangeBytes: 4 * 1024 * 1024 }),
     clock: { now: () => new Date() },
   };
   const productionControl = createBookSourceUploadControl({
@@ -575,6 +602,9 @@ const defaultRuntimeFactory = async (
       const operation = state.operations[reservationId];
       if (!operation || operation.bookId !== bookId || operation.ownerId !== actorId) {
         throw new SourceUploadControlError('reservation_not_found');
+      }
+      if (operation.status === 'reserved') {
+        return safeStatus(operation, await resolveReservedRetryKind(operation, provider));
       }
       return safeStatus(operation);
     },

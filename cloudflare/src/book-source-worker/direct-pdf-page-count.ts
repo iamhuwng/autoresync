@@ -5,6 +5,7 @@ import { countBookSourcePdfPagesFromProvider } from './processor-count';
 
 const DEFAULT_TIMEOUT_MS = 55_000;
 const DEFAULT_MAX_RANGE_BYTES = 1024 * 1024;
+const MAX_CONFIGURABLE_RANGE_BYTES = 4 * 1024 * 1024;
 const DEFAULT_MAX_RANGE_REQUESTS = 64;
 const DEFAULT_MAX_AGGREGATE_BYTES = 64 * 1024 * 1024;
 
@@ -45,7 +46,7 @@ export const createBookSourceDirectPdfPageCountAdapter = (
   options: BookSourceDirectPdfPageCountOptions = {},
 ): TrustedSourcePageCountAdapter => {
   const timeoutMs = boundedInteger(options.timeoutMs, DEFAULT_TIMEOUT_MS, 5_000, DEFAULT_TIMEOUT_MS, 'book_source_page_count_configuration_invalid');
-  const maxRangeBytes = boundedInteger(options.maxRangeBytes, DEFAULT_MAX_RANGE_BYTES, 65_536, DEFAULT_MAX_RANGE_BYTES, 'book_source_page_count_configuration_invalid');
+  const maxRangeBytes = boundedInteger(options.maxRangeBytes, DEFAULT_MAX_RANGE_BYTES, 65_536, MAX_CONFIGURABLE_RANGE_BYTES, 'book_source_page_count_configuration_invalid');
   const maxRangeRequests = boundedInteger(options.maxRangeRequests, DEFAULT_MAX_RANGE_REQUESTS, 4, 128, 'book_source_page_count_configuration_invalid');
   const maxAggregateBytes = boundedInteger(options.maxAggregateBytes, DEFAULT_MAX_AGGREGATE_BYTES, maxRangeBytes, 64 * 1024 * 1024, 'book_source_page_count_configuration_invalid');
   const now = options.now ?? Date.now;
