@@ -109,12 +109,35 @@ export function validateHostingDependencies(local, provider) {
   validateHostingInfrastructure(provider, { scope, lifecycleSha256: local.lifecycleSha256 });
 }
 
+const EXPECTED_CLOUDFLARE_CUSTOM_DOMAINS = Object.freeze([
+  Object.freeze({
+    hostname: 'audio.hocthem.net',
+    service: 'r2-upload-signer',
+    environment: 'production',
+    zone_id: CLOUDFLARE_ZONE_ID,
+    enabled: true,
+  }),
+]);
+
+function normalizeCloudflareCustomDomains(domains) {
+  assert(Array.isArray(domains), 'Hosting custom domains unavailable');
+  return domains
+    .map(domain => ({
+      hostname: domain?.hostname,
+      service: domain?.service,
+      environment: domain?.environment,
+      zone_id: domain?.zone_id,
+      enabled: domain?.enabled,
+    }))
+    .sort((a, b) => String(a.hostname ?? '').localeCompare(String(b.hostname ?? '')));
+}
+
 export function validateHostingInfrastructure(provider, { scope, lifecycleSha256 } = {}) {
   scope ||= { rtdbRules: true, rtdbFlags: true, firestoreRules: true, firestoreIndexes: true, functions: true,
     privateAudio: true, workers: [...PRODUCTION_WORKER_NAMES], cloudflareCommon: true };
   if (scope.cloudflareCommon) {
     assert.equal(provider.common?.accountSubdomain?.subdomain, 'iamhuwng', 'Hosting account subdomain changed');
-    assert.deepEqual(provider.common?.domains, [], 'Hosting custom domains changed');
+    assert.deepEqual(normalizeCloudflareCustomDomains(provider.common?.domains), EXPECTED_CLOUDFLARE_CUSTOM_DOMAINS, 'Hosting custom domains changed');
     assert.deepEqual(provider.common?.routes, [], 'Hosting routes changed');
     assert.deepEqual(provider.common?.zones, [CLOUDFLARE_ZONE_ID], 'Hosting zone inventory changed');
   }
