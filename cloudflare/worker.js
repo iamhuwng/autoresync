@@ -147,6 +147,18 @@ export function createUploadWorker({
   return {
     async fetch(request, env, ctx) {
       const url = new URL(request.url);
+      if (env.EXTERNAL_AUDIO_PROXY_ORIGIN) {
+        let proxyHost = null;
+        try {
+          proxyHost = new URL(env.EXTERNAL_AUDIO_PROXY_ORIGIN).hostname;
+        } catch {
+          proxyHost = null;
+        }
+        if (proxyHost && url.hostname === proxyHost && url.pathname !== '/external-audio/content') {
+          return new Response(null, { status: 404, headers: { 'Cache-Control': 'no-store' } });
+        }
+      }
+
       if (url.pathname.startsWith('/auth/student/')) {
         return canonicalStudentAuthHandlers.fetch(request, env);
       }

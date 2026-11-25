@@ -1002,5 +1002,20 @@ describe('external audio lifecycle and trusted playback', () => {
     const invalid = await worker.fetch(new Request(`${contentUrl}bad`, { method: 'GET' }), proxyEnv as never, {} as never);
     expect(invalid.status).toBe(403);
     expect(b2Fetches).toBe(1);
+
+    // HEAD must return headers without hitting B2.
+    const head = await worker.fetch(new Request(contentUrl, {
+      method: 'HEAD',
+      headers: { Origin: 'http://localhost:5173', Range: 'bytes=0-3' },
+    }), proxyEnv as never, {} as never);
+    expect(head.status).toBe(206);
+    expect(head.headers.get('Content-Range')).toBe(`bytes 0-3/${audioBytes.byteLength}`);
+    expect(b2Fetches).toBe(1);
+
+    // Hostname isolation: non-/external-audio/content paths on audio.hocthem.net must return 404.
+    const blockedPath = await worker.fetch(new Request('https://audio.hocthem.net/auth/student/login', {
+      method: 'POST',
+    }), proxyEnv as never, {} as never);
+    expect(blockedPath.status).toBe(404);
   });
 });

@@ -5,7 +5,7 @@ import { CONNECTION_ID, ExternalAudioError, OWNER_ID, PROVIDER_ID, record } from
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 const PROXY_VERSION = 1;
-const EDGE_CACHE_TTL_SECONDS = 86_400; // 24 hours (immutable B2 versionId)
+const EDGE_CACHE_TTL_SECONDS = 86_400; // 24 hours (immutable B2 versionId; tokens expire in <= 120s)
 const CLIENT_CACHE_TTL_SECONDS = 120;
 
 export interface ExternalAudioProxyEnv extends CredentialStoreEnv {
@@ -145,11 +145,45 @@ function parseSingleByteRange(header: string | null, totalSize: number): ByteRan
   return { start, end };
 }
 
-function immutableCacheKey(bucketId: string, providerVersionId: string): Request {
-  return new Request(
-    `https://external-audio-cache.internal/v1/${encodeURIComponent(bucketId)}/${encodeURIComponent(providerVersionId)}`,
-    { method: 'GET' },
-  );
+/** O(chunk) streaming byte-range slicer — never buffers the whole file in Worker memory. */
+function sliceReadableStream(source: ReadableStream<Uint8Array>, start: number, end: number): ReadableStream<Uint8Array> {
+  const reader = source.getReader();
+  let offset = 0;
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          controller.close();
+          return;
+        }
+        const chunkStart = offset;
+        const chunkEnd = offset + value.byteLength - 1;
+        offset += value.byteLength;
+        if (chunkEnd < start) continue;
+        if (chunkStart > end) {
+          await reader.cancel().catch(() => {});
+          controller.close();
+          return;
+        }
+        const sliceStart = Math.max(0, start - chunkStart);
+        const sliceEnd = Math.min(value.byteLength, end - chunkStart + 1);
+        controller.enqueue(value.subarray(sliceStart, sliceEnd));
+        if (chunkEnd >= end) {
+          await reader.cancel().catch(() => {});
+          controller.close();
+        }
+        return;
+      }
+    },
+    cancel(reason) {
+      return reader.cancel(reason).catch(() => {});
+    },
+  });
+}
+
+function immutableCacheUrl(bucketId: string, providerVersionId: string): string {
+  return `https://external-audio-cache.internal/v1/${encodeURIComponent(bucketId)}/${encodeURIComponent(providerVersionId)}`;
 }
 
 function baseDeliveryHeaders(contentType: string, cacheStatus: 'HIT' | 'MISS'): Headers {
@@ -199,7 +233,8 @@ export async function handleExternalAudioContent(
     return new Response(null, { status: 403, headers: { 'Cache-Control': 'no-store' } });
   }
 
-  const range = parseSingleByteRange(request.headers.get('Range'), claims.sizeBytes);
+  const rangeHeader = request.headers.get('Range');
+  const range = parseSingleByteRange(rangeHeader, claims.sizeBytes);
   if (range === 'invalid') {
     return new Response(null, {
       status: 416,
@@ -207,32 +242,43 @@ export async function handleExternalAudioContent(
     });
   }
 
-  const cache = getEdgeCache();
-  const cacheKey = immutableCacheKey(claims.bucketId, claims.providerVersionId);
-  const cached = cache ? await cache.match(cacheKey) : undefined;
+  // HEAD never downloads upstream audio bytes — verified HMAC claims already hold exact size/type.
+  if (request.method === 'HEAD') {
+    const headers = baseDeliveryHeaders(claims.contentType, 'HIT');
+    if (range) {
+      headers.set('Content-Range', `bytes ${range.start}-${range.end}/${claims.sizeBytes}`);
+      headers.set('Content-Length', String(range.end - range.start + 1));
+      return new Response(null, { status: 206, headers });
+    }
+    headers.set('Content-Length', String(claims.sizeBytes));
+    return new Response(null, { status: 200, headers });
+  }
 
-  if (cached) {
+  const cache = getEdgeCache();
+  const cacheUrl = immutableCacheUrl(claims.bucketId, claims.providerVersionId);
+  const cachePutKey = new Request(cacheUrl, { method: 'GET' });
+  const cacheMatchKey = range
+    ? new Request(cacheUrl, { method: 'GET', headers: { Range: `bytes=${range.start}-${range.end}` } })
+    : cachePutKey;
+
+  const cached = cache ? await cache.match(cacheMatchKey) : undefined;
+  if (cached && cached.body) {
     const headers = baseDeliveryHeaders(claims.contentType, 'HIT');
     if (range) {
       const length = range.end - range.start + 1;
       headers.set('Content-Range', `bytes ${range.start}-${range.end}/${claims.sizeBytes}`);
       headers.set('Content-Length', String(length));
-      if (request.method === 'HEAD') {
-        await cached.body?.cancel();
-        return new Response(null, { status: 206, headers });
-      }
-      const slice = (await cached.arrayBuffer()).slice(range.start, range.end + 1);
-      return new Response(slice, { status: 206, headers });
+      // Cloudflare production Cache API natively returns 206; local fallback slices O(chunk).
+      const body = cached.status === 206
+        ? cached.body
+        : sliceReadableStream(cached.body, range.start, range.end);
+      return new Response(body, { status: 206, headers });
     }
     headers.set('Content-Length', String(claims.sizeBytes));
-    if (request.method === 'HEAD') {
-      await cached.body?.cancel();
-      return new Response(null, { status: 200, headers });
-    }
     return new Response(cached.body, { status: 200, headers });
   }
 
-  // Cache MISS: open teacher's B2 connection, fetch immutable version once from B2, cache at edge.
+  // Cache MISS: open teacher's B2 connection, stream immutable version once from B2, cache at edge.
   let signedUrl: string;
   try {
     const store = createAudioCredentialStore(env, fetchImpl);
@@ -278,35 +324,30 @@ export async function handleExternalAudioContent(
     'Cache-Control': `public, max-age=${EDGE_CACHE_TTL_SECONDS}, immutable`,
   });
 
-  const storeInCache = (body: BodyInit) => {
-    if (!cache) return;
-    const putPromise = cache.put(cacheKey, new Response(body, { status: 200, headers: edgeHeaders })).catch(() => {});
-    if (ctx?.waitUntil) ctx.waitUntil(putPromise);
-  };
+  // Only tee into edge cache when ctx.waitUntil is present so background cache population is properly tracked
+  // and cleanly cancelled on failure without retaining unread memory after a client abort.
+  let clientSource: ReadableStream<Uint8Array>;
+  if (cache && ctx?.waitUntil) {
+    const [forClient, forCache] = upstream.body.tee();
+    clientSource = forClient;
+    const cachePut = cache
+      .put(cachePutKey, new Response(forCache, { status: 200, headers: edgeHeaders }))
+      .catch(async () => {
+        await forCache.cancel().catch(() => {});
+      });
+    ctx.waitUntil(cachePut);
+  } else {
+    clientSource = upstream.body;
+  }
 
   const headers = baseDeliveryHeaders(claims.contentType, 'MISS');
-  if (range || request.method === 'HEAD') {
-    const bytes = await upstream.arrayBuffer();
-    if (bytes.byteLength !== claims.sizeBytes) {
-      return new Response(null, { status: 503, headers: { 'Cache-Control': 'no-store' } });
-    }
-    storeInCache(bytes.slice(0));
-    if (range) {
-      const length = range.end - range.start + 1;
-      headers.set('Content-Range', `bytes ${range.start}-${range.end}/${claims.sizeBytes}`);
-      headers.set('Content-Length', String(length));
-      if (request.method === 'HEAD') return new Response(null, { status: 206, headers });
-      return new Response(bytes.slice(range.start, range.end + 1), { status: 206, headers });
-    }
-    headers.set('Content-Length', String(claims.sizeBytes));
-    return new Response(null, { status: 200, headers });
+  if (range) {
+    const length = range.end - range.start + 1;
+    headers.set('Content-Range', `bytes ${range.start}-${range.end}/${claims.sizeBytes}`);
+    headers.set('Content-Length', String(length));
+    return new Response(sliceReadableStream(clientSource, range.start, range.end), { status: 206, headers });
   }
 
   headers.set('Content-Length', String(claims.sizeBytes));
-  if (cache) {
-    const [clientStream, cacheStream] = upstream.body.tee();
-    storeInCache(cacheStream);
-    return new Response(clientStream, { status: 200, headers });
-  }
-  return new Response(upstream.body, { status: 200, headers });
+  return new Response(clientSource, { status: 200, headers });
 }
