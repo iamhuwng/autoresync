@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { sharedHomeworkInputs } from '../release-check.mjs';
 import { assertHostingFederation, canonical, PRODUCTION_WORKER_NAMES } from '../release-provider-readback.mjs';
-import { hasHostingDependencyProbes, HOSTING_HEALTH_SCOPE, isHostingDependenciesObserved, observeHostingDependencies, selectHostingDependencyScope, validateHostingDependencies, reconcileLegacyEnvironment, validateHostingIndexes } from '../release-hosting-dependencies.mjs';
+import { hasHostingDependencyProbes, HOSTING_HEALTH_SCOPE, isHostingDependenciesObserved, observeHostingDependencies, selectHostingDependencyScope, validateHostingDependencies, validateHostingIndexes } from '../release-hosting-dependencies.mjs';
 
 const digest = value => createHash('sha256').update(canonical(value)).digest('hex');
 
@@ -146,7 +146,8 @@ test('Hosting dependency validation rejects source, environment, rules and unsup
     ({ local }) => { local.hosting.environment = 'acceptance'; },
     ({ local }) => { local.hosting.revision = 'f'.repeat(40); },
     ({ local }) => { local.hosting.baseTree = '0'.repeat(40); },
-    ({ local }) => { local.envFingerprint = '0'.repeat(64); },
+    ({ local }) => { local.envFingerprint = 'not-a-sha'; },
+    ({ local }) => { local.environmentBinding = { kind: 'exact', productionFingerprint: '0'.repeat(64) }; },
     ({ local }) => { local.firebaseRc.projects.default = 'other-project'; },
     ({ local }) => { local.firebaseRc.targets['temp-a1437'].hosting.kahut1 = ['other-site']; },
     ({ local }) => { local.firebaseConfig.hosting[0].public = 'build'; },
@@ -175,12 +176,17 @@ test('Hosting dependency validation permits changed sharedHomeworkInputs, vite.c
   assert.doesNotThrow(() => validateHostingDependencies(local, provider));
 });
 
-test('Hosting dependency validation permits intentional production env update when scripts/deploy-live.mjs changed', () => {
+test('Hosting dependency validation permits intentional production env updates without requiring deploy-live.mjs changes', () => {
   const { local, provider } = fixture();
-  local.source.files = [...local.source.files, 'scripts/deploy-live.mjs'];
-  local.actualSource = structuredClone(local.source);
   local.envFingerprint = '9'.repeat(64);
+  local.environmentBinding = {
+    kind: 'updated',
+    productionFingerprint: '9'.repeat(64),
+    buildInputFingerprint: '9'.repeat(64),
+  };
   assert.doesNotThrow(() => validateHostingDependencies(local, provider));
+  local.environmentBinding.productionFingerprint = 'f'.repeat(64);
+  assert.throws(() => validateHostingDependencies(local, provider), /environment binding differs/u);
 });
 
 test('Hosting dependency validation rejects provider configuration, storage and service drift', () => {
@@ -230,29 +236,6 @@ test('scoped Hosting validation ignores unrelated provider state and rejects sco
 
 test('caller-supplied Hosting JSON never reaches native dependency reads or creates trusted evidence', async () => {
   await assert.rejects(observeHostingDependencies({ hostingObservation: { revision: 'a'.repeat(40), readOnly: true } }), /Untrusted Hosting/);
-});
-
-test('historical combined fingerprint requires exact production bytes, QA suffix and live workflow', () => {
-  const hash = value => createHash('sha256').update(value).digest('hex');
-  const keys = ['API_KEY', 'HOSTING_SITE', 'AUTH_DOMAIN', 'DATABASE_URL', 'PROJECT_ID', 'STORAGE_BUCKET', 'MESSAGING_SENDER_ID', 'APP_ID'];
-  const qualification = Object.fromEntries(keys.map(key => [key, 'fixture-' + key]));
-  const productionRaw = 'VITE_FIREBASE_PROJECT_ID=production\n';
-  const workflow = 'cat >> "$RUNNER_TEMP/.env.production" <<EOF\n' + keys.map(key => `VITE_FIREBASE_QUALIFICATION_${key}=$QUALIFICATION_${key}\n`).join('') + 'EOF';
-  const suffix = keys.map(key => `VITE_FIREBASE_QUALIFICATION_${key}=${qualification[key]}\n`).join('');
-  const options = { productionRaw, qualification, workflow, envFingerprint: hash(productionRaw), manifestFingerprint: hash(productionRaw + suffix) };
-  const binding = reconcileLegacyEnvironment(options);
-  const { local, provider } = fixture();
-  local.envFingerprint = binding.productionFingerprint; local.hosting.envFingerprint = binding.buildInputFingerprint; local.environmentBinding = binding;
-  validateHostingDependencies(local, provider);
-  for (const change of [
-    { productionRaw: productionRaw + 'VITE_CHANGED=true\n' },
-    { manifestFingerprint: 'a'.repeat(64) },
-    { qualification: { ...qualification, API_KEY: 'changed' } },
-    { qualification: {} },
-    { workflow: workflow.replace('cat >>', 'cat >') },
-  ]) assert.throws(() => reconcileLegacyEnvironment({ ...options, ...change }));
-  local.environmentBinding.productionFingerprint = 'f'.repeat(64);
-  assert.throws(() => validateHostingDependencies(local, provider), /production environment differs/u);
 });
 
 test('Hosting index qualification checks added requirements against native READY indexes without deleting extras', () => {

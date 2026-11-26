@@ -44,9 +44,9 @@ changed surfaces. The first manifest-bearing release uses
 ### Worker publication
 
 `npm run deploy:worker -- <service>` calls `scripts/deploy-worker.mjs` (`--list` lists registered services). Deployable services are
-`r2-upload-signer`, `r2-backup-worker`, `luyentap-notification-command`, `thcs-gemma`,
+`luyentap-book-pdf-prod`, `r2-upload-signer`, `r2-backup-worker`, `luyentap-notification-command`, `thcs-gemma`,
 and the spare `luyentap-qualification-upload-signer`. Their configs are respectively
-`cloudflare/wrangler.jsonc`, `r2-backup-worker/wrangler.toml`,
+`cloudflare/wrangler.book-pdf.jsonc`, `cloudflare/wrangler.jsonc`, `r2-backup-worker/wrangler.toml`,
 `cloudflare/wrangler.notifications.jsonc`, `cloudflare/wrangler.thcs-gemma.jsonc`,
 and `cloudflare/wrangler.qualification.jsonc`.
 

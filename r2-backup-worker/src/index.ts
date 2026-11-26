@@ -25,6 +25,11 @@ import { BackupR2Client } from './utils/r2-client';
 import { clearStaleRestoreFlag } from './backup/auto-backup';
 import { handleReadingV2Submit } from './reading-v2/submit';
 import { handleCreateHomeworkAssignment } from './homework/assignments';
+import {
+    corsPreflightResponse,
+    rejectDisallowedBackupOrigin,
+    withBackupCorsHeaders,
+} from './utils/cors';
 
 // ─── Helpers ───────────────────────────────────────────────────────────
 
@@ -33,27 +38,13 @@ function jsonResponse(data: unknown, status = 200): Response {
         status,
         headers: {
             'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            Vary: 'Origin',
         },
     });
 }
 
 function errorResponse(message: string, status = 400): Response {
     return jsonResponse({ error: message }, status);
-}
-
-function corsPreflightResponse(): Response {
-    return new Response(null, {
-        status: 204,
-        headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-            'Access-Control-Max-Age': '86400',
-        },
-    });
 }
 
 function createR2Client(env: WorkerEnv): BackupR2Client {
@@ -171,7 +162,7 @@ async function handleBackupDownload(
         headers: {
             'Content-Type': 'application/zip',
             'Content-Disposition': `attachment; filename="${backupId}.zip"`,
-            'Access-Control-Allow-Origin': '*',
+            Vary: 'Origin',
         },
     });
 }
@@ -223,7 +214,7 @@ async function handleMediaDownload(
     }
 
     const headers = new Headers();
-    headers.set('Access-Control-Allow-Origin', '*');
+    headers.set('Vary', 'Origin');
     headers.set('Content-Type', object.httpMetadata?.contentType ?? 'application/octet-stream');
     headers.set('Content-Disposition', `attachment; filename="${key.split('/').pop()}"`);
     if (object.size) {
@@ -385,9 +376,7 @@ async function handleGetDiagnostic(
             status: 200,
             headers: {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+                Vary: 'Origin',
             },
         });
     } catch (err: unknown) {
@@ -407,7 +396,12 @@ async function handleRequest(
 
     // CORS preflight
     if (method === 'OPTIONS') {
-        return corsPreflightResponse();
+        return corsPreflightResponse(request, env);
+    }
+
+    const disallowedOrigin = rejectDisallowedBackupOrigin(request, env);
+    if (disallowedOrigin) {
+        return disallowedOrigin;
     }
 
     if (method === 'POST' && path === '/api/reading-v2/submit') {
@@ -540,11 +534,15 @@ export default {
         ctx: ExecutionContext
     ): Promise<Response> {
         try {
-            return await handleRequest(request, env, ctx);
+            const response = await handleRequest(request, env, ctx);
+            if (request.method === 'OPTIONS') {
+                return response;
+            }
+            return withBackupCorsHeaders(response, request, env);
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : 'Internal server error';
             console.error('[Worker] Unhandled error:', message);
-            return errorResponse(message, 500);
+            return withBackupCorsHeaders(errorResponse(message, 500), request, env);
         }
     },
 

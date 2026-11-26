@@ -47,6 +47,7 @@ test('workflow retires split release cards, changelog PRs, and write permissions
     'playwright install',
     '\n  prepare:',
     '\n  promote:',
+    'LUYENTAP_QUALIFICATION_FIREBASE_API_KEY',
   ]) {
     assert.equal(workflow.includes(forbidden), false, `unexpected retired reference: ${forbidden}`);
   }
@@ -74,6 +75,7 @@ test('publish is a single serialized job with preflight observation, localhost r
   assert.match(publish, /liveProviderIdentity = `\$\{provider\.provider\.version\}@\$\{provider\.provider\.releaseTime\}`/u);
   assert.doesNotMatch(publish, /live_fingerprint: observation\.manifest\?\.envFingerprint/u);
   assert.match(publish, /assess\(\{[\s\S]*target: 'hosting'/u);
+  assert.match(publish, /writeFileSync\(receipt,[\s\S]*if \(!\['PASS', 'NOT_APPLICABLE'\]\.includes\(assessment\.decision\)\)[\s\S]*console\.error\(/u);
   assert.equal((publish.match(/npm run build:production/gu) || []).length, 1);
   assert.match(publish, /vite\.js preview --host localhost --port 5173 --strictPort/u);
   assert.match(publish, /release-local-readback\.mjs "\$preview_origin"/u);

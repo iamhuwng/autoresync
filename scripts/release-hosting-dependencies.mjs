@@ -3,7 +3,6 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
-import os from 'node:os';
 import { collectSourceState, hostingImpactPaths, sharedHomeworkInputs } from './release-check.mjs';
 import { isObserved } from './release-evidence.mjs';
 import { canonical, digest, FIREBASE_DATABASE_URL, FIREBASE_PROJECT_ID, PRIVATE_AUDIO_BUCKET_NAME, PRODUCTION_WORKER_NAMES, readProviderState, workerInvariants, CLOUDFLARE_ZONE_ID } from './release-provider-readback.mjs';
@@ -11,7 +10,6 @@ import { canonical, digest, FIREBASE_DATABASE_URL, FIREBASE_PROJECT_ID, PRIVATE_
 const observations = new WeakSet();
 const hash = value => createHash('sha256').update(value).digest('hex');
 const freeze = value => { if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); } return value; };
-const qualificationKeys = ['API_KEY', 'HOSTING_SITE', 'AUTH_DOMAIN', 'DATABASE_URL', 'PROJECT_ID', 'STORAGE_BUCKET', 'MESSAGING_SENDER_ID', 'APP_ID'];
 export const isHostingDependenciesObserved = value => observations.has(value);
 
 export function selectHostingDependencyScope(files) {
@@ -40,18 +38,6 @@ export function selectHostingDependencyScope(files) {
 
 export const hasHostingDependencyProbes = scope => Boolean(scope?.rtdbRules || scope?.rtdbFlags || scope?.firestoreRules
   || scope?.firestoreIndexes || scope?.functions || scope?.privateAudio || scope?.cloudflareCommon || scope?.workers?.length);
-
-export function reconcileLegacyEnvironment({ productionRaw, envFingerprint, manifestFingerprint, qualification, workflow }) {
-  assert.equal(hash(productionRaw), envFingerprint, 'Production environment file differs from the requested identity');
-  assert(!/^\s*VITE_FIREBASE_QUALIFICATION_/mu.test(productionRaw), 'Production environment contains qualification inputs');
-  const block = 'cat >> "$RUNNER_TEMP/.env.production" <<EOF\n'
-    + qualificationKeys.map(key => `VITE_FIREBASE_QUALIFICATION_${key}=$QUALIFICATION_${key}\n`).join('') + 'EOF';
-  assert(workflow.split(/\r?\n/u).map(line => line.trim()).join('\n').includes(block), 'Live source does not use the historical combined environment workflow');
-  for (const key of qualificationKeys) assert(typeof qualification[key] === 'string' && qualification[key].trim() && !/[\r\n\0]/u.test(qualification[key]), `Historical qualification input unavailable: ${key}`);
-  const suffix = qualificationKeys.map(key => `VITE_FIREBASE_QUALIFICATION_${key}=${qualification[key]}\n`).join('');
-  assert.equal(hash(productionRaw + suffix), manifestFingerprint, 'Historical build inputs do not reproduce the live environment fingerprint');
-  return { kind: 'legacy-combined-input', productionFingerprint: envFingerprint, buildInputFingerprint: manifestFingerprint, qualificationFingerprint: hash(suffix) };
-}
 
 const indexKey = index => canonical({ collectionGroup: index.collectionGroup, queryScope: index.queryScope, fields: index.fields });
 export function validateHostingIndexes({ base, candidate }, observed) {
@@ -87,11 +73,9 @@ export function validateHostingDependencies(local, provider) {
   assert.equal(local.hosting.revision, local.source.baseRevision, 'Hosting dependency base differs from live Hosting');
   assert.equal(local.hosting.tree, local.hosting.baseTree, 'Hosting dependency base tree differs from live Hosting');
   assert.match(local.envFingerprint ?? '', /^[a-f0-9]{64}$/u, 'Hosting dependency environment fingerprint unavailable');
-  if (local.envFingerprint !== local.hosting.envFingerprint && !local.source.files.includes('scripts/deploy-live.mjs')) {
-    assert.equal(local.environmentBinding?.kind, 'legacy-combined-input', 'Hosting dependency environment changed');
-    assert.equal(local.environmentBinding.productionFingerprint, local.envFingerprint, 'Reconciled production environment differs');
-    assert.equal(local.environmentBinding.buildInputFingerprint, local.hosting.envFingerprint, 'Reconciled build inputs differ');
-    assert.match(local.environmentBinding.qualificationFingerprint, /^[a-f0-9]{64}$/u, 'Reconciled qualification identity unavailable');
+  if (local.environmentBinding) {
+    assert(['exact', 'updated'].includes(local.environmentBinding.kind), 'Hosting dependency environment binding kind is invalid');
+    assert.equal(local.environmentBinding.productionFingerprint, local.envFingerprint, 'Hosting dependency environment binding differs from candidate');
   }
   assert.equal(local.firebaseRc?.projects?.default, FIREBASE_PROJECT_ID, 'Hosting .firebaserc default project changed');
   assert.deepEqual(local.firebaseRc?.targets?.[FIREBASE_PROJECT_ID]?.hosting?.kahut1, ['kahut1'], 'Hosting .firebaserc kahut1 target mapping changed');
@@ -215,23 +199,15 @@ const git = (cwd, args) => {
   return result.stdout.trim();
 };
 
-async function readLocal(cwd, source, hostingObservation, envFingerprint, productionEnvFile) {
+async function readLocal(cwd, source, hostingObservation, envFingerprint) {
   const actualSource = await collectSourceState(cwd, source.baseRevision);
   const impactPaths = hostingImpactPaths(cwd, actualSource);
   const scope = selectHostingDependencyScope(impactPaths);
-  let environmentBinding = { kind: 'exact', productionFingerprint: envFingerprint, buildInputFingerprint: envFingerprint };
-  if (envFingerprint !== hostingObservation.manifest.envFingerprint && !actualSource.files.includes('scripts/deploy-live.mjs')) {
-    let qualification = Object.fromEntries(qualificationKeys.map(key => [key, process.env[`LUYENTAP_QUALIFICATION_FIREBASE_${key}`]]));
-    if (Object.values(qualification).every(value => !value) && process.env.GITHUB_ACTIONS !== 'true') {
-      const result = spawnSync('gh', ['api', 'repos/iamhuwng/autoresync/actions/variables', '--paginate', '--slurp'], { encoding: 'utf8', windowsHide: true });
-      assert(result.status === 0, 'Historical qualification variables could not be read');
-      const variables = Object.fromEntries(JSON.parse(result.stdout).flatMap(page => page.variables).map(variable => [variable.name, variable.value]));
-      qualification = Object.fromEntries(qualificationKeys.map(key => [key, variables[`LUYENTAP_QUALIFICATION_FIREBASE_${key}`]]));
-    }
-    environmentBinding = reconcileLegacyEnvironment({ productionRaw: await readFile(path.resolve(productionEnvFile || process.env.LUYENTAP_PRODUCTION_ENV_FILE || path.join(os.homedir(), '.luyentap/env/.env.production')), 'utf8'),
-      envFingerprint, manifestFingerprint: hostingObservation.manifest.envFingerprint, qualification,
-      workflow: git(cwd, ['show', `${hostingObservation.revision}:.github/workflows/release-promotion-phase3.yml`]) });
-  }
+  const environmentBinding = {
+    kind: envFingerprint === hostingObservation.manifest.envFingerprint ? 'exact' : 'updated',
+    productionFingerprint: envFingerprint,
+    buildInputFingerprint: envFingerprint,
+  };
   const firestore = scope.firestoreRules ? (await readFile(path.join(cwd, 'firestore.rules'), 'utf8')).replace(/\r\n/gu, '\n') : null;
   return { source, actualSource, hosting: { revision: hostingObservation.revision, tree: hostingObservation.tree,
     sourceKnown: hostingObservation.sourceKnown, environment: hostingObservation.manifest.environment, fingerprint: hostingObservation.fingerprint,

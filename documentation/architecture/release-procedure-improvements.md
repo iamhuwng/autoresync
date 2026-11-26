@@ -1,5 +1,12 @@
 # Deployment procedure improvements
 
+> **Historical / Superseded:** The verification-bundle, review-card, and two-job
+> `prepare` → `promote` architecture discussed below has been retired and replaced by the
+> single-job `Release Promotion` workflow and `deploy:worker` / `deploy:rules` primitives.
+> See [`luyentap-release-architecture-plan.md`](luyentap-release-architecture-plan.md) and
+> [`documentation/system/release-safety.md`](../system/release-safety.md) for the active
+> procedure.
+
 This plan follows the 17 November 2026 QA deployment rehearsal and the annotated
 procedure comparison. It is subordinate to the canonical release architecture
 plan. The screenshots are proposals; source and retained run evidence determine

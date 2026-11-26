@@ -87,6 +87,13 @@ operator-credentialed system-flag reads when `rtdbFlags` is requested.
 The `publish` path performs one full live Hosting manifest observation during
 preflight and carries that receipt into serialized publication.
 
+> **Secret parity note:** `operation=plan` reads the repository secret
+> `LUYENTAP_RELEASE_ENV` (outside `environment: production` so read-only planning never
+> triggers a post-launch production reviewer gate), while `operation=publish` reads
+> `LUYENTAP_PRODUCTION_ENV` on `environments/production`. Whenever you update
+> `LUYENTAP_PRODUCTION_ENV`, update `LUYENTAP_RELEASE_ENV` to match so `operation=plan`
+> evaluates the exact same environment fingerprint.
+
 ### Serialized publish
 
 `publish` runs `operation: publish` under `luyentap-hosting-production` with
@@ -194,6 +201,7 @@ Run `npm run deploy:worker -- <service>` (or `npm run deploy:worker -- --list` t
 
 | Service | Wrangler configuration |
 | --- | --- |
+| `luyentap-book-pdf-prod` | `cloudflare/wrangler.book-pdf.jsonc` |
 | `r2-upload-signer` | `cloudflare/wrangler.jsonc` |
 | `r2-backup-worker` | `r2-backup-worker/wrangler.toml` |
 | `luyentap-notification-command` | `cloudflare/wrangler.notifications.jsonc` |
