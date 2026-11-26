@@ -614,7 +614,7 @@ export async function getTeacherClassesWithMembers(
     return classes;
   } catch (error) {
     console.error('Error getting teacher classes with members:', error);
-    return [];
+    throw error;
   }
 }
 

@@ -1,5 +1,9 @@
 # Result View Surface Map
 
+## 2026-11-27 Teacher Lobby Students Post-Merge Audit Hardening
+
+Follow-up audit fixes to PR #344 add `clearStudentSearch` and `clearStudentFilters` to `FEATURE_IDS.teacherStudents` (`/teacher/students`) in `src/config/featureRegistry.ts`. No saved-result shell (`ResultSlidePanel`, `ResultDetailModal`, `LegacyResultDetailView`), `TeacherStudentHistoryPage`, `ResultDetailPage` dispatch, `AcademicRecordPage`, result route, or `test_results/{resultId}` data path changes.
+
 ## 2026-11-27 Teacher Lobby Students Roster & Student Card Fixes
 
 PR #344 registers `FEATURE_IDS.teacherStudents` (`/teacher/students`) and its student-management observability actions in `src/config/featureRegistry.ts` (including `openStudentAnalytics`, which continues navigating to the existing `TEACHER_STUDENT_HISTORY` route `/teacher/student/:studentId/history`). No saved-result shell (`ResultSlidePanel`, `ResultDetailModal`, `LegacyResultDetailView`), `TeacherStudentHistoryPage`, `ResultDetailPage` dispatch, `AcademicRecordPage`, result route, or `test_results/{resultId}` data path changes.

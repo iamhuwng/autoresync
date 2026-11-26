@@ -135,17 +135,27 @@ export const getUsersByRole = async (role: string): Promise<UserProfile[]> => {
 };
 
 export const getUserByEmail = async (email: string): Promise<UserProfile | null> => {
-    const usersRef = ref(database, 'users');
-    const emailQuery = query(usersRef, orderByChild('email'), equalTo(email));
-    const snapshot = await get(emailQuery);
+    const trimmed = (email || '').trim();
+    if (!trimmed) {
+        return null;
+    }
 
-    if (snapshot.exists()) {
-        const data = snapshot.val();
-        // Return the first match with uid included (emails should be unique)
-        const entries = Object.entries(data);
-        if (entries.length > 0) {
-            const [key, value] = entries[0] as [string, any];
-            return { ...value, uid: value.uid || key };
+    const normalized = trimmed.toLowerCase();
+    const candidates = normalized === trimmed ? [normalized] : [normalized, trimmed];
+    const usersRef = ref(database, 'users');
+
+    for (const candidate of candidates) {
+        const emailQuery = query(usersRef, orderByChild('email'), equalTo(candidate));
+        const snapshot = await get(emailQuery);
+
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            // Return the first match with uid included (emails should be unique)
+            const entries = Object.entries(data);
+            if (entries.length > 0) {
+                const [key, value] = entries[0] as [string, any];
+                return { ...value, uid: value.uid || key };
+            }
         }
     }
     return null;

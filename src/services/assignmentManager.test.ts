@@ -356,9 +356,23 @@ describe('assignmentManager', () => {
 
             const result = await getAssignmentsByTeacher('teacher-123');
 
+            expect(mockRef).toHaveBeenCalledWith(expect.anything(), 'student_teacher_assignments');
+            expect(mockOrderByChild).toHaveBeenCalledWith('teacherId');
+            expect(mockEqualTo).toHaveBeenCalledWith('teacher-123');
+            expect(mockQuery).toHaveBeenCalledWith(
+                { path: 'student_teacher_assignments' },
+                { orderByChild: 'teacherId' },
+                { equalTo: 'teacher-123' }
+            );
             expect(result).toHaveLength(2);
             expect(result.every(a => a.teacherId === 'teacher-123')).toBe(true);
             expect(result.every(a => a.status === 'active')).toBe(true);
+        });
+
+        it('should propagate database errors instead of returning empty array', async () => {
+            mockGet.mockRejectedValueOnce(new Error('Permission denied'));
+
+            await expect(getAssignmentsByTeacher('teacher-123')).rejects.toThrow('Permission denied');
         });
 
         it('should exclude removed assignments', async () => {
@@ -450,6 +464,8 @@ describe('assignmentManager', () => {
 
             const result = await getAssignmentsByStudent('student-123');
 
+            expect(mockOrderByChild).toHaveBeenCalledWith('studentId');
+            expect(mockEqualTo).toHaveBeenCalledWith('student-123');
             expect(result).toHaveLength(2);
             expect(result.every(a => a.studentId === 'student-123')).toBe(true);
         });
@@ -607,14 +623,20 @@ describe('assignmentManager', () => {
             );
         });
 
-        it('should return unsubscribe function', () => {
-            const mockUnsubscribe = vi.fn();
-            mockOnValue.mockReturnValue(mockUnsubscribe);
+        it('should return combined unsubscribe function for indexed teacher and student queries', () => {
+            const unsubTeacher = vi.fn();
+            const unsubStudent = vi.fn();
+            mockOnValue.mockReturnValueOnce(unsubTeacher).mockReturnValueOnce(unsubStudent);
 
             const unsubscribe = subscribeToAssignments('student-123', vi.fn());
 
             expect(typeof unsubscribe).toBe('function');
-            expect(unsubscribe).toBe(mockUnsubscribe);
+            expect(mockOrderByChild).toHaveBeenCalledWith('teacherId');
+            expect(mockOrderByChild).toHaveBeenCalledWith('studentId');
+            expect(mockEqualTo).toHaveBeenCalledWith('student-123');
+            unsubscribe();
+            expect(unsubTeacher).toHaveBeenCalledTimes(1);
+            expect(unsubStudent).toHaveBeenCalledTimes(1);
         });
 
         it('should handle empty assignments', () => {
@@ -677,18 +699,13 @@ describe('assignmentManager', () => {
             expect(result.error).toContain('already exists');
         });
 
-        it('should create request with correct structure', async () => {
+        it('should create request with canonicalized lowercase email', async () => {
             mockGet.mockResolvedValueOnce({ exists: () => false, val: () => null });
             mockSet.mockResolvedValueOnce(undefined);
 
-            await createStudentRequest('teacher-123', 'student@example.com');
+            await createStudentRequest('teacher-123', '  Student@Example.COM  ');
 
             const requestCall = mockSet.mock.calls[0][1];
-            expect(requestCall).toMatchObject({
-                teacherId: 'teacher-123',
-                studentEmail: 'student@example.com',
-                status: 'pending'
-            });
             expect(requestCall).toMatchObject({
                 teacherId: 'teacher-123',
                 studentEmail: 'student@example.com',
@@ -767,6 +784,12 @@ describe('assignmentManager', () => {
                 const result = await getAssignmentRequestsByTeacher('');
                 expect(result).toEqual([]);
                 expect(mockGet).not.toHaveBeenCalled();
+            });
+
+            it('should propagate database errors instead of returning empty array', async () => {
+                mockGet.mockRejectedValueOnce(new Error('Requests unavailable'));
+
+                await expect(getAssignmentRequestsByTeacher('teacher-1')).rejects.toThrow('Requests unavailable');
             });
         });
 

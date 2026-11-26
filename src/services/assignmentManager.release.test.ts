@@ -1,23 +1,20 @@
 /**
  * Integration Tests for Release Student Functionality
- * 
- * Tests the complete flow of releasing a student from a teacher assignment
- * with optional course unenrollment.
- * 
- * Note: Unit tests for removeAssignment are in assignmentManager.test.ts
- * These tests focus on the integration workflow.
+ *
+ * Tests releasing a student from a teacher assignment, including
+ * authenticated actor attribution in assignment history.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { removeAssignment } from './assignmentManager';
 import type { StudentTeacherAssignment } from '../types/assignment.types';
 
-// Mock Firebase
 const mockSet = vi.fn();
 const mockGet = vi.fn();
 const mockUpdate = vi.fn();
-const mockRef = vi.fn();
+const mockRef = vi.fn((_db: any, path: string) => ({ path }));
 const mockPush = vi.fn(() => ({ key: 'mock-id-123' }));
+const mockGetAuth = vi.fn(() => ({ currentUser: { uid: 'teacher-test-456' } }));
 
 vi.mock('firebase/database', () => ({
     ref: (db: any, path: string) => mockRef(db, path),
@@ -25,6 +22,10 @@ vi.mock('firebase/database', () => ({
     get: (ref: any) => mockGet(ref),
     update: (ref: any, value: any) => mockUpdate(ref, value),
     push: () => mockPush(),
+}));
+
+vi.mock('firebase/auth', () => ({
+    getAuth: () => mockGetAuth(),
 }));
 
 vi.mock('./firebase', () => ({
@@ -38,11 +39,11 @@ describe('Release Student Integration Tests', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        mockGetAuth.mockReturnValue({ currentUser: { uid: mockTeacherId } });
     });
 
     describe('Release Student Workflow', () => {
-        it('should successfully release student and track unenrollment in history', async () => {
-            // Arrange: Mock existing assignment
+        it('soft-deletes assignment, removes link, and records the authenticated actor in history', async () => {
             const existingAssignment: StudentTeacherAssignment = {
                 id: 'assignment-123',
                 studentId: mockStudentId,
@@ -51,7 +52,7 @@ describe('Release Student Integration Tests', () => {
                 assignedAt: Date.now() - 1000000,
                 unassignedAt: null,
                 status: 'active',
-                coursesEnrolled: ['course-1', 'course-2', 'course-3']
+                coursesEnrolled: ['course-1', 'course-2']
             };
 
             mockGet.mockResolvedValueOnce({
@@ -60,43 +61,35 @@ describe('Release Student Integration Tests', () => {
             });
             mockUpdate.mockResolvedValueOnce(undefined);
             mockSet.mockResolvedValueOnce(undefined);
-            mockSet.mockResolvedValueOnce(undefined); // History entry
+            mockSet.mockResolvedValueOnce(undefined);
 
-            // Act: Release with course unenrollment
-            const coursesToUnenroll = ['course-1', 'course-2'];
-            const releaseResult = await removeAssignment(
-                'assignment-123',
-                'Released by admin',
-                coursesToUnenroll
-            );
+            const releaseResult = await removeAssignment('assignment-123', 'Released by teacher');
 
-            // Assert: Release was successful
             expect(releaseResult.success).toBe(true);
 
-            // Verify assignment was updated with soft delete
-            expect(mockUpdate).toHaveBeenCalled();
+            expect(mockUpdate).toHaveBeenCalledTimes(1);
             const updateCall = mockUpdate.mock.calls[0][1];
-            expect(updateCall).toMatchObject({
-                status: 'removed'
-            });
+            expect(updateCall).toMatchObject({ status: 'removed' });
             expect(updateCall.unassignedAt).toBeGreaterThan(0);
 
-            // Verify history entry includes unenrollment information
             expect(mockSet).toHaveBeenCalledTimes(2);
+            expect(mockSet.mock.calls[0][0]).toEqual({
+                path: `student_teacher_links/${mockTeacherId}/${mockStudentId}`,
+            });
+            expect(mockSet.mock.calls[0][1]).toBeNull();
+
             const historyCall = mockSet.mock.calls[1][1];
             expect(historyCall).toMatchObject({
                 studentId: mockStudentId,
                 teacherId: mockTeacherId,
                 action: 'unassigned',
-                coursesEnrolled: coursesToUnenroll,
-                reason: 'Released by admin' // Custom reason is used as-is
+                performedBy: mockTeacherId,
+                reason: 'Released by teacher',
             });
-            // Courses are tracked in coursesEnrolled field
-            expect(historyCall.coursesEnrolled).toEqual(coursesToUnenroll);
+            expect(historyCall.performedBy).not.toBe(mockAdminId);
         });
 
-        it('should release student without course unenrollment when no courses specified', async () => {
-            // Arrange
+        it('defaults reason to Released when omitted', async () => {
             const existingAssignment: StudentTeacherAssignment = {
                 id: 'assignment-456',
                 studentId: mockStudentId,
@@ -116,91 +109,33 @@ describe('Release Student Integration Tests', () => {
             mockSet.mockResolvedValueOnce(undefined);
             mockSet.mockResolvedValueOnce(undefined);
 
-            // Act: Release without course unenrollment
-            const releaseResult = await removeAssignment(
-                'assignment-456',
-                'Student completed program'
-            );
+            const releaseResult = await removeAssignment('assignment-456');
 
-            // Assert
             expect(releaseResult.success).toBe(true);
-
-            // Verify history shows simple release
             const historyCall = mockSet.mock.calls[1][1];
-            expect(historyCall.reason).toBe('Student completed program');
-            expect(historyCall.coursesEnrolled).toBeUndefined();
+            expect(historyCall.reason).toBe('Released');
+            expect(historyCall.performedBy).toBe(mockTeacherId);
         });
 
-        it('should handle errors gracefully during release', async () => {
-            // Arrange: Mock Firebase error
+        it('handles errors gracefully during release', async () => {
             mockGet.mockRejectedValueOnce(new Error('Database connection failed'));
 
-            // Act
-            const releaseResult = await removeAssignment(
-                'assignment-789',
-                'Test release'
-            );
+            const releaseResult = await removeAssignment('assignment-789', 'Test release');
 
-            // Assert: Error handled gracefully
             expect(releaseResult.success).toBe(false);
-            expect(releaseResult.error).toBeDefined();
             expect(releaseResult.error).toContain('Database connection failed');
         });
 
-        it('should validate assignment exists before releasing', async () => {
-            // Arrange: Mock non-existent assignment
+        it('validates assignment exists before releasing', async () => {
             mockGet.mockResolvedValueOnce({
                 exists: () => false,
                 val: () => null
             });
 
-            // Act
-            const releaseResult = await removeAssignment(
-                'non-existent-id',
-                'Test'
-            );
+            const releaseResult = await removeAssignment('non-existent-id', 'Test');
 
-            // Assert
             expect(releaseResult.success).toBe(false);
             expect(releaseResult.error).toContain('not found');
-        });
-
-        it('should track multiple course unenrollments in history', async () => {
-            // Arrange
-            const manyCourses = ['course-1', 'course-2', 'course-3', 'course-4', 'course-5'];
-            const existingAssignment: StudentTeacherAssignment = {
-                id: 'assignment-multi',
-                studentId: mockStudentId,
-                teacherId: mockTeacherId,
-                assignedBy: mockAdminId,
-                assignedAt: Date.now() - 1000000,
-                unassignedAt: null,
-                status: 'active',
-                coursesEnrolled: manyCourses
-            };
-
-            mockGet.mockResolvedValueOnce({
-                exists: () => true,
-                val: () => existingAssignment
-            });
-            mockUpdate.mockResolvedValueOnce(undefined);
-            mockSet.mockResolvedValueOnce(undefined);
-            mockSet.mockResolvedValueOnce(undefined);
-
-            // Act: Release and unenroll from all courses WITHOUT custom reason
-            // This will trigger auto-generation of reason with course count
-            const releaseResult = await removeAssignment(
-                'assignment-multi',
-                undefined, // No custom reason, so it will auto-generate
-                manyCourses
-            );
-
-            // Assert
-            expect(releaseResult.success).toBe(true);
-
-            const historyCall = mockSet.mock.calls[1][1];
-            expect(historyCall.coursesEnrolled).toEqual(manyCourses);
-            expect(historyCall.reason).toContain(`${manyCourses.length} course(s)`);
         });
     });
 });

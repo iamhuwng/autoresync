@@ -7,6 +7,7 @@
 import { StudentCard, type StudentCardClassBadge } from './StudentCard';
 import type { UserProfile } from '../../services/userService';
 import type { StudentTeacherAssignment } from '../../types/assignment.types';
+import './StudentCard.css';
 
 export interface StudentGridProps {
     students: UserProfile[];
@@ -52,12 +53,7 @@ export function StudentGrid({
     return (
         <div
             data-testid="student-grid"
-            style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-                gap: '1.5rem',
-                padding: '0.5rem 0'
-            }}
+            className="student-grid"
         >
             {students.map((student, index) => {
                 const variant = CARD_VARIANTS[index % CARD_VARIANTS.length];

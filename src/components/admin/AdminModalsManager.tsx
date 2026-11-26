@@ -31,8 +31,8 @@ export interface AdminModalsManagerProps {
     studentToRelease: User | null;
     assignmentsByStudent: Record<string, any[]>;
     currentTeacherId: string | null;
-    availableCourses: Array<{ value: string; label: string }>;
-    onConfirmRelease: (assignmentIds: string[], unenrollCourseIds?: string[]) => void | Promise<void>;
+    availableCourses?: Array<{ value: string; label: string }>;
+    onConfirmRelease: (assignmentIds: string[]) => void | Promise<void>;
 
     // Request Student Modal
     isRequestModalOpen: boolean;
@@ -133,10 +133,9 @@ export const AdminModalsManager: React.FC<AdminModalsManagerProps> = ({
                 student={studentToRelease as any}
                 assignments={studentToRelease ? (assignmentsByStudent[studentToRelease.uid] || []) : []}
                 currentTeacherId={currentTeacherId}
-                availableCourses={availableCourses}
-                onConfirm={async (assignmentIds, unenrollCourseIds = []) => {
+                onConfirm={async (assignmentIds) => {
                     // Await so the modal keeps its loading state and can surface failures.
-                    await onConfirmRelease(assignmentIds, unenrollCourseIds);
+                    await onConfirmRelease(assignmentIds);
                 }}
             />
 

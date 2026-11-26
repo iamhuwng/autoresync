@@ -39,20 +39,20 @@ export const TeacherRequestModal: React.FC<TeacherRequestModalProps> = ({
 
         setError(null);
 
-        const trimmedEmail = email.trim();
-        if (!trimmedEmail) {
+        const normalizedEmail = email.trim().toLowerCase();
+        if (!normalizedEmail) {
             setError('Please enter an email address');
             return;
         }
 
-        if (!isValidEmail(trimmedEmail)) {
+        if (!isValidEmail(normalizedEmail)) {
             setError('Please enter a valid email address');
             return;
         }
 
         setLoading(true);
         try {
-            await onSubmit(trimmedEmail);
+            await onSubmit(normalizedEmail);
             onClose();
         } catch (err) {
             console.error('Error requesting student:', err);

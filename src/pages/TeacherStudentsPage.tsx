@@ -127,6 +127,17 @@ const TeacherStudentsPage: React.FC = () => {
         trackAction('filterStudentsByClass', { classFilter: value });
     };
 
+    const handleClearSearch = () => {
+        setSearchTerm('');
+        trackAction('clearStudentSearch');
+    };
+
+    const handleClearFilters = () => {
+        setSearchTerm('');
+        setClassFilter('all');
+        trackAction('clearStudentFilters');
+    };
+
     const handleViewAnalytics = (studentId: string) => {
         trackAction('openStudentAnalytics', { studentId });
         navigateTo('TEACHER_STUDENT_HISTORY', { studentId }, { reason: 'view_student_history' });
@@ -176,20 +187,50 @@ const TeacherStudentsPage: React.FC = () => {
         await roster.reloadClasses();
     };
 
-    const handleConfirmRelease = async (assignmentIds: string[], unenrollCourseIds: string[] = []) => {
+    const handleConfirmRelease = async (assignmentIds: string[]) => {
         if (!studentToRelease) return;
         const student = studentToRelease;
         const studentLabel = student.displayName || student.email || 'Student';
 
-        const results = await Promise.all(
+        const settled = await Promise.allSettled(
             assignmentIds.map((id) =>
-                removeAssignment(id, 'Released by teacher', unenrollCourseIds)
+                removeAssignment(id, 'Released by teacher')
             )
         );
-        const failed = results.filter((r) => !r.success);
 
-        if (failed.length > 0) {
-            const message = failed[0]?.error || `Failed to release ${failed.length} assignment(s).`;
+        let succeededCount = 0;
+        const failureMessages: string[] = [];
+
+        settled.forEach((outcome) => {
+            if (outcome.status === 'fulfilled' && outcome.value.success) {
+                succeededCount += 1;
+            } else if (outcome.status === 'fulfilled') {
+                failureMessages.push(outcome.value.error || 'Failed to release assignment.');
+            } else {
+                failureMessages.push(
+                    outcome.reason instanceof Error
+                        ? outcome.reason.message
+                        : 'Failed to release assignment.'
+                );
+            }
+        });
+
+        if (succeededCount > 0) {
+            await roster.reload();
+        }
+
+        if (failureMessages.length > 0) {
+            const message = succeededCount > 0
+                ? `Released ${succeededCount} of ${assignmentIds.length} assignments for ${studentLabel}, but ${failureMessages.length} failed: ${failureMessages[0]}`
+                : failureMessages[0] || `Failed to release ${failureMessages.length} assignment(s).`;
+            if (succeededCount > 0) {
+                trackAction('releaseStudent', {
+                    studentId: student.uid,
+                    assignmentCount: assignmentIds.length,
+                    releasedCount: succeededCount,
+                    failedCount: failureMessages.length,
+                });
+            }
             toast.error(message);
             throw new Error(message);
         }
@@ -199,7 +240,6 @@ const TeacherStudentsPage: React.FC = () => {
             assignmentCount: assignmentIds.length,
         });
         toast.success(`Released ${studentLabel} from your oversight.`);
-        await roster.reload();
     };
 
     const handleRequestStudent = async (email: string) => {
@@ -209,15 +249,16 @@ const TeacherStudentsPage: React.FC = () => {
             throw new Error(message);
         }
 
-        const result = await createStudentRequest(user.uid, email);
+        const normalizedEmail = email.trim().toLowerCase();
+        const result = await createStudentRequest(user.uid, normalizedEmail);
         if (!result.success) {
             const message = result.error || 'Could not submit student request.';
             toast.error(message);
             throw new Error(message);
         }
 
-        trackAction('requestStudent', { studentEmail: email });
-        toast.success(`Requested access to ${email}. Pending admin approval.`);
+        trackAction('requestStudent', { studentEmail: normalizedEmail });
+        toast.success(`Requested access to ${normalizedEmail}. Pending admin approval.`);
         await roster.reloadRequests();
     };
 
@@ -368,7 +409,7 @@ const TeacherStudentsPage: React.FC = () => {
                                             <button
                                                 type="button"
                                                 className="teacher-students-search__clear"
-                                                onClick={() => setSearchTerm('')}
+                                                onClick={handleClearSearch}
                                                 aria-label="Clear search"
                                             >
                                                 <IconX size={15} aria-hidden="true" />
@@ -421,11 +462,41 @@ const TeacherStudentsPage: React.FC = () => {
                 {/* Main Content Panel */}
                 <Card variant="glass" className="teacher-students-panel">
                     <CardBody>
-                        {roster.error && (
+                        {activeTab === 'students' && roster.error && (
                             <div className="teacher-students-error" role="alert">
                                 <span>{roster.error}</span>
                                 <Button variant="outline" size="sm" onClick={handleSync}>
                                     Retry
+                                </Button>
+                            </div>
+                        )}
+
+                        {activeTab === 'students' && roster.classesError && (
+                            <div className="teacher-students-error" role="alert">
+                                <span>{roster.classesError}</span>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                        void roster.reloadClasses();
+                                    }}
+                                >
+                                    Retry classes
+                                </Button>
+                            </div>
+                        )}
+
+                        {activeTab === 'requests' && roster.requestsError && (
+                            <div className="teacher-students-error" role="alert">
+                                <span>{roster.requestsError}</span>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                        void roster.reloadRequests();
+                                    }}
+                                >
+                                    Retry requests
                                 </Button>
                             </div>
                         )}
@@ -437,21 +508,23 @@ const TeacherStudentsPage: React.FC = () => {
                                     <span>Loading your students...</span>
                                 </div>
                             ) : roster.students.length === 0 ? (
-                                <div className="teacher-students-empty">
-                                    <div className="teacher-students-empty__icon" aria-hidden="true">
-                                        <IconUsers size={28} />
+                                roster.error ? null : (
+                                    <div className="teacher-students-empty">
+                                        <div className="teacher-students-empty__icon" aria-hidden="true">
+                                            <IconUsers size={28} />
+                                        </div>
+                                        <h2 className="teacher-students-empty__title">No students assigned yet</h2>
+                                        <p className="teacher-students-empty__desc">
+                                            Request access to a student by email to start managing their classes and tracking progress.
+                                        </p>
+                                        <div className="teacher-students-empty__actions">
+                                            <Button variant="primary" onClick={handleOpenRequestModal}>
+                                                <IconUserPlus size={16} aria-hidden="true" />
+                                                Add Student
+                                            </Button>
+                                        </div>
                                     </div>
-                                    <h2 className="teacher-students-empty__title">No students assigned yet</h2>
-                                    <p className="teacher-students-empty__desc">
-                                        Request access to a student by email to start managing their classes and tracking progress.
-                                    </p>
-                                    <div className="teacher-students-empty__actions">
-                                        <Button variant="primary" onClick={handleOpenRequestModal}>
-                                            <IconUserPlus size={16} aria-hidden="true" />
-                                            Add Student
-                                        </Button>
-                                    </div>
-                                </div>
+                                )
                             ) : filteredStudents.length === 0 ? (
                                 <div className="teacher-students-empty">
                                     <div className="teacher-students-empty__icon" aria-hidden="true">
@@ -465,10 +538,7 @@ const TeacherStudentsPage: React.FC = () => {
                                         {hasActiveFilters && (
                                             <Button
                                                 variant="glass"
-                                                onClick={() => {
-                                                    setSearchTerm('');
-                                                    setClassFilter('all');
-                                                }}
+                                                onClick={handleClearFilters}
                                             >
                                                 Clear Filters
                                             </Button>
@@ -487,10 +557,7 @@ const TeacherStudentsPage: React.FC = () => {
                                             <Button
                                                 variant="glass"
                                                 size="xs"
-                                                onClick={() => {
-                                                    setSearchTerm('');
-                                                    setClassFilter('all');
-                                                }}
+                                                onClick={handleClearFilters}
                                             >
                                                 Clear Filters
                                             </Button>
@@ -511,21 +578,23 @@ const TeacherStudentsPage: React.FC = () => {
                                 </>
                             )
                         ) : roster.requests.length === 0 ? (
-                            <div className="teacher-students-empty">
-                                <div className="teacher-students-empty__icon" aria-hidden="true">
-                                    <IconUserPlus size={28} />
+                            roster.requestsError ? null : (
+                                <div className="teacher-students-empty">
+                                    <div className="teacher-students-empty__icon" aria-hidden="true">
+                                        <IconUserPlus size={28} />
+                                    </div>
+                                    <h2 className="teacher-students-empty__title">No student requests yet</h2>
+                                    <p className="teacher-students-empty__desc">
+                                        When you request access to a student, the request status will appear here until an administrator reviews it.
+                                    </p>
+                                    <div className="teacher-students-empty__actions">
+                                        <Button variant="primary" onClick={handleOpenRequestModal}>
+                                            <IconUserPlus size={16} aria-hidden="true" />
+                                            Add Student
+                                        </Button>
+                                    </div>
                                 </div>
-                                <h2 className="teacher-students-empty__title">No student requests yet</h2>
-                                <p className="teacher-students-empty__desc">
-                                    When you request access to a student, the request status will appear here until an administrator reviews it.
-                                </p>
-                                <div className="teacher-students-empty__actions">
-                                    <Button variant="primary" onClick={handleOpenRequestModal}>
-                                        <IconUserPlus size={16} aria-hidden="true" />
-                                        Add Student
-                                    </Button>
-                                </div>
-                            </div>
+                            )
                         ) : (
                             <div className="teacher-requests-list" aria-label="Submitted student requests">
                                 {roster.requests.map((request) => (
@@ -563,7 +632,6 @@ const TeacherStudentsPage: React.FC = () => {
                 student={studentToRelease}
                 assignments={studentToRelease ? (roster.assignmentsByStudent[studentToRelease.uid] || []) : []}
                 currentTeacherId={user?.uid || null}
-                availableCourses={roster.courses}
                 onConfirm={handleConfirmRelease}
             />
 

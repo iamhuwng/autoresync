@@ -148,13 +148,11 @@ export async function createAssignment(
  * 
  * @param assignmentId - ID of the assignment to remove
  * @param reason - Optional reason for removal
- * @param unenrollCourseIds - Optional array of course IDs to unenroll student from
  * @returns Promise with success status
  */
 export async function removeAssignment(
     assignmentId: string,
-    reason?: string,
-    unenrollCourseIds?: string[]
+    reason?: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
         if (!assignmentId) {
@@ -177,34 +175,30 @@ export async function removeAssignment(
 
         const assignment = snapshot.val() as StudentTeacherAssignment;
         const timestamp = now();
+        const actorUid = getAuth().currentUser?.uid || assignment.assignedBy;
 
-        // Update assignment with soft delete
-        // If unenrollCourseIds is provided, we might want to update the coursesEnrolled list
-        // but since we are soft-deleting, we usually keep the record as it was.
-        // For now, we'll just log the unenrollment in the history.
+        // Soft-delete the assignment and remove the teacher-student link
         await update(assignmentRef, {
             unassignedAt: timestamp,
             status: 'removed'
         });
         await setAssignmentLink(assignment.teacherId, assignment.studentId, false);
 
-        // Create history entry
+        // Create history entry attributed to the authenticated actor
         await createHistoryEntry({
             studentId: assignment.studentId,
             teacherId: assignment.teacherId,
             action: 'unassigned',
-            performedBy: assignment.assignedBy, // TODO: Should be current admin user
+            performedBy: actorUid,
             timestamp,
-            reason: reason || (unenrollCourseIds && unenrollCourseIds.length > 0
-                ? `Released and unenrolled from ${unenrollCourseIds.length} course(s)`
-                : 'Released'),
-            coursesEnrolled: unenrollCourseIds // Track what was unenrolled
+            reason: reason || 'Released'
         });
 
         // Log audit event (Task 6.6)
         logDelete(null, 'assignment', assignmentId, {
             studentId: assignment.studentId,
             teacherId: assignment.teacherId,
+            performedBy: actorUid,
             reason
         });
 
@@ -264,11 +258,11 @@ async function getActiveAssignment(
 export async function getAssignmentsByTeacher(
     teacherId: string
 ): Promise<StudentTeacherAssignment[]> {
-    try {
-        if (!teacherId) {
-            return [];
-        }
+    if (!teacherId) {
+        return [];
+    }
 
+    try {
         // Indexed query (`.indexOn: teacherId`) instead of downloading every
         // assignment in the system and filtering on the client.
         const snapshot = await get(query(
@@ -291,7 +285,7 @@ export async function getAssignmentsByTeacher(
         return teacherAssignments as StudentTeacherAssignment[];
     } catch (error) {
         console.error('Error getting assignments by teacher:', error);
-        return [];
+        throw error;
     }
 }
 
@@ -487,25 +481,56 @@ export function subscribeToAssignments(
     userId: string,
     callback: (assignments: StudentTeacherAssignment[]) => void
 ): () => void {
-    const assignmentsRef = ref(database, ASSIGNMENTS_REF);
+    const teacherQuery = query(
+        ref(database, ASSIGNMENTS_REF),
+        orderByChild('teacherId'),
+        equalTo(userId)
+    );
+    const studentQuery = query(
+        ref(database, ASSIGNMENTS_REF),
+        orderByChild('studentId'),
+        equalTo(userId)
+    );
 
-    const unsubscribe = onValue(assignmentsRef, (snapshot) => {
-        if (!snapshot.exists()) {
-            callback([]);
-            return;
+    let teacherAssignments: StudentTeacherAssignment[] = [];
+    let studentAssignments: StudentTeacherAssignment[] = [];
+
+    const emitMerged = () => {
+        const merged = new Map<string, StudentTeacherAssignment>();
+        for (const item of [...teacherAssignments, ...studentAssignments]) {
+            if (item.status === 'active' && (item.teacherId === userId || item.studentId === userId)) {
+                merged.set(item.id, item);
+            }
         }
+        callback(Array.from(merged.values()));
+    };
 
-        const assignments = snapshot.val();
-        const userAssignments = Object.values(assignments).filter(
-            (assignment: any) =>
+    const extractActive = (snapshot: { exists: () => boolean; val: () => unknown }): StudentTeacherAssignment[] => {
+        if (!snapshot.exists()) {
+            return [];
+        }
+        const assignments = snapshot.val() as Record<string, StudentTeacherAssignment>;
+        return Object.values(assignments).filter(
+            (assignment) =>
                 (assignment.studentId === userId || assignment.teacherId === userId) &&
                 assignment.status === 'active'
         );
+    };
 
-        callback(userAssignments as StudentTeacherAssignment[]);
+    const unsubscribeTeacher = onValue(teacherQuery, (snapshot) => {
+        teacherAssignments = extractActive(snapshot);
+        emitMerged();
     });
 
-    return unsubscribe;
+    const unsubscribeStudent = onValue(studentQuery, (snapshot) => {
+        studentAssignments = extractActive(snapshot);
+        emitMerged();
+    });
+
+    return () => {
+        if (typeof unsubscribeTeacher === 'function') unsubscribeTeacher();
+        if (typeof unsubscribeStudent === 'function') unsubscribeStudent();
+    };
 }
 
 // ============================================================================
@@ -524,7 +549,8 @@ export async function createStudentRequest(
     studentEmail: string
 ): Promise<{ success: boolean; requestId?: string; error?: string }> {
     try {
-        if (!teacherId || !studentEmail) {
+        const normalizedEmail = (studentEmail || '').trim().toLowerCase();
+        if (!teacherId || !normalizedEmail) {
             return {
                 success: false,
                 error: 'Teacher ID and student email are required'
@@ -532,7 +558,7 @@ export async function createStudentRequest(
         }
 
         // Check for duplicate pending request
-        const existingRequest = await getPendingRequest(teacherId, studentEmail);
+        const existingRequest = await getPendingRequest(teacherId, normalizedEmail);
         if (existingRequest) {
             return {
                 success: false,
@@ -546,7 +572,7 @@ export async function createStudentRequest(
         const request: AssignmentRequest = {
             id: requestId,
             teacherId,
-            studentEmail,
+            studentEmail: normalizedEmail,
             requestedAt: timestamp,
             status: 'pending'
         };
@@ -608,11 +634,11 @@ async function getPendingRequest(
 export async function getAssignmentRequestsByTeacher(
     teacherId: string
 ): Promise<AssignmentRequest[]> {
-    try {
-        if (!teacherId) {
-            return [];
-        }
+    if (!teacherId) {
+        return [];
+    }
 
+    try {
         const snapshot = await get(query(
             ref(database, ASSIGNMENT_REQUESTS_REF),
             orderByChild('teacherId'),
@@ -629,7 +655,7 @@ export async function getAssignmentRequestsByTeacher(
             .sort((a, b) => (b.requestedAt || 0) - (a.requestedAt || 0));
     } catch (error) {
         console.error('Error getting requests by teacher:', error);
-        return [];
+        throw error;
     }
 }
 

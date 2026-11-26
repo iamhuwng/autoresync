@@ -140,18 +140,26 @@ const AdminUserManagementPage = () => {
     }
   };
 
-  const handleConfirmRelease = async (assignmentIds, unenrollCourseIds) => {
+  const handleConfirmRelease = async (assignmentIds) => {
     if (!modals.modals.studentToRelease) return;
     modals.setReleaseLoading(true);
     try {
-      const results = await Promise.all(assignmentIds.map(id =>
-        removeAssignment(id, 'Released by admin/teacher', unenrollCourseIds)
+      const settled = await Promise.allSettled(assignmentIds.map(id =>
+        removeAssignment(id, 'Released by admin/teacher')
       ));
-      const failed = results.filter(r => !r.success);
-      if (failed.length > 0) userManagement.setError(`Failed to release ${failed.length} assignment(s)`);
-      else {
+      const succeededCount = settled.filter(r => r.status === 'fulfilled' && r.value.success).length;
+      const failedCount = assignmentIds.length - succeededCount;
+      if (succeededCount > 0) {
+        await userManagement.loadUsers().then(() => assignments.loadAssignments({ force: true }));
+      }
+      if (failedCount > 0) {
+        userManagement.setError(
+          succeededCount > 0
+            ? `Released ${succeededCount} of ${assignmentIds.length} assignments, but ${failedCount} failed`
+            : `Failed to release ${failedCount} assignment(s)`
+        );
+      } else {
         userManagement.setSuccessMessage(`Successfully released ${modals.modals.studentToRelease.displayName || modals.modals.studentToRelease.email}`);
-        await userManagement.loadUsers().then(() => assignments.loadAssignments());
       }
     } catch (err) {
       userManagement.setError('Failed to release student. Please try again.');

@@ -769,6 +769,8 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'syncStudents',
       'switchStudentsTab',
       'filterStudentsByClass',
+      'clearStudentSearch',
+      'clearStudentFilters',
       'openStudentAnalytics',
       'openAddToClassModal',
       'addStudentToClass',
