@@ -143,6 +143,230 @@ export async function createAssignment(
     }
 }
 
+const pairReleaseLocks = new Map<string, Promise<unknown>>();
+
+async function withPairReleaseLock<T>(
+    teacherId: string,
+    studentId: string,
+    work: () => Promise<T>
+): Promise<T> {
+    const key = `${teacherId}::${studentId}`;
+    const previous = pairReleaseLocks.get(key) ?? Promise.resolve();
+    let releaseLock!: () => void;
+    const current = new Promise<void>((resolve) => {
+        releaseLock = resolve;
+    });
+    const chained = previous.then(() => current);
+    pairReleaseLocks.set(key, chained);
+
+    await previous;
+    try {
+        return await work();
+    } finally {
+        releaseLock();
+        if (pairReleaseLocks.get(key) === chained) {
+            pairReleaseLocks.delete(key);
+        }
+    }
+}
+
+function hasOtherActivePairAssignment(
+    pairSnapshot: { exists: () => boolean; val: () => unknown } | null | undefined,
+    teacherId: string,
+    studentId: string,
+    excludedIds: Set<string>
+): boolean {
+    if (!pairSnapshot || typeof pairSnapshot.exists !== 'function' || !pairSnapshot.exists()) {
+        return false;
+    }
+    const pairAssignments = pairSnapshot.val() as Record<string, StudentTeacherAssignment> | null;
+    if (!pairAssignments || typeof pairAssignments !== 'object') {
+        return false;
+    }
+    return Object.entries(pairAssignments).some(
+        ([key, item]) =>
+            !excludedIds.has(item?.id || key) &&
+            item?.studentId === studentId &&
+            item?.teacherId === teacherId &&
+            item?.status === 'active'
+    );
+}
+
+async function releasePairAssignmentsAtomically(
+    teacherId: string,
+    studentId: string,
+    entries: Array<{ assignmentId: string; assignment: StudentTeacherAssignment }>,
+    actorUid: string,
+    reason?: string
+): Promise<void> {
+    await withPairReleaseLock(teacherId, studentId, async () => {
+        const timestamp = now();
+        const targetIds = new Set(entries.map((entry) => entry.assignmentId));
+
+        // Check whether any active assignment outside this batch still binds
+        // this teacher-student pair so the shared link is cleared atomically
+        // whenever the final active row(s) are released.
+        const pairQuery = query(
+            ref(database, ASSIGNMENTS_REF),
+            orderByChild('teacherId'),
+            equalTo(teacherId)
+        );
+        const pairSnapshot = await get(pairQuery);
+        const hasRemainingActive = hasOtherActivePairAssignment(
+            pairSnapshot,
+            teacherId,
+            studentId,
+            targetIds
+        );
+
+        const patch: Record<string, unknown> = {};
+        for (const { assignmentId } of entries) {
+            patch[`${ASSIGNMENTS_REF}/${assignmentId}/unassignedAt`] = timestamp;
+            patch[`${ASSIGNMENTS_REF}/${assignmentId}/status`] = 'removed';
+        }
+        if (!hasRemainingActive) {
+            patch[`${ASSIGNMENT_LINKS_REF}/${teacherId}/${studentId}`] = null;
+        }
+        await update(ref(database), patch);
+
+        // Cross-client concurrency guard: if another active row existed before
+        // our write (so we preserved the link), re-check after commit in case a
+        // concurrent client removed the last remaining active row at the same time.
+        if (hasRemainingActive) {
+            const postSnapshot = await get(pairQuery);
+            if (
+                postSnapshot &&
+                typeof postSnapshot.exists === 'function' &&
+                !hasOtherActivePairAssignment(postSnapshot, teacherId, studentId, new Set())
+            ) {
+                await update(ref(database), {
+                    [`${ASSIGNMENT_LINKS_REF}/${teacherId}/${studentId}`]: null,
+                });
+            }
+        }
+
+        for (const { assignmentId, assignment } of entries) {
+            await createHistoryEntry({
+                studentId: assignment.studentId,
+                teacherId: assignment.teacherId,
+                action: 'unassigned',
+                performedBy: actorUid,
+                timestamp,
+                reason: reason || 'Released'
+            });
+
+            logDelete(null, 'assignment', assignmentId, {
+                studentId: assignment.studentId,
+                teacherId: assignment.teacherId,
+                performedBy: actorUid,
+                reason
+            });
+        }
+    });
+}
+
+export interface RemoveAssignmentsResult {
+    success: boolean;
+    releasedIds: string[];
+    failed: Array<{ assignmentId: string; error: string }>;
+}
+
+/**
+ * Remove one or more student-teacher assignments (soft delete), reconciling
+ * all rows and the shared authorization link atomically per teacher-student pair.
+ */
+export async function removeAssignments(
+    assignmentIds: string[],
+    reason?: string
+): Promise<RemoveAssignmentsResult> {
+    const uniqueIds = Array.from(new Set(assignmentIds.filter((id): id is string => Boolean(id))));
+    if (uniqueIds.length === 0) {
+        return {
+            success: false,
+            releasedIds: [],
+            failed: [{ assignmentId: '', error: 'Assignment ID is required' }],
+        };
+    }
+
+    const actorUid = getAuth().currentUser?.uid;
+    if (!actorUid) {
+        return {
+            success: false,
+            releasedIds: [],
+            failed: uniqueIds.map((assignmentId) => ({
+                assignmentId,
+                error: 'Authentication required to release assignment',
+            })),
+        };
+    }
+
+    const releasedIds: string[] = [];
+    const failed: Array<{ assignmentId: string; error: string }> = [];
+    const groupsByPair = new Map<
+        string,
+        {
+            teacherId: string;
+            studentId: string;
+            entries: Array<{ assignmentId: string; assignment: StudentTeacherAssignment }>;
+        }
+    >();
+
+    await Promise.all(
+        uniqueIds.map(async (assignmentId) => {
+            try {
+                const snapshot = await get(ref(database, `${ASSIGNMENTS_REF}/${assignmentId}`));
+                if (!snapshot.exists()) {
+                    failed.push({ assignmentId, error: 'Assignment not found' });
+                    return;
+                }
+                const assignment = snapshot.val() as StudentTeacherAssignment;
+                const pairKey = `${assignment.teacherId}::${assignment.studentId}`;
+                const existingGroup = groupsByPair.get(pairKey);
+                if (existingGroup) {
+                    existingGroup.entries.push({ assignmentId, assignment });
+                } else {
+                    groupsByPair.set(pairKey, {
+                        teacherId: assignment.teacherId,
+                        studentId: assignment.studentId,
+                        entries: [{ assignmentId, assignment }],
+                    });
+                }
+            } catch (error) {
+                console.error(`Error loading assignment ${assignmentId} for release:`, error);
+                failed.push({
+                    assignmentId,
+                    error: error instanceof Error ? error.message : 'Unknown error occurred',
+                });
+            }
+        })
+    );
+
+    for (const group of groupsByPair.values()) {
+        try {
+            await releasePairAssignmentsAtomically(
+                group.teacherId,
+                group.studentId,
+                group.entries,
+                actorUid,
+                reason
+            );
+            group.entries.forEach(({ assignmentId }) => releasedIds.push(assignmentId));
+        } catch (error) {
+            console.error('Error removing assignments:', error);
+            const message = error instanceof Error ? error.message : 'Unknown error occurred';
+            group.entries.forEach(({ assignmentId }) =>
+                failed.push({ assignmentId, error: message })
+            );
+        }
+    }
+
+    return {
+        success: failed.length === 0 && releasedIds.length > 0,
+        releasedIds,
+        failed,
+    };
+}
+
 /**
  * Remove a student-teacher assignment (soft delete)
  * 
@@ -170,10 +394,7 @@ export async function removeAssignment(
             };
         }
 
-        // Get the assignment
-        const assignmentRef = ref(database, `${ASSIGNMENTS_REF}/${assignmentId}`);
-        const snapshot = await get(assignmentRef);
-
+        const snapshot = await get(ref(database, `${ASSIGNMENTS_REF}/${assignmentId}`));
         if (!snapshot.exists()) {
             return {
                 success: false,
@@ -182,55 +403,13 @@ export async function removeAssignment(
         }
 
         const assignment = snapshot.val() as StudentTeacherAssignment;
-        const timestamp = now();
-
-        // Check whether another active assignment still binds this teacher-student
-        // pair so we only clear the shared link when the last active row is removed.
-        let hasOtherActiveAssignment = false;
-        const pairSnapshot = await get(query(
-            ref(database, ASSIGNMENTS_REF),
-            orderByChild('teacherId'),
-            equalTo(assignment.teacherId)
-        ));
-        if (pairSnapshot.exists()) {
-            const pairAssignments = pairSnapshot.val() as Record<string, StudentTeacherAssignment>;
-            hasOtherActiveAssignment = Object.entries(pairAssignments).some(
-                ([key, item]) =>
-                    (item?.id || key) !== assignmentId &&
-                    item?.studentId === assignment.studentId &&
-                    item?.teacherId === assignment.teacherId &&
-                    item?.status === 'active'
-            );
-        }
-
-        // Commit row status and shared link atomically so partial release cannot
-        // leave the assignment removed while the link write fails (or vice versa).
-        const patch: Record<string, unknown> = {
-            [`${ASSIGNMENTS_REF}/${assignmentId}/unassignedAt`]: timestamp,
-            [`${ASSIGNMENTS_REF}/${assignmentId}/status`]: 'removed',
-        };
-        if (!hasOtherActiveAssignment) {
-            patch[`${ASSIGNMENT_LINKS_REF}/${assignment.teacherId}/${assignment.studentId}`] = null;
-        }
-        await update(ref(database), patch);
-
-        // Create history entry attributed to the authenticated actor
-        await createHistoryEntry({
-            studentId: assignment.studentId,
-            teacherId: assignment.teacherId,
-            action: 'unassigned',
-            performedBy: actorUid,
-            timestamp,
-            reason: reason || 'Released'
-        });
-
-        // Log audit event (Task 6.6)
-        logDelete(null, 'assignment', assignmentId, {
-            studentId: assignment.studentId,
-            teacherId: assignment.teacherId,
-            performedBy: actorUid,
+        await releasePairAssignmentsAtomically(
+            assignment.teacherId,
+            assignment.studentId,
+            [{ assignmentId, assignment }],
+            actorUid,
             reason
-        });
+        );
 
         return { success: true };
     } catch (error) {

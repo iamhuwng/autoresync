@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
     trackPageView: vi.fn(),
     getAssignmentsByTeacher: vi.fn(),
     getAssignmentRequestsByTeacher: vi.fn(),
-    removeAssignment: vi.fn(),
+    removeAssignments: vi.fn(),
     createStudentRequest: vi.fn(),
     getUserById: vi.fn(),
     getTeacherClassesWithMembers: vi.fn(),
@@ -52,7 +52,7 @@ vi.mock('../components/navigation', () => ({
 vi.mock('../services/assignmentManager', () => ({
     getAssignmentsByTeacher: mocks.getAssignmentsByTeacher,
     getAssignmentRequestsByTeacher: mocks.getAssignmentRequestsByTeacher,
-    removeAssignment: mocks.removeAssignment,
+    removeAssignments: mocks.removeAssignments,
     createStudentRequest: mocks.createStudentRequest,
 }));
 
@@ -168,7 +168,7 @@ describe('TeacherStudentsPage', () => {
             },
         ]);
         mocks.enrollStudent.mockResolvedValue({ success: true, classId: 'class-2' });
-        mocks.removeAssignment.mockResolvedValue({ success: true });
+        mocks.removeAssignments.mockResolvedValue({ success: true, releasedIds: ['assign-1'], failed: [] });
         mocks.createStudentRequest.mockResolvedValue({ success: true, requestId: 'req-2' });
     });
 
@@ -301,7 +301,7 @@ describe('TeacherStudentsPage', () => {
         fireEvent.click(await screen.findByRole('button', { name: 'Confirm Release' }));
 
         await waitFor(() => {
-            expect(mocks.removeAssignment).toHaveBeenCalledWith('assign-1', 'Released by teacher');
+            expect(mocks.removeAssignments).toHaveBeenCalledWith(['assign-1'], 'Released by teacher');
         });
 
         expect(await screen.findByRole('status')).toHaveTextContent('Released Alice Nguyen from your oversight.');
@@ -324,9 +324,11 @@ describe('TeacherStudentsPage', () => {
         renderPage();
         await screen.findByText('Alice Nguyen');
 
-        mocks.removeAssignment
-            .mockResolvedValueOnce({ success: true })
-            .mockResolvedValueOnce({ success: false, error: 'Permission denied' });
+        mocks.removeAssignments.mockResolvedValueOnce({
+            success: false,
+            releasedIds: ['assign-1'],
+            failed: [{ assignmentId: 'assign-1b', error: 'Permission denied' }],
+        });
         mocks.getAssignmentsByTeacher.mockResolvedValueOnce([
             { ...activeAssignments[0], id: 'assign-1b' },
             activeAssignments[1],
@@ -336,7 +338,10 @@ describe('TeacherStudentsPage', () => {
         fireEvent.click(await screen.findByRole('button', { name: 'Confirm Release' }));
 
         await waitFor(() => {
-            expect(mocks.removeAssignment).toHaveBeenCalledTimes(2);
+            expect(mocks.removeAssignments).toHaveBeenCalledWith(
+                ['assign-1', 'assign-1b'],
+                'Released by teacher'
+            );
             expect(mocks.getAssignmentsByTeacher).toHaveBeenCalledTimes(2);
             expect(
                 screen.getAllByRole('alert').some((el) =>

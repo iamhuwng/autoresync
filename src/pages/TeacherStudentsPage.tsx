@@ -24,7 +24,7 @@ import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { FEATURE_IDS } from '../config/featureRegistry';
 import { useTeacherStudentRoster } from '../hooks/admin/useTeacherStudentRoster';
 import { enrollStudent } from '../services/classManager';
-import { createStudentRequest, removeAssignment } from '../services/assignmentManager';
+import { createStudentRequest, removeAssignments } from '../services/assignmentManager';
 import type { UserProfile } from '../services/userService';
 import { TeacherHeader } from '../components/navigation';
 import { StudentGrid } from '../components/admin/StudentGrid';
@@ -192,43 +192,28 @@ const TeacherStudentsPage: React.FC = () => {
         const student = studentToRelease;
         const studentLabel = student.displayName || student.email || 'Student';
 
-        const settled = await Promise.allSettled(
-            assignmentIds.map((id) =>
-                removeAssignment(id, 'Released by teacher')
-            )
+        const result = await removeAssignments(assignmentIds, 'Released by teacher');
+        const succeededCount = result.releasedIds.length;
+        const failureMessages = result.failed.map(
+            (item) => item.error || 'Failed to release assignment.'
         );
-
-        let succeededCount = 0;
-        const failureMessages: string[] = [];
-
-        settled.forEach((outcome) => {
-            if (outcome.status === 'fulfilled' && outcome.value.success) {
-                succeededCount += 1;
-            } else if (outcome.status === 'fulfilled') {
-                failureMessages.push(outcome.value.error || 'Failed to release assignment.');
-            } else {
-                failureMessages.push(
-                    outcome.reason instanceof Error
-                        ? outcome.reason.message
-                        : 'Failed to release assignment.'
-                );
-            }
-        });
 
         if (succeededCount > 0) {
             await roster.reload();
         }
 
-        if (failureMessages.length > 0) {
+        if (failureMessages.length > 0 || !result.success) {
+            const failedCount = Math.max(failureMessages.length, assignmentIds.length - succeededCount);
+            const firstError = failureMessages[0] || `Failed to release ${failedCount} assignment(s).`;
             const message = succeededCount > 0
-                ? `Released ${succeededCount} of ${assignmentIds.length} assignments for ${studentLabel}, but ${failureMessages.length} failed: ${failureMessages[0]}`
-                : failureMessages[0] || `Failed to release ${failureMessages.length} assignment(s).`;
+                ? `Released ${succeededCount} of ${assignmentIds.length} assignments for ${studentLabel}, but ${failedCount} failed: ${firstError}`
+                : firstError;
             if (succeededCount > 0) {
                 trackAction('releaseStudent', {
                     studentId: student.uid,
                     assignmentCount: assignmentIds.length,
                     releasedCount: succeededCount,
-                    failedCount: failureMessages.length,
+                    failedCount,
                 });
             }
             toast.error(message);

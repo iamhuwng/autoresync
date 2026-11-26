@@ -24,6 +24,7 @@ vi.mock('../services/assignmentManager', () => ({
     getAssignmentsByStudent: vi.fn(),
     getAssignmentsByTeacher: vi.fn(),
     removeAssignment: vi.fn(),
+    removeAssignments: vi.fn(),
     getAllAssignmentRequests: vi.fn(),
     approveStudentRequest: vi.fn(),
     denyStudentRequest: vi.fn(),

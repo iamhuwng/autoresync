@@ -666,6 +666,54 @@ describe('Class Manager - Student Enrollment', () => {
     expect(thirdResult.error).toContain('full');
   });
 
+  it('enforces maxStudents across sequential and concurrent approvals of pending requests', async () => {
+    const created = await createClass(
+      {
+        name: 'One-Seat Class',
+        settings: { maxStudents: 1 },
+      },
+      TEST_TEACHER_UID
+    );
+    const oneSeatClassId = created.classId!;
+
+    // Two students submit pending requests while 0 seats are occupied
+    const join1 = await enrollAsStudent(oneSeatClassId, TEST_STUDENT_UID, 'Student 1', 'student1@test.com');
+    const join2 = await enrollAsStudent(oneSeatClassId, TEST_STUDENT_UID_2, 'Student 2', 'student2@test.com');
+    expect(join1.success).toBe(true);
+    expect(join2.success).toBe(true);
+
+    // First approval fills the only seat; second sequential approval must fail with Class is full
+    const approve1 = await approveAsTeacher(oneSeatClassId, TEST_STUDENT_UID, TEST_TEACHER_UID);
+    const approve2 = await approveAsTeacher(oneSeatClassId, TEST_STUDENT_UID_2, TEST_TEACHER_UID);
+    expect(approve1.success).toBe(true);
+    expect(approve2.success).toBe(false);
+    expect(approve2.error).toContain('full');
+
+    const afterSequential = await getClass(oneSeatClassId);
+    expect(afterSequential?.students[TEST_STUDENT_UID]?.status).toBe('active');
+    expect(afterSequential?.students[TEST_STUDENT_UID_2]?.status).toBe('pending_approval');
+    expect(afterSequential?.stats.totalStudents).toBe(1);
+
+    // Concurrent approvals on a fresh 1-seat class must also only admit 1 student
+    const createdConcurrent = await createClass(
+      {
+        name: 'One-Seat Concurrent Class',
+        settings: { maxStudents: 1 },
+      },
+      TEST_TEACHER_UID
+    );
+    const concurrentClassId = createdConcurrent.classId!;
+    await enrollAsStudent(concurrentClassId, TEST_STUDENT_UID, 'Student 1', 'student1@test.com');
+    await enrollAsStudent(concurrentClassId, TEST_STUDENT_UID_2, 'Student 2', 'student2@test.com');
+
+    const [firstConcurrent, secondConcurrent] = await Promise.all([
+      approveAsTeacher(concurrentClassId, TEST_STUDENT_UID, TEST_TEACHER_UID),
+      approveAsTeacher(concurrentClassId, TEST_STUDENT_UID_2, TEST_TEACHER_UID),
+    ]);
+    expect([firstConcurrent.success, secondConcurrent.success].filter(Boolean)).toHaveLength(1);
+    expect([firstConcurrent.error, secondConcurrent.error].some((msg) => msg?.includes('full'))).toBe(true);
+  });
+
   it('keeps the membership roster authoritative when a student self-joins', async () => {
     const beforeData = await getClass(testClassId);
     const beforeCount = beforeData?.stats.totalStudents || 0;

@@ -2216,7 +2216,10 @@
     "classes": {
       ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (query.orderByChild === 'createdBy' && query.equalTo === auth.uid))",
       "$classId": {
-        ".read": "auth != null && (!data.exists() || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || data.child('createdBy').val() === auth.uid || (!data.child('createdBy').exists() && (data.child('ownerId').val() === auth.uid || data.child('createdByUserId').val() === auth.uid || data.child('teacherId').val() === auth.uid)) || data.child('students').child(auth.uid).exists())",
+        ".read": "auth != null && (!data.exists() || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || data.child('createdBy').val() === auth.uid || (!data.child('createdBy').exists() && (data.child('ownerId').val() === auth.uid || data.child('createdByUserId').val() === auth.uid || data.child('teacherId').val() === auth.uid)) || (data.child('students').child(auth.uid).exists() && (!data.child('students').child(auth.uid).child('status').exists() || data.child('students').child(auth.uid).child('status').val() === 'active')))",
+        "createdBy": {
+          ".read": "auth != null && data.parent().child('students').child(auth.uid).child('status').val() === 'pending_approval'"
+        },
         ".write": "auth != null && !data.exists() && !newData.child('book_locks').exists() && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && newData.child('createdBy').val() === auth.uid))",
         "students": {
           "$studentId": {
@@ -2293,7 +2296,8 @@
         "stats": {
           ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('classes').child($classId).child('createdBy').val() === auth.uid))",
           "totalStudents": {
-            ".read": "auth != null"
+            ".read": "auth != null",
+            ".validate": "!newData.exists() || (newData.isNumber() && (!data.parent().parent().child('settings/maxStudents').isNumber() || data.parent().parent().child('settings/maxStudents').val() <= 0 || newData.val() <= data.parent().parent().child('settings/maxStudents').val() || (data.exists() && newData.val() <= data.val())))"
           }
         },
         "expiresAt": {

@@ -29,6 +29,8 @@ beforeEach(async () => {
         'teacher-b': { role: 'teacher', status: 'active' },
         'student-1': { role: 'student', status: 'active' },
         'student-2': { role: 'student', status: 'active' },
+        'student-pending': { role: 'student', status: 'active' },
+        'student-removed': { role: 'student', status: 'active' },
         'admin-1': { role: 'super_admin', status: 'active' },
       },
       student_teacher_assignments: {
@@ -101,6 +103,20 @@ beforeEach(async () => {
               email: 'student2@test.com',
               status: 'active',
               joinedAt: 2000,
+            },
+            'student-pending': {
+              id: 'student-pending',
+              uid: 'student-pending',
+              email: 'pending@test.com',
+              status: 'pending_approval',
+              joinedAt: 2500,
+            },
+            'student-removed': {
+              id: 'student-removed',
+              uid: 'student-removed',
+              email: 'removed@test.com',
+              status: 'removed',
+              joinedAt: 2100,
             },
           },
         },
@@ -315,9 +331,30 @@ describe('RTDB Teacher Roster Isolation Rules', () => {
     await assertSucceeds(student1.ref('classes/class-b/students/student-1').get());
     await assertSucceeds(student1.ref('classes/class-b/membershipDecisions/student-1').get());
 
-    // Enrolled student can read their own class (even when archived)
+    // Enrolled active student can read their own class (even when archived)
     await assertSucceeds(student1.ref('classes/class-a').get());
+    await assertSucceeds(student2.ref('classes/class-b').get());
     await assertSucceeds(student2.ref('classes/class-b-archived').get());
+
+    // Pending applicant CANNOT read the full class or other students' PII,
+    // but CAN read narrow join-notification metadata (createdBy + own row).
+    const studentPending = env.authenticatedContext('student-pending').database();
+    await assertFails(studentPending.ref('classes/class-b').get());
+    await assertFails(studentPending.ref('classes/class-b/students').get());
+    await assertFails(studentPending.ref('classes/class-b/students/student-2').get());
+    await assertSucceeds(studentPending.ref('classes/class-b/createdBy').get());
+    await assertSucceeds(studentPending.ref('classes/class-b/students/student-pending').get());
+
+    // Removed student CANNOT read the full class, roster, or createdBy
+    const studentRemoved = env.authenticatedContext('student-removed').database();
+    await assertFails(studentRemoved.ref('classes/class-b').get());
+    await assertFails(studentRemoved.ref('classes/class-b/students').get());
+    await assertFails(studentRemoved.ref('classes/class-b/createdBy').get());
+
+    // Capacity validation prevents increasing stats/totalStudents past settings/maxStudents
+    const teacherB = env.authenticatedContext('teacher-b').database();
+    await assertFails(teacherB.ref('classes/class-b/stats/totalStudents').set(51));
+    await assertSucceeds(teacherB.ref('classes/class-b/stats/totalStudents').set(50));
 
     await assertSucceeds(admin.ref('classes').get());
   });
