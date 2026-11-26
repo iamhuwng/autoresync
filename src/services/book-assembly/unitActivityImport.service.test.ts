@@ -12,6 +12,7 @@ import {
   stageUnitActivityImportBundle,
   UnitActivityImportConflictError,
   UnitActivityImportError,
+  UnitActivityImportPartialCommitError,
 } from './unitActivityImport.service';
 import {
   BULK_UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
@@ -729,6 +730,161 @@ describe('unit Activity JSON import', () => {
         expectedRevision: 2,
         unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-b' },
       });
+    });
+
+    it('invokes onCommitPhaseStart before Phase 2 and compensates already-committed slots using previousSnapshotsBySlot on Phase 2 failure', async () => {
+      const events: string[] = [];
+      const discard = vi.fn().mockResolvedValue({ status: 'discarded', candidateId: 'cand-b', revision: 3, lifecycle: 'discarded' });
+      const stage = vi.fn()
+        .mockResolvedValueOnce({
+          status: 'staged',
+          candidateId: 'cand-a',
+          targetActivityId: bookScopedActivityTargetId('book-1', 'activity-a'),
+          revision: 1,
+          lifecycle: 'staged',
+          validation: { valid: true, errors: [] },
+          diff: null,
+          evidenceRefs: [],
+          sourceEvidenceRefs: [],
+          answerEvidenceRefs: [],
+        })
+        .mockResolvedValueOnce({
+          status: 'staged',
+          candidateId: 'cand-b',
+          targetActivityId: bookScopedActivityTargetId('book-1', 'activity-b'),
+          revision: 1,
+          lifecycle: 'staged',
+          validation: { valid: true, errors: [] },
+          diff: null,
+          evidenceRefs: [],
+          sourceEvidenceRefs: [],
+          answerEvidenceRefs: [],
+        })
+        .mockResolvedValueOnce({
+          status: 'staged',
+          candidateId: 'cand-a-rollback',
+          targetActivityId: bookScopedActivityTargetId('book-1', 'activity-a'),
+          revision: 1,
+          lifecycle: 'staged',
+          validation: { valid: true, errors: [] },
+          diff: null,
+          evidenceRefs: [],
+          sourceEvidenceRefs: [],
+          answerEvidenceRefs: [],
+        });
+      const validate = vi.fn(async (input: { candidateId: string; expectedRevision: number }) => {
+        events.push(`validate:${input.candidateId}`);
+        return {
+          status: 'validated' as const,
+          candidateId: input.candidateId,
+          revision: input.expectedRevision + 1,
+          lifecycle: 'validated' as const,
+          validation: { valid: true, errors: [] },
+          diff: null,
+          evidenceRefs: [],
+          sourceEvidenceRefs: [],
+          answerEvidenceRefs: [],
+        };
+      });
+      const saveDraft = vi.fn()
+        .mockImplementationOnce(async () => {
+          events.push('save:cand-a');
+          return {
+            status: 'saved' as const,
+            activityId: bookScopedActivityTargetId('book-1', 'activity-a'),
+            candidateId: 'cand-a',
+            candidateRevision: 3,
+            revision: 2,
+            lifecycle: 'saved' as const,
+            validation: { valid: true, errors: [] },
+            diff: null,
+            evidenceRefs: [],
+            sourceEvidenceRefs: [],
+            answerEvidenceRefs: [],
+          };
+        })
+        .mockImplementationOnce(async () => {
+          events.push('save:cand-b-fail');
+          throw new Error('network_failure_slot_2');
+        })
+        .mockImplementationOnce(async () => {
+          events.push('save:cand-a-rollback');
+          return {
+            status: 'saved' as const,
+            activityId: bookScopedActivityTargetId('book-1', 'activity-a'),
+            candidateId: 'cand-a-rollback',
+            candidateRevision: 3,
+            revision: 3,
+            lifecycle: 'saved' as const,
+            validation: { valid: true, errors: [] },
+            diff: null,
+            evidenceRefs: [],
+            sourceEvidenceRefs: [],
+            answerEvidenceRefs: [],
+          };
+        });
+
+      const previousA = activity('Previous A');
+      let caught: unknown;
+      try {
+        await stageUnitActivityImportBundle({
+          text: bundle(),
+          manifest,
+          unitKey: 'unit-1',
+          activityAuthoring: { stage, validate, saveDraft, discard, loadCandidate: vi.fn() },
+          resolveActivityTargetId: (slot) => bookScopedActivityTargetId('book-1', slot.activityKey),
+          expectedActivityRevisions: { 'activity-a': 1 },
+          previousSnapshotsBySlot: {
+            'activity-a': {
+              content: previousA,
+              evidenceRefs: ['import:prev-a'],
+              sourceEvidenceRefs: ['source:full:page:2'],
+              answerEvidenceRefs: ['pageGroup:pages-full-2'],
+            },
+          },
+          onCommitPhaseStart: () => {
+            events.push('commit-phase-start');
+          },
+        });
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught).toBeInstanceOf(UnitActivityImportPartialCommitError);
+      expect(caught).toMatchObject({
+        code: 'partial-commit-rolled-back',
+        committedActivityKeys: ['activity-a'],
+        rolledBackActivityKeys: ['activity-a'],
+        failedActivityKey: 'activity-b',
+      });
+      // onCommitPhaseStart runs strictly after Phase 1 validation and before Phase 2 saveDraft
+      expect(events).toEqual([
+        'validate:cand-a',
+        'validate:cand-b',
+        'commit-phase-start',
+        'save:cand-a',
+        'save:cand-b-fail',
+        'validate:cand-a-rollback',
+        'save:cand-a-rollback',
+      ]);
+      // Uncommitted slot 2 candidate discarded
+      expect(discard).toHaveBeenCalledWith({
+        candidateId: 'cand-b',
+        expectedRevision: 2,
+        unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-b' },
+      });
+      // Compensating rollback re-staged slot 1's previous content at the new revision (2) and saved with replaceExistingUnitActivityBinding: true
+      expect(stage).toHaveBeenNthCalledWith(3, expect.objectContaining({
+        targetActivityId: bookScopedActivityTargetId('book-1', 'activity-a'),
+        expectedRevision: 2,
+        content: previousA,
+        sourceEvidenceRefs: ['source:full:page:2'],
+      }));
+      expect(saveDraft).toHaveBeenNthCalledWith(3, expect.objectContaining({
+        candidateId: 'cand-a-rollback',
+        replaceExistingUnitActivityBinding: true,
+        unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-a' },
+      }));
     });
 
     it('allows ordinary textbook URLs in activity prompts while still blocking private storage URLs and script tags', () => {

@@ -6,7 +6,7 @@ import type {
   BookDeliverySourceSet,
   BookDeliveryStructuralNodeProjection,
 } from './bookDelivery.types';
-import { validateBookDeliveryBinding } from './bookDelivery.schema';
+import { expectedObjectKeys, validateBookDeliveryBinding } from './bookDelivery.schema';
 
 export interface BookDeliveryPublishedPublicationReference {
   readonly bookId: string;
@@ -56,15 +56,14 @@ export function assertPublishedBookDeliveryPublication(
   value: unknown,
 ): asserts value is BookDeliveryPublishedPublicationReference {
   if (!isRecord(value)) throw new BookDeliveryPublicationError('publication must be a plain object.');
-  const expectedKeys = Object.hasOwn(value, 'referencePageGroups')
-    ? [
-      'bookId', 'bookMode', 'bookRevision', 'manifestVersionId', 'outline', 'ownerId', 'placements', 'publicationId',
-      'publicationRevision', 'publicationStatus', 'referencePageGroups', 'schedulePolicy', 'scope', 'sourceSet',
-    ]
-    : [
+  const expectedKeys = expectedObjectKeys(
+    value,
+    [
       'bookId', 'bookMode', 'bookRevision', 'manifestVersionId', 'outline', 'ownerId', 'placements', 'publicationId',
       'publicationRevision', 'publicationStatus', 'schedulePolicy', 'scope', 'sourceSet',
-    ];
+    ],
+    ['referencePageGroups'],
+  );
   exactKeys(value, expectedKeys, 'publication');
   const publication = value as Record<string, any>;
   if (!id(publication.bookId) || publication.bookMode !== 'pdf' || !Number.isSafeInteger(publication.bookRevision)

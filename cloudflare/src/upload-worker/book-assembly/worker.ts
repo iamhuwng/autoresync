@@ -42,7 +42,7 @@ export interface BookAssemblyRepositoryPort {
   readValue(path: string): Promise<unknown>;
   readScope(bookId: string, unitKey: string): Promise<BookAssemblyScope>;
   listUnitKeys?(bookId: string): Promise<readonly string[]>;
-  readBookScopes?(bookId: string): Promise<Readonly<Record<string, BookAssemblyScope>>>;
+  readBookScopes(bookId: string): Promise<Readonly<Record<string, BookAssemblyScope>>>;
   transaction<T>(
     bookId: string,
     unitKey: string,
@@ -643,17 +643,8 @@ export const createBookAssemblyWorkerHandlers = (options: {
         const readAllUnitScopes = async (
           keys: readonly string[],
         ): Promise<Map<string, BookAssemblyScope>> => {
-          if (repository.readBookScopes) {
-            const all = await repository.readBookScopes(bookId);
-            return new Map(keys.map((unitKey) => [unitKey, all[unitKey] ?? {}] as const));
-          }
-          const scopes = new Map<string, BookAssemblyScope>();
-          for (let offset = 0; offset < keys.length; offset += 8) {
-            const slice = keys.slice(offset, offset + 8);
-            const loaded = await Promise.all(slice.map(async (unitKey) => [unitKey, await repository.readScope(bookId, unitKey)] as const));
-            for (const [unitKey, scope] of loaded) scopes.set(unitKey, scope);
-          }
-          return scopes;
+          const all = await repository.readBookScopes(bookId);
+          return new Map(keys.map((unitKey) => [unitKey, all[unitKey] ?? {}] as const));
         };
         const requestCache = new Map<string, Promise<unknown>>();
         const attachedAuthority = await authorityFor(repository, bookId, input.env, input.uid);

@@ -60,7 +60,7 @@ describe('production source publication boundary', () => {
       editableDraft: editable, draft: normalizeActivity(editable, undefined, undefined, { mappedBookPageRefs: ['source:part-a:page:1'] }) };
     const read = async (savedValue = saved, bindingValue = binding, activityValue = activity, assemblyValue = assembly) =>
       readVerifiedDraftActivityKeys(assemblyValue as never,
-        { read: async () => bindingValue as never },
+        { readBookBindings: async () => ({ [bindingValue.unitKey]: { [bindingValue.activityKey]: bindingValue as never } }) },
         { readOwnerRoot: async () => ({ candidates: { [binding.candidateId]: savedValue }, activities: { [binding.activityId]: activityValue } }) });
     await expect(read()).resolves.toEqual(['activity-1']);
     for (const changed of [
@@ -214,9 +214,12 @@ describe('production source publication boundary', () => {
       draft: normalizeActivity(editable, undefined, undefined, { mappedBookPageRefs: ['source:full:page:9'] }),
     };
 
+    const singleBookBindingRepo = {
+      readBookBindings: async () => ({ [binding.unitKey]: { [binding.activityKey]: binding as never } }),
+    };
     const verified = await readVerifiedDraftActivityKeys(
       assembly as never,
-      { read: async () => binding as never },
+      singleBookBindingRepo,
       { readOwnerRoot: async () => ({ candidates: { [binding.candidateId]: saved }, activities: { [binding.activityId]: activity } }) },
     );
     expect(verified).toEqual(['u02-ex1']);
@@ -234,7 +237,7 @@ describe('production source publication boundary', () => {
     };
     const rejected = await readVerifiedDraftActivityKeys(
       replacedSourceAssembly as never,
-      { read: async () => binding as never },
+      singleBookBindingRepo,
       { readOwnerRoot: async () => ({ candidates: { [binding.candidateId]: saved }, activities: { [binding.activityId]: activity } }) },
     );
     expect(rejected).toEqual([]);
@@ -253,7 +256,7 @@ describe('production source publication boundary', () => {
     };
     const rejectedWithoutSourceSetSeal = await readVerifiedDraftActivityKeys(
       assembly as never,
-      { read: async () => binding as never },
+      singleBookBindingRepo,
       { readOwnerRoot: async () => ({ candidates: { [binding.candidateId]: legacySavedWithoutSourceSetSeal }, activities: { [binding.activityId]: activity } }) },
     );
     expect(rejectedWithoutSourceSetSeal).toEqual([]);
@@ -276,7 +279,7 @@ describe('production source publication boundary', () => {
     };
     const verifiedWithTranscript = await readVerifiedDraftActivityKeys(
       { ...assembly, manifest: manifestWithTranscript } as never,
-      { read: async () => binding as never },
+      singleBookBindingRepo,
       { readOwnerRoot: async () => ({ candidates: { [binding.candidateId]: savedWithTranscriptEvidence }, activities: { [binding.activityId]: activity } }) },
     );
     expect(verifiedWithTranscript).toEqual(['u02-ex1']);
@@ -300,7 +303,7 @@ describe('production source publication boundary', () => {
     };
     expect(await readVerifiedDraftActivityKeys(
       { ...assembly, manifest: manifestWithTeacherAnswerKey } as never,
-      { read: async () => binding as never },
+      singleBookBindingRepo,
       { readOwnerRoot: async () => ({ candidates: { [binding.candidateId]: savedWithTeacherAnswerEvidence }, activities: { [binding.activityId]: activity } }) },
     )).toEqual(['u02-ex1']);
 
@@ -311,20 +314,20 @@ describe('production source publication boundary', () => {
     };
     expect(await readVerifiedDraftActivityKeys(
       { ...assembly, manifest: manifestWithTeacherAnswerKey } as never,
-      { read: async () => binding as never },
+      singleBookBindingRepo,
       { readOwnerRoot: async () => ({ candidates: { [binding.candidateId]: savedWithTeacherSourceEvidence }, activities: { [binding.activityId]: activity } }) },
     )).toEqual([]);
 
-    // Passing pre-loaded cachedBookBindings avoids per-slot bindingRepository.read calls completely
-    const perSlotRead = vi.fn(async () => binding as never);
+    // Passing pre-loaded cachedBookBindings avoids any bindingRepository.readBookBindings call
+    const readBookBindings = vi.fn(async () => ({ [binding.unitKey]: { [binding.activityKey]: binding as never } }));
     const verifiedFromCache = await readVerifiedDraftActivityKeys(
       assembly as never,
-      { read: perSlotRead },
+      { readBookBindings },
       { readOwnerRoot: async () => ({ candidates: { [binding.candidateId]: saved }, activities: { [binding.activityId]: activity } }) },
       { candidates: { [binding.candidateId]: saved }, activities: { [binding.activityId]: activity } } as never,
       { 'unit-02': { 'u02-ex1': binding as never } },
     );
     expect(verifiedFromCache).toEqual(['u02-ex1']);
-    expect(perSlotRead).not.toHaveBeenCalled();
+    expect(readBookBindings).not.toHaveBeenCalled();
   });
 });

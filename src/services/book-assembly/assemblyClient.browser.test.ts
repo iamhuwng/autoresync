@@ -156,27 +156,43 @@ describe('PRD0062 ticket 13A browser client boundary', () => {
   });
 
   it('loads owner draft discovery with verified saved slots before activation', async () => {
-    const drafts = [{ candidate: { candidateId: 'candidate-first', ownerId: 'teacher-1', bookId: 'book-1',
+    const sharedManifest = {
+      bookId: 'book-1',
+      sourceSet: { sourceStrategy: 'component_pdfs' },
+      units: [{ unitKey: 'unit-1', activitySlots: [{ activityKey: 'activity-1' }] }],
+    };
+    const baseCandidate = {
+      candidateId: 'candidate-first', ownerId: 'teacher-1', bookId: 'book-1',
       bookRevision: 0, sourceSetRevision: 0, unitKey: 'unit-1', revision: 2, lifecycle: 'validated', updatedAt: 'now',
-      manifest: { bookId: 'book-1', sourceSet: { sourceStrategy: 'component_pdfs' },
-        units: [{ unitKey: 'unit-1', activitySlots: [{ activityKey: 'activity-1' }] }] } },
-      savedActivityKeysByUnit: { 'unit-1': ['activity-1'] } }];
-    const fetchImpl = vi.fn(async () => ok({ status: 'loaded', drafts }));
+    };
+    const expected = [{
+      candidate: { ...baseCandidate, manifest: sharedManifest },
+      savedActivityKeysByUnit: { 'unit-1': ['activity-1'] },
+    }];
+    const wire = {
+      status: 'loaded',
+      savedActivityKeysByUnit: { 'unit-1': ['activity-1'] },
+      manifestsById: { m0: sharedManifest },
+      drafts: [{ candidate: { ...baseCandidate, manifest: null }, manifestRef: 'm0' }],
+    };
+    const fetchImpl = vi.fn(async () => ok(wire));
     const client = createBookAssemblyClient({ baseUrl: 'https://assembly.example',
       getIdToken: async () => 'token', fetchImpl });
-    await expect(client.discoverDrafts('book-1')).resolves.toEqual(drafts);
+    await expect(client.discoverDrafts('book-1')).resolves.toEqual(expected);
     expect(fetchImpl).toHaveBeenCalledWith('https://assembly.example/book-assembly/books/book-1/drafts',
       expect.objectContaining({ method: 'GET', credentials: 'omit', redirect: 'error' }));
-    for (const changed of [
-      { ...drafts[0], candidate: { ...drafts[0].candidate, bookId: 'other-book' } },
-      { ...drafts[0], candidate: { ...drafts[0].candidate, revision: 0 } },
-      { ...drafts[0], candidate: { ...drafts[0].candidate, lifecycle: 'draft' } },
-      { ...drafts[0], candidate: { ...drafts[0].candidate, unitKey: 'unknown-unit' } },
-      { ...drafts[0], savedActivityKeysByUnit: null },
-      { ...drafts[0], savedActivityKeysByUnit: { 'unit-1': ['forged-slot'] } },
-      { ...drafts[0], savedActivityKeysByUnit: { 'unit-1': [null] } },
+    for (const badWire of [
+      { ...wire, drafts: [{ candidate: { ...baseCandidate, bookId: 'other-book', manifest: null }, manifestRef: 'm0' }] },
+      { ...wire, drafts: [{ candidate: { ...baseCandidate, revision: 0, manifest: null }, manifestRef: 'm0' }] },
+      { ...wire, drafts: [{ candidate: { ...baseCandidate, lifecycle: 'draft', manifest: null }, manifestRef: 'm0' }] },
+      { ...wire, drafts: [{ candidate: { ...baseCandidate, unitKey: 'unknown-unit', manifest: null }, manifestRef: 'm0' }] },
+      { ...wire, drafts: [{ candidate: { ...baseCandidate, manifest: null }, manifestRef: 'missing' }] },
+      { ...wire, manifestsById: null },
+      { ...wire, savedActivityKeysByUnit: null },
+      { ...wire, savedActivityKeysByUnit: { 'unit-1': ['forged-slot'] } },
+      { ...wire, savedActivityKeysByUnit: { 'unit-1': [null] } },
     ]) {
-      fetchImpl.mockImplementation(async () => ok({ status: 'loaded', drafts: [changed] }));
+      fetchImpl.mockImplementation(async () => ok(badWire));
       await expect(client.discoverDrafts('book-1')).rejects.toMatchObject({ code: 'invalid_response', status: 502 });
     }
   });

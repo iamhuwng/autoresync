@@ -80,6 +80,7 @@ export interface BookDeliverySourceBinding {
   readonly lifecycle: 'verified-usable';
   readonly sourceOrder?: number;
   readonly ownerNodeKey?: string;
+  readonly physicalPageCount?: number;
   readonly localPageScope: BookDeliverySourcePageScope;
 }
 
@@ -98,6 +99,12 @@ export interface BookDeliveryPlacement {
   readonly contextMode: 'none' | 'optional' | 'required';
   readonly pageGroupKeys: readonly string[];
   readonly sourcePageScopes: readonly {
+    readonly sourceKey: string;
+    readonly pages: readonly number[];
+  }[];
+  /** Trusted navigation mapping for context-free (`contextMode: 'none'`) Activities without granting source-context authority. */
+  readonly navigationPageGroupKeys?: readonly string[];
+  readonly navigationPageScopes?: readonly {
     readonly sourceKey: string;
     readonly pages: readonly number[];
   }[];
@@ -150,6 +157,7 @@ export interface BookRuntimeDeliveryDocumentRequest {
   readonly sourceVersionId: string;
   readonly opaqueRouteKey: string;
   readonly localPageScope: BookDeliverySourcePageScope;
+  readonly physicalPageCount?: number;
   readonly expectedByteLength?: number;
   readonly expectedEtag?: string;
 }
@@ -178,6 +186,9 @@ export interface BookRuntimeActivityPlacementProjection {
     readonly pageGroupKeys: readonly string[];
     readonly sourcePageScopes: BookDeliveryPlacement['sourcePageScopes'];
   };
+  /** Trusted navigation mapping for context-free Activities when sourceContext is unavailable. */
+  readonly navigationPageGroupKeys?: readonly string[];
+  readonly navigationPageScopes?: BookDeliveryPlacement['sourcePageScopes'];
   /** Required on trusted Homework projections; absent on non-scheduled contexts. */
   readonly scheduleWindow?: import('./bookScheduleWindow.service').BookScheduleWindowDecision;
 }

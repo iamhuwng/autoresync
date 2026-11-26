@@ -145,6 +145,17 @@ const validateContext = (value: unknown, errors: BookDeliveryValidationError[]):
   }
 };
 
+export const expectedObjectKeys = (
+  value: unknown,
+  requiredKeys: readonly string[],
+  optionalKeys: readonly string[],
+): readonly string[] => {
+  const presentOptional = value !== null && typeof value === 'object'
+    ? optionalKeys.filter((key) => Object.hasOwn(value, key))
+    : [];
+  return [...requiredKeys, ...presentOptional].sort();
+};
+
 const validateSources = (value: unknown, errors: BookDeliveryValidationError[]): void => {
   if (!exact(value, ['sources', 'strategy'], 'sourceSet', errors)) return;
   const sourceSet = value as Record<string, any>;
@@ -166,11 +177,14 @@ const validateSources = (value: unknown, errors: BookDeliveryValidationError[]):
     const path = `sourceSet.sources[${index}]`;
     const expected = sourceSet.strategy === 'component_pdfs'
       ? ['lifecycle', 'localPageScope', 'ownerNodeKey', 'sourceKey', 'sourceOrder', 'sourceVersionId']
-      : ['lifecycle', 'localPageScope', 'sourceKey', 'sourceVersionId'];
+      : expectedObjectKeys(source, ['lifecycle', 'localPageScope', 'sourceKey', 'sourceVersionId'], ['physicalPageCount']);
     if (!exact(source, expected, path, errors)) return;
     if (!id(source.sourceKey) || keys.has(source.sourceKey)) error(errors, 'duplicate-id', `${path}.sourceKey`, 'Source key must be unique and safe.');
     if (!id(source.sourceVersionId) || versions.has(source.sourceVersionId)) error(errors, 'duplicate-id', `${path}.sourceVersionId`, 'Source Version must be unique and safe.');
     if (source.lifecycle !== 'verified-usable') error(errors, 'invalid-value', `${path}.lifecycle`, 'Only verified usable Source Versions may be bound.');
+    if (Object.hasOwn(source, 'physicalPageCount') && !positive(source.physicalPageCount)) {
+      error(errors, 'invalid-value', `${path}.physicalPageCount`, 'Physical page count must be a positive integer.');
+    }
     if (sourceSet.strategy === 'component_pdfs' && !id(source.ownerNodeKey)) error(errors, 'invalid-value', `${path}.ownerNodeKey`, 'Component source requires an owning node.');
     if (sourceSet.strategy === 'component_pdfs' && (!positive(source.sourceOrder) || orders.has(source.sourceOrder))) {
       error(errors, 'duplicate-order', `${path}.sourceOrder`, 'Component source order must be unique and positive.');
@@ -287,10 +301,15 @@ const validatePlacements = (value: unknown, errors: BookDeliveryValidationError[
   const orders = new Set<number>();
   value.forEach((placement, index) => {
     const path = `placements[${index}]`;
-    if (!exact(placement, [
-      'activityId', 'activityVersion', 'activityVersionId', 'contextMode', 'nodeKey',
-      'order', 'pageGroupKeys', 'placementId', 'sourcePageScopes',
-    ], path, errors)) return;
+    const expected = expectedObjectKeys(
+      placement,
+      [
+        'activityId', 'activityVersion', 'activityVersionId', 'contextMode', 'nodeKey',
+        'order', 'pageGroupKeys', 'placementId', 'sourcePageScopes',
+      ],
+      ['navigationPageGroupKeys', 'navigationPageScopes'],
+    );
+    if (!exact(placement, expected, path, errors)) return;
     const entry = placement as Record<string, any>;
     if (!id(entry.placementId) || ids.has(entry.placementId)) error(errors, 'duplicate-id', `${path}.placementId`, 'Placement ID must be unique and safe.');
     if (!id(entry.activityId) || !id(entry.activityVersionId) || !id(entry.nodeKey)
@@ -307,6 +326,29 @@ const validatePlacements = (value: unknown, errors: BookDeliveryValidationError[
       if (!id(scope.sourceKey)) error(errors, 'invalid-value', `${scopePath}.sourceKey`, 'Source key is invalid.');
       validatePageArray(scope.pages, `${scopePath}.pages`, errors);
     });
+    const hasNavGroups = Object.hasOwn(entry, 'navigationPageGroupKeys');
+    const hasNavScopes = Object.hasOwn(entry, 'navigationPageScopes');
+    if (hasNavGroups || hasNavScopes) {
+      if (entry.contextMode !== 'none') {
+        error(errors, 'source-scope-mismatch', path, 'Separate navigation mapping is only valid for context-free placements.');
+      }
+      if (!hasNavGroups || !hasNavScopes) {
+        error(errors, 'source-scope-mismatch', path, 'Navigation mapping requires both navigationPageGroupKeys and navigationPageScopes.');
+      }
+      if (hasNavGroups) validateIdArray(entry.navigationPageGroupKeys, `${path}.navigationPageGroupKeys`, errors, false);
+      if (hasNavScopes) {
+        if (!boundedArray(entry.navigationPageScopes) || entry.navigationPageScopes.length === 0) {
+          error(errors, 'invalid-value', `${path}.navigationPageScopes`, 'Navigation page scopes must be a bounded nonempty array.');
+        } else {
+          (entry.navigationPageScopes as readonly Record<string, any>[]).forEach((scope, scopeIndex) => {
+            const scopePath = `${path}.navigationPageScopes[${scopeIndex}]`;
+            if (!exact(scope, ['pages', 'sourceKey'], scopePath, errors)) return;
+            if (!id(scope.sourceKey)) error(errors, 'invalid-value', `${scopePath}.sourceKey`, 'Source key is invalid.');
+            validatePageArray(scope.pages, `${scopePath}.pages`, errors);
+          });
+        }
+      }
+    }
     if (entry.contextMode === 'required' && (!Array.isArray(entry.sourcePageScopes) || entry.sourcePageScopes.length === 0)) {
       error(errors, 'source-scope-mismatch', `${path}.sourcePageScopes`, 'Required context must carry source page scope.');
     }
@@ -325,17 +367,15 @@ const validatePlacements = (value: unknown, errors: BookDeliveryValidationError[
 
 const validateBookDeliveryBindingUnsafe = (value: unknown): BookDeliveryValidationResult => {
   const errors: BookDeliveryValidationError[] = [];
-  const expectedKeys = Object.hasOwn(value ?? {}, 'referencePageGroups')
-    ? [
-      'bindingId', 'book', 'context', 'createdAt', 'issuer', 'outline', 'placements',
-      'recipient', 'referencePageGroups', 'revision', 'schedulePolicy', 'schemaVersion', 'scope',
-      'sourceSet', 'status',
-    ]
-    : [
+  const expectedKeys = expectedObjectKeys(
+    value,
+    [
       'bindingId', 'book', 'context', 'createdAt', 'issuer', 'outline', 'placements',
       'recipient', 'revision', 'schedulePolicy', 'schemaVersion', 'scope',
       'sourceSet', 'status',
-    ];
+    ],
+    ['referencePageGroups'],
+  );
   if (!exact(value, expectedKeys, 'binding', errors)) return { valid: false, errors };
   const binding = value as Record<string, any>;
   if (binding.schemaVersion !== BOOK_DELIVERY_SCHEMA_VERSION) {
@@ -472,7 +512,28 @@ const validateBookDeliveryBindingUnsafe = (value: unknown): BookDeliveryValidati
         }
       });
     }
+    if (Array.isArray(placement.navigationPageScopes)) {
+      placement.navigationPageScopes.forEach((scope: Record<string, any>) => {
+        if (!sourceKeys.has(scope.sourceKey)) {
+          error(errors, 'source-scope-mismatch', 'binding.placements.navigationPageScopes', 'Placement navigation references an unbound source.');
+        }
+        const source = Array.isArray(sourceSet.sources)
+          ? sourceSet.sources.find((entry: Record<string, any>) => entry.sourceKey === scope.sourceKey)
+          : undefined;
+        if (source?.localPageScope?.kind === 'pages'
+          && Array.isArray(source.localPageScope.pages)
+          && scope.pages.some((page: number) => !source.localPageScope.pages.includes(page))) {
+          error(errors, 'source-scope-mismatch', 'binding.placements.navigationPageScopes', 'Placement navigation page is outside the authorized local source scope.');
+        }
+      });
+    }
   });
+  const activityPageGroupKeys = new Set<string>(
+    placements.flatMap((placement) => [
+      ...(Array.isArray(placement.pageGroupKeys) ? placement.pageGroupKeys : []),
+      ...(Array.isArray(placement.navigationPageGroupKeys) ? placement.navigationPageGroupKeys : []),
+    ]),
+  );
   if (Object.hasOwn(binding, 'referencePageGroups')) {
     if (!boundedArray(binding.referencePageGroups)) {
       error(errors, 'invalid-value', 'binding.referencePageGroups', 'Reference page groups must be a bounded array.');
@@ -484,8 +545,8 @@ const validateBookDeliveryBindingUnsafe = (value: unknown): BookDeliveryValidati
         if (!id(group.nodeKey) || !outlineKeys.has(group.nodeKey)) {
           error(errors, 'contradictory-scope', `${path}.nodeKey`, 'Reference page group node is absent from the frozen outline.');
         }
-        if (!id(group.pageGroupKey) || seenRefKeys.has(group.pageGroupKey)) {
-          error(errors, 'duplicate-id', `${path}.pageGroupKey`, 'Reference page group key must be unique and safe.');
+        if (!id(group.pageGroupKey) || seenRefKeys.has(group.pageGroupKey) || activityPageGroupKeys.has(group.pageGroupKey)) {
+          error(errors, 'duplicate-id', `${path}.pageGroupKey`, 'Reference page group key must be unique and distinct from Activity Page Group keys.');
         } else {
           seenRefKeys.add(group.pageGroupKey);
         }

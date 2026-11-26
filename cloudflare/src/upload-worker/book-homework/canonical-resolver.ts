@@ -499,10 +499,16 @@ const createProjection = (
       contextMode: placement.contextMode,
       sourceContext: {
         available: contextFree ? false : sourcesReady,
-        description: contextDescription(placement),
+        description: contextFree ? 'No source context required.' : contextDescription(placement),
         pageGroupKeys: contextFree ? [] : placement.pageGroupKeys,
         sourcePageScopes: contextFree ? [] : placement.sourcePageScopes,
       },
+      ...(placement.navigationPageGroupKeys !== undefined
+        ? { navigationPageGroupKeys: placement.navigationPageGroupKeys }
+        : {}),
+      ...(placement.navigationPageScopes !== undefined
+        ? { navigationPageScopes: placement.navigationPageScopes }
+        : {}),
     };
   });
   return {

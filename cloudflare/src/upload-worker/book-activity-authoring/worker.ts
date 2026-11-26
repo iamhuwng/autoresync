@@ -253,7 +253,22 @@ const bindingWrite = (receipt: BindingReceipt): UnitActivityBinding => ({
 });
 
 const terminal = (candidate: CandidateRecord): boolean => ['rejected', 'saved', 'discarded'].includes(candidate.lifecycle);
-const prune = (root: BookActivityAuthoringRoot, at: number): void => {
+const collectReceiptCandidateIds = (root: BookActivityAuthoringRoot): Set<string> => {
+  const ids = new Set<string>();
+  for (const value of Object.values(root.operations ?? {})) {
+    const op = asOperation(value);
+    const result = plainRecord(op?.result);
+    const receipt = bindingReceipt(result?.binding);
+    if (receipt) ids.add(receipt.candidateId);
+  }
+  return ids;
+};
+const prune = (
+  root: BookActivityAuthoringRoot,
+  at: number,
+  protectedBoundCandidateIds?: ReadonlySet<string>,
+): void => {
+  const receiptCandidateIds = collectReceiptCandidateIds(root);
   const operations = Object.entries(root.operations ?? {})
     .flatMap(([id, value]) => {
       const operation = asOperation(value);
@@ -268,8 +283,8 @@ const prune = (root: BookActivityAuthoringRoot, at: number): void => {
     const candidate = asCandidate(value, id);
     return candidate ? [[id, candidate] as const] : [];
   });
-  // Protect the latest saved candidate for every target Activity so active
-  // unit bindings never lose their saved candidate record during pruning.
+  // Protect every candidate referenced by active unit-activity bindings,
+  // pending/complete binding receipts, and the latest saved candidate per target.
   const latestSavedByTarget = new Map<string, { id: string; updatedAt: number; revision: number }>();
   for (const [id, candidate] of parsedCandidates) {
     if (candidate.lifecycle !== 'saved') continue;
@@ -283,9 +298,13 @@ const prune = (root: BookActivityAuthoringRoot, at: number): void => {
       });
     }
   }
-  const protectedSavedIds = new Set(Array.from(latestSavedByTarget.values(), (entry) => entry.id));
+  const protectedIds = new Set<string>([
+    ...Array.from(latestSavedByTarget.values(), (entry) => entry.id),
+    ...receiptCandidateIds,
+    ...(protectedBoundCandidateIds ?? []),
+  ]);
   const removable = parsedCandidates
-    .filter(([id, candidate]) => terminal(candidate) && !protectedSavedIds.has(id))
+    .filter(([id, candidate]) => terminal(candidate) && !protectedIds.has(id))
     .sort(([, left], [, right]) => left.updatedAt - right.updatedAt);
   const next = { ...(root.candidates ?? {}) };
   for (const [id] of removable) {
@@ -941,17 +960,49 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
           ...(replaceBinding ? { replaceExistingUnitActivityBinding: true } : {}),
         });
       }
-      let output = await repository.transaction(input.uid, (root) => {
+      const loadProtectedBoundCandidateIds = async (): Promise<ReadonlySet<string>> => {
+        if (!trustedBookId || !options.bindingRepositoryFactory) return new Set();
+        const repo = bindingRepository ?? options.bindingRepositoryFactory(
+          input.env,
+          input.uid,
+          trustedBookId,
+          contextBinding?.unitKey ?? 'book',
+        );
+        if (!repo.readBookBindings) return new Set();
+        const byUnit = await repo.readBookBindings(input.uid, trustedBookId);
+        const ids = new Set<string>();
+        for (const unitBindings of Object.values(byUnit)) {
+          for (const binding of Object.values(unitBindings)) {
+            ids.add(binding.candidateId);
+          }
+        }
+        return ids;
+      };
+      let protectedBoundCandidateIds: ReadonlySet<string> | undefined = (
+        initialRoot && Object.keys(initialRoot.candidates ?? {}).length >= MAX_CANDIDATES_PER_OWNER
+          ? await loadProtectedBoundCandidateIds()
+          : undefined
+      );
+      const runMutationTransaction = () => repository.transaction(input.uid, (root) => {
         assertPersistedRoot(root, input.uid);
-        if (mutation === 'stage') return stage(root, input.uid, body, now(), createRecordId, trustedBookId!, activityValidationContext, assemblyDraftContext?.seal);
-        if (mutation === 'validate') return validate(root, input.uid, body, now(), activityValidationContext);
+        if (protectedBoundCandidateIds === undefined
+          && Object.keys(root.candidates ?? {}).length >= MAX_CANDIDATES_PER_OWNER
+          && trustedBookId && options.bindingRepositoryFactory) {
+          return { outcome: { status: '__needs_binding_prune__' } as Record<string, unknown>, write: false };
+        }
+        if (mutation === 'stage') {
+          return stage(root, input.uid, body, now(), createRecordId, trustedBookId!, activityValidationContext, assemblyDraftContext?.seal, protectedBoundCandidateIds);
+        }
+        if (mutation === 'validate') {
+          return validate(root, input.uid, body, now(), activityValidationContext, protectedBoundCandidateIds);
+        }
         if (mutation === 'save-draft') {
           return saveDraft(
             root, input.uid, body, now(), trustedBookId!, activityValidationContext,
-            replacementCandidateRevisionFloor,
+            replacementCandidateRevisionFloor, protectedBoundCandidateIds,
           );
         }
-        return discard(root, input.uid, body, now(), activityValidationContext);
+        return discard(root, input.uid, body, now(), activityValidationContext, protectedBoundCandidateIds);
       }, {
         beforeWrite: async (next) => {
           // Recheck rollout enforcement and authenticated ownership on every
@@ -986,6 +1037,11 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
           }
         },
       });
+      let output = await runMutationTransaction();
+      if (output.status === '__needs_binding_prune__') {
+        protectedBoundCandidateIds = await loadProtectedBoundCandidateIds();
+        output = await runMutationTransaction();
+      }
       if (bindingRequest) {
         let saved = plainRecord(output);
         let receipt = bindingReceipt(saved?.binding);
@@ -1102,6 +1158,7 @@ const stage = (
   bookId: string,
   validationContext: ActivityValidationContext = {},
   assemblyDraft?: AssemblyDraftSeal,
+  protectedBoundCandidateIds?: ReadonlySet<string>,
 ) => {
   const input = exact(body, [
     'operationId', 'expectedRevision', 'targetActivityId', 'content', 'evidenceRefs',
@@ -1110,7 +1167,7 @@ const stage = (
   const operationId = operation(input); const expectedRevision = validRevision(input.expectedRevision);
   const requestedTargetActivityId = input.targetActivityId === undefined ? undefined : validId(input.targetActivityId, 'activity_id');
   const refs = evidenceRefGroups(input);
-  prune(root, at);
+  prune(root, at, protectedBoundCandidateIds);
   const fingerprint = stable({ action: 'stage', bookId, expectedRevision, targetActivityId: requestedTargetActivityId ?? null, content: input.content, evidenceRefs: refs, unitActivityBinding: input.unitActivityBinding ?? null });
   const claimed = operationResult(root, ownerId, operationId, fingerprint, at, () => {
     if (Object.keys(root.candidates ?? {}).length >= MAX_CANDIDATES_PER_OWNER) return { status: 'capacity-exceeded' };
@@ -1155,6 +1212,7 @@ const validate = (
   body: unknown,
   at: number,
   validationContext: ActivityValidationContext = {},
+  protectedBoundCandidateIds?: ReadonlySet<string>,
 ) => {
   const input = exact(body, [
     'operationId', 'expectedRevision', 'candidateId', 'evidenceRefs',
@@ -1162,7 +1220,7 @@ const validate = (
   ]);
   const operationId = operation(input); const candidateId = validId(input.candidateId, 'candidate_id');
   const expectedRevision = validRevision(input.expectedRevision); const refs = evidenceRefGroups(input); const binding = unitActivityBinding(input);
-  prune(root, at);
+  prune(root, at, protectedBoundCandidateIds);
   const fingerprint = stable({ action: 'validate', candidateId, expectedRevision, evidenceRefs: refs ?? null, unitActivityBinding: binding ?? null });
   const claimed = operationResult(root, ownerId, operationId, fingerprint, at, () => {
     const candidate = asCandidate(root.candidates?.[candidateId], candidateId);
@@ -1194,6 +1252,7 @@ const saveDraft = (
   trustedBookId: string,
   validationContext: ActivityValidationContext = {},
   replacementCandidateRevisionFloor?: number,
+  protectedBoundCandidateIds?: ReadonlySet<string>,
 ) => {
   const input = exact(body, [
     'operationId', 'expectedRevision', 'candidateId', 'evidenceRefs',
@@ -1202,7 +1261,7 @@ const saveDraft = (
   ]);
   const operationId = operation(input); const candidateId = validId(input.candidateId, 'candidate_id');
   const expectedRevision = validRevision(input.expectedRevision); const refs = evidenceRefGroups(input);
-  prune(root, at);
+  prune(root, at, protectedBoundCandidateIds);
   const binding = unitActivityBinding(input);
   const replaceBinding = replaceExistingUnitActivityBinding(input);
   const fingerprint = stable({
@@ -1275,11 +1334,12 @@ const discard = (
   body: unknown,
   at: number,
   _validationContext: ActivityValidationContext = {},
+  protectedBoundCandidateIds?: ReadonlySet<string>,
 ) => {
   const input = exact(body, ['operationId', 'expectedRevision', 'candidateId', 'unitActivityBinding']);
   const operationId = operation(input); const candidateId = validId(input.candidateId, 'candidate_id');
   const expectedRevision = validRevision(input.expectedRevision);
-  prune(root, at);
+  prune(root, at, protectedBoundCandidateIds);
   const fingerprint = stable({ action: 'discard', candidateId, expectedRevision });
   const claimed = operationResult(root, ownerId, operationId, fingerprint, at, () => {
     const candidate = asCandidate(root.candidates?.[candidateId], candidateId);

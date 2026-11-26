@@ -632,4 +632,141 @@ describe('BookRuntimeShell', () => {
     expect(screen.getByRole('button', { name: /Page Group 2 · 12, 13/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Page Group 3 · 50, 51/i })).toBeInTheDocument();
   });
+
+  it('maps context-free (contextMode: none) Activities using navigationPageGroupKeys while keeping sourceContext unavailable', async () => {
+    const user = userEvent.setup();
+    const base = delivery(false);
+    const contextFreeDelivery: BookRuntimeDeliveryProjection = {
+      ...base,
+      sourceSet: {
+        strategy: 'full_pdf',
+        sources: [{ sourceKey: 'full', sourceVersionId: 'full-v1', lifecycle: 'verified-usable', localPageScope: { kind: 'all', pages: [] } }],
+      },
+      documentRequests: [{ sourceKey: 'full', sourceVersionId: 'full-v1', opaqueRouteKey: 'full-route', localPageScope: { kind: 'all', pages: [] } }],
+      pageGroups: [
+        { pageGroupKey: 'u1-g1', combinedPhysicalPages: [2] },
+        { pageGroupKey: 'u1-g2', combinedPhysicalPages: [5] },
+      ],
+      activities: [
+        {
+          placementId: 'p-free',
+          activityId: 'activity-free',
+          activityVersionId: 'activity-free-v1',
+          activityVersion: 1,
+          nodeKey: 'unit-1',
+          order: 1,
+          contextMode: 'none',
+          sourceContext: {
+            available: false,
+            description: 'No source context required.',
+            pageGroupKeys: [],
+            sourcePageScopes: [],
+          },
+          navigationPageGroupKeys: ['u1-g1'],
+          navigationPageScopes: [{ sourceKey: 'full', pages: [2] }],
+        },
+        {
+          placementId: 'p-req',
+          activityId: 'activity-req',
+          activityVersionId: 'activity-req-v1',
+          activityVersion: 1,
+          nodeKey: 'unit-1',
+          order: 2,
+          contextMode: 'required',
+          sourceContext: {
+            available: true,
+            description: 'Page 5',
+            pageGroupKeys: ['u1-g2'],
+            sourcePageScopes: [{ sourceKey: 'full', pages: [5] }],
+          },
+        },
+      ],
+    };
+
+    render(
+      <BookRuntimeShell
+        {...shellProps({
+          deliveryProjection: contextFreeDelivery,
+          activities: [
+            { activityId: 'activity-free', activityVersionId: 'activity-free-v1', projection: projection(false), label: 'Context-Free Quiz' },
+            { activityId: 'activity-req', activityVersionId: 'activity-req-v1', projection: projection(true), label: 'Page 5 Task' },
+          ],
+          registry: createActivityRendererRegistry([
+            registerActivityRenderer({
+              family: 'choice', variant: 'v1', presentationMode: 'structured',
+              responseCodec: 'test-text-v1', rendererId: 'test-choice-s', codecId: 'test-text-v1', renderer: Renderer, codec,
+            }),
+            registerActivityRenderer({
+              family: 'choice', variant: 'v1', presentationMode: 'source-assisted',
+              responseCodec: 'test-text-v1', rendererId: 'test-choice-sa', codecId: 'test-text-v1', renderer: Renderer, codec,
+            }),
+          ]),
+        })}
+      />,
+    );
+
+    // Group 1 shows Context-Free Quiz (mapped via navigationPageGroupKeys) and NOT Page 5 Task
+    expect(screen.getByRole('heading', { name: 'Context-Free Quiz' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Page 5 Task' })).not.toBeInTheDocument();
+
+    // Switching to Group 2 shows ONLY Page 5 Task (Context-Free Quiz is NOT shown in every group)
+    await user.click(screen.getByRole('button', { name: /Page Group 2 · 5/i }));
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Page 5 Task' })).toBeInTheDocument());
+    expect(screen.queryByRole('heading', { name: 'Context-Free Quiz' })).not.toBeInTheDocument();
+  });
+
+  it('allows Full-PDF navigation to unmapped physical pages across 1..physicalPageCount while keeping pageGroups as Activity metadata', async () => {
+    const user = userEvent.setup();
+    const base = delivery(true);
+    let capturedViewerInput: BookRuntimeViewerRenderInput | null = null;
+    const fullPdfDelivery: BookRuntimeDeliveryProjection = {
+      ...base,
+      sourceSet: {
+        strategy: 'full_pdf',
+        sources: [{ sourceKey: 'full', sourceVersionId: 'full-v1', lifecycle: 'verified-usable', localPageScope: { kind: 'all', pages: [] }, physicalPageCount: 10 }],
+      },
+      documentRequests: [{ sourceKey: 'full', sourceVersionId: 'full-v1', opaqueRouteKey: 'full-route', localPageScope: { kind: 'all', pages: [] }, physicalPageCount: 10 }],
+      pageGroups: [{ pageGroupKey: 'u1-g1', combinedPhysicalPages: [2, 3] }],
+      activities: [{
+        placementId: 'p-1',
+        activityId: 'activity-1',
+        activityVersionId: 'activity-1-v1',
+        activityVersion: 1,
+        nodeKey: 'unit-1',
+        order: 1,
+        contextMode: 'required',
+        sourceContext: { available: true, description: 'Pages 2-3', pageGroupKeys: ['u1-g1'], sourcePageScopes: [{ sourceKey: 'full', pages: [2, 3] }] },
+      }],
+    };
+
+    render(
+      <BookRuntimeShell
+        {...shellProps({
+          deliveryProjection: fullPdfDelivery,
+          activities: [{ activityId: 'activity-1', activityVersionId: 'activity-1-v1', projection: projection(true), label: 'Activity 1' }],
+          registry: registry(true),
+          viewer: {
+            title: 'Full PDF',
+            status: { state: 'ready', message: 'Ready.' },
+            render: (input: BookRuntimeViewerRenderInput) => {
+              capturedViewerInput = input;
+              return (
+                <div>
+                  <span data-testid="current-physical-page">{input.combinedPhysicalPage}</span>
+                  <button type="button" onClick={() => input.onPageChange(7)}>Jump to unmapped page 7</button>
+                </div>
+              );
+            },
+          },
+        })}
+      />,
+    );
+
+    expect(capturedViewerInput!.allowedPages).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(screen.getByTestId('current-physical-page')).toHaveTextContent('2');
+
+    await user.click(screen.getByRole('button', { name: 'Jump to unmapped page 7' }));
+    await waitFor(() => expect(screen.getByTestId('current-physical-page')).toHaveTextContent('7'));
+    expect(capturedViewerInput!.pageGroupKey).toBe('u1-g1');
+  });
 });

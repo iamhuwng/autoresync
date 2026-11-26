@@ -17,13 +17,20 @@ export type BookRuntimeNavigationReason = 'page-group-selected' | 'activity-sele
 export interface UseBookRuntimeNavigationOptions {
   readonly activities: readonly BookRuntimeNavigationActivity[];
   readonly pageGroups: readonly BookRuntimeNavigationPageGroup[];
+  /** Trusted total physical page count for full_pdf books so unmapped physical pages remain navigable. */
+  readonly totalPhysicalPages?: number;
   readonly initialState?: Partial<BookRuntimeNavigationState>;
   readonly onFlushBeforeNavigate?: (reason: BookRuntimeNavigationReason, state: BookRuntimeNavigationState) => void | Promise<void>;
   readonly onNavigate?: (state: BookRuntimeNavigationState, reason: BookRuntimeNavigationReason) => void;
   readonly onNavigationError?: (error: unknown, reason: BookRuntimeNavigationReason) => void;
 }
 
-const normalizeState = (activities: readonly BookRuntimeNavigationActivity[], pageGroups: readonly BookRuntimeNavigationPageGroup[], requested?: Partial<BookRuntimeNavigationState>): BookRuntimeNavigationState => {
+const normalizeState = (
+  activities: readonly BookRuntimeNavigationActivity[],
+  pageGroups: readonly BookRuntimeNavigationPageGroup[],
+  requested?: Partial<BookRuntimeNavigationState>,
+  totalPhysicalPages?: number,
+): BookRuntimeNavigationState => {
   const fallback = activities[0];
   if (!fallback) throw new Error('BookRuntimeShell requires at least one Activity.');
   const active = activities.find((activity) => activity.runtimeKey === requested?.runtimeKey)
@@ -35,10 +42,17 @@ const normalizeState = (activities: readonly BookRuntimeNavigationActivity[], pa
   const group = pageGroups.find((candidate) => candidate.pageGroupKey === pageGroupKey);
   const firstPage = group?.combinedPhysicalPages.find((page) => Number.isSafeInteger(page) && page > 0);
   if (!pageGroupKey || !firstPage) throw new Error(`BookRuntimeShell requires combined pages for Activity ${active.activityId}.`);
-  const combinedPhysicalPage = requested?.combinedPhysicalPage !== undefined
-    && (!requested.pageGroupKey || requested.pageGroupKey === pageGroupKey)
-    && group?.combinedPhysicalPages.includes(requested.combinedPhysicalPage)
-    ? requested.combinedPhysicalPage
+  const requestedPage = requested?.combinedPhysicalPage;
+  const validWithinGroup = requestedPage !== undefined
+    && (!requested?.pageGroupKey || requested.pageGroupKey === pageGroupKey)
+    && Boolean(group?.combinedPhysicalPages.includes(requestedPage));
+  const validWithinFullPdf = requestedPage !== undefined
+    && totalPhysicalPages !== undefined
+    && Number.isSafeInteger(requestedPage)
+    && requestedPage >= 1
+    && requestedPage <= totalPhysicalPages;
+  const combinedPhysicalPage = validWithinGroup || validWithinFullPdf
+    ? requestedPage!
     : firstPage;
   return { pageGroupKey, runtimeKey: active.runtimeKey, activityId: active.activityId, combinedPhysicalPage, desktopView: requested?.desktopView === 'pdf-focus' ? 'pdf-focus' : 'split', mobileTab: requested?.mobileTab === 'activity' ? 'activity' : 'page', navigatorCollapsed: requested?.navigatorCollapsed === true };
 };
@@ -59,21 +73,21 @@ export interface BookRuntimeNavigationController {
   readonly focusActivity: () => void;
 }
 
-export const useBookRuntimeNavigation = ({ activities, pageGroups, initialState, onFlushBeforeNavigate, onNavigate, onNavigationError }: UseBookRuntimeNavigationOptions): BookRuntimeNavigationController => {
-  const initial = useMemo(() => normalizeState(activities, pageGroups, initialState), [activities, initialState, pageGroups]);
+export const useBookRuntimeNavigation = ({ activities, pageGroups, totalPhysicalPages, initialState, onFlushBeforeNavigate, onNavigate, onNavigationError }: UseBookRuntimeNavigationOptions): BookRuntimeNavigationController => {
+  const initial = useMemo(() => normalizeState(activities, pageGroups, initialState, totalPhysicalPages), [activities, initialState, pageGroups, totalPhysicalPages]);
   const [state, setState] = useState(initial);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const initialStateKey = JSON.stringify(initialState ?? {});
   const previousInitialStateKey = useRef(initialStateKey);
-  useEffect(() => setState((current) => normalizeState(activities, pageGroups, current)), [activities, pageGroups]);
+  useEffect(() => setState((current) => normalizeState(activities, pageGroups, current, totalPhysicalPages)), [activities, pageGroups, totalPhysicalPages]);
   useEffect(() => {
     if (previousInitialStateKey.current === initialStateKey) return;
     previousInitialStateKey.current = initialStateKey;
-    setState(normalizeState(activities, pageGroups, initialState));
-  }, [activities, initialState, initialStateKey, pageGroups]);
+    setState(normalizeState(activities, pageGroups, initialState, totalPhysicalPages));
+  }, [activities, initialState, initialStateKey, pageGroups, totalPhysicalPages]);
   const transition = useCallback(async (next: Partial<BookRuntimeNavigationState>, reason: BookRuntimeNavigationReason) => {
     if (isTransitioning) return;
-    const nextState = normalizeState(activities, pageGroups, { ...state, ...next });
+    const nextState = normalizeState(activities, pageGroups, { ...state, ...next }, totalPhysicalPages);
     setIsTransitioning(true);
     try {
       await onFlushBeforeNavigate?.(reason, state);
@@ -82,7 +96,7 @@ export const useBookRuntimeNavigation = ({ activities, pageGroups, initialState,
     } catch (error) {
       onNavigationError?.(error, reason);
     } finally { setIsTransitioning(false); }
-  }, [activities, isTransitioning, onFlushBeforeNavigate, onNavigate, onNavigationError, pageGroups, state]);
+  }, [activities, isTransitioning, onFlushBeforeNavigate, onNavigate, onNavigationError, pageGroups, state, totalPhysicalPages]);
   const selectPageGroup = useCallback((pageGroupKey: string) => {
     const activity = activities.find((candidate) => candidate.pageGroupKeys.includes(pageGroupKey));
     if (pageGroups.some((group) => group.pageGroupKey === pageGroupKey)) void transition({ pageGroupKey, runtimeKey: activity?.runtimeKey ?? state.runtimeKey, activityId: activity?.activityId ?? state.activityId, combinedPhysicalPage: undefined, mobileTab: 'page' }, 'page-group-selected');
@@ -94,8 +108,17 @@ export const useBookRuntimeNavigation = ({ activities, pageGroups, initialState,
   }, [activities, state.pageGroupKey, transition]);
   const selectCombinedPhysicalPage = useCallback((combinedPhysicalPage: number) => {
     const group = pageGroups.find((candidate) => candidate.combinedPhysicalPages.includes(combinedPhysicalPage));
-    if (group) void transition({ pageGroupKey: group.pageGroupKey, combinedPhysicalPage }, 'combined-page-selected');
-  }, [pageGroups, state.pageGroupKey, transition]);
+    if (group) {
+      void transition({ pageGroupKey: group.pageGroupKey, combinedPhysicalPage }, 'combined-page-selected');
+      return;
+    }
+    if (totalPhysicalPages !== undefined
+      && Number.isSafeInteger(combinedPhysicalPage)
+      && combinedPhysicalPage >= 1
+      && combinedPhysicalPage <= totalPhysicalPages) {
+      void transition({ combinedPhysicalPage }, 'combined-page-selected');
+    }
+  }, [pageGroups, totalPhysicalPages, transition]);
   const moveActivity = useCallback((offset: number, reason: 'previous-activity' | 'next-activity') => {
     const activity = activities[activities.findIndex((candidate) => candidate.runtimeKey === state.runtimeKey) + offset];
     if (activity) void transition({ pageGroupKey: activity.pageGroupKeys[0], runtimeKey: activity.runtimeKey, activityId: activity.activityId, combinedPhysicalPage: undefined, mobileTab: 'activity' }, reason);

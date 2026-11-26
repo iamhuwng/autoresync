@@ -782,4 +782,52 @@ describeEmulator('PRD0062 #118 assembled production-normal RTDB rules', () => {
       }),
     }));
   });
+
+  it('requires book_activity_revision_service writes on book_activity/versions to set provenance.kind == activity-revision', async () => {
+    const revisionService = testEnv.authenticatedContext('revision-service', {
+      book_activity_revision_service: true,
+      book_activity_revision_ownerId: 'teacher-1',
+    }).database();
+
+    const makeVersionPayload = (
+      versionId: string,
+      provenance?: Record<string, unknown>,
+    ): Record<string, unknown> => ({
+      activityId: 'activity-rev-1',
+      activityVersionId: versionId,
+      activityVersion: 2,
+      ownerId: 'teacher-1',
+      lifecycle: 'published',
+      publishedAt: '2026-08-13T00:00:00.000Z',
+      activity: { title: 'Revised Activity' },
+      projection: { title: 'Revised Activity' },
+      payloadFingerprint: 'fnv1a64:1234567890abcdef',
+      createdByOperationId: 'op-rev-1',
+      ...(provenance ? { provenance } : {}),
+    });
+
+    // Rejects revision-service write claiming initial-book-publication provenance
+    await assertFails(
+      revisionService.ref('book_activity/versions/activity-rev-1/ver-forged-initial')
+        .set(makeVersionPayload('ver-forged-initial', { kind: 'initial-book-publication' })),
+    );
+
+    // Rejects revision-service write omitting provenance.kind
+    await assertFails(
+      revisionService.ref('book_activity/versions/activity-rev-1/ver-missing-provenance')
+        .set(makeVersionPayload('ver-missing-provenance')),
+    );
+
+    // Accepts revision-service write with explicit provenance.kind == 'activity-revision'
+    await assertSucceeds(
+      revisionService.ref('book_activity/versions/activity-rev-1/ver-2')
+        .set(makeVersionPayload('ver-2', { kind: 'activity-revision', predecessorVersionId: 'ver-1' })),
+    );
+
+    // Immutable once created: cannot overwrite ver-2
+    await assertFails(
+      revisionService.ref('book_activity/versions/activity-rev-1/ver-2')
+        .set(makeVersionPayload('ver-2', { kind: 'activity-revision', predecessorVersionId: 'ver-1' })),
+    );
+  });
 });

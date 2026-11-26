@@ -1271,6 +1271,49 @@ describe('BookAssemblyWorkspace', () => {
     expect(mocks.error).toHaveBeenCalledWith('Unit Activity import failed.');
   });
 
+  it('rolls back the persisted Assembly manifest edit when subsequent 12C Activity staging fails', async () => {
+    const user = userEvent.setup();
+    const repo = repository();
+    const authoring = activityAuthoring();
+    vi.mocked(authoring.stage).mockRejectedValueOnce(new Error('authoring_worker_unavailable'));
+    const initialManifest = {
+      ...candidate().manifest!,
+      units: [{
+        unitKey: 'unit-1',
+        activitySlots: [{ activityKey: 'activity-reading-1', order: 1, contextRequirement: 'required' as const, pageGroupKeys: ['pages-full-2-activity'] }],
+        pageGroups: [
+          { pageGroupKey: 'pages-full-2-activity', sourceKey: 'full', pages: [2], defaultPhysicalPageNumber: 2, activityKeys: ['activity-reading-1'], mode: 'activity' as const },
+          { pageGroupKey: 'pages-ref-9', sourceKey: 'full', pages: [9], defaultPhysicalPageNumber: 9, activityKeys: [], mode: 'reference_only' as const },
+        ],
+      }],
+    };
+    renderWorkspace({
+      repository: repo,
+      activityAuthoring: authoring,
+      initialCandidate: {
+        ...candidate(),
+        manifest: initialManifest,
+      },
+    });
+
+    // Mutate the Book manifest in-editor before importing so persistAndValidateManifest writes a changed manifest
+    await user.click(screen.getByRole('button', { name: 'Add section' }));
+
+    fireEvent.change(screen.getByLabelText('Paste Unit Activity JSON'), {
+      target: { value: unitImportJson() },
+    });
+    await user.click(screen.getByRole('button', { name: 'Stage Unit JSON' }));
+
+    await waitFor(() => expect(authoring.stage).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(repo.replace).toHaveBeenCalledTimes(2));
+    // First replace saved the edited manifest; second replace restored initialManifest after stage failed
+    expect(repo.replace).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      candidateId: 'candidate-1',
+      manifest: initialManifest,
+    }));
+    expect(mocks.error).toHaveBeenCalledWith('Unit Activity import failed.');
+  });
+
   it('applies only exact candidate reconciliation through one 13A CAS revision', async () => {
     const user = userEvent.setup();
     const repo = repository();

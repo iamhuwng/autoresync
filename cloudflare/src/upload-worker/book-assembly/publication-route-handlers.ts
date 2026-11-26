@@ -364,6 +364,13 @@ const recordPublishedBindings = async (
     || activation.sourceSetRevision !== version.sourceSetRevision)) {
     throw new Error('book_assembly_activity_binding_conflict');
   }
+  const firstUnitKey = requestUnits[0]?.unitKey;
+  const bookBindingRepo = firstUnitKey
+    ? options.bindingRepositoryFactory(input.env, input.uid, requestBody.bookId, firstUnitKey)
+    : null;
+  const cachedBookBindings = bookBindingRepo?.readBookBindings
+    ? await bookBindingRepo.readBookBindings(input.uid, requestBody.bookId)
+    : null;
   for (const requestUnit of requestUnits) {
     const unitKey = requestUnit!.unitKey;
     const expectedKeys = version.manifest.units.find((unit) => unit.unitKey === unitKey)
@@ -380,10 +387,14 @@ const recordPublishedBindings = async (
       committed.set(candidate.activityKey, candidate);
     }
     if (committed.size !== expectedKeys.length) throw new Error('book_assembly_activity_binding_committed_version_missing');
-    const repository = options.bindingRepositoryFactory(input.env, input.uid, requestBody.bookId, unitKey);
+    const repository = unitKey === firstUnitKey && bookBindingRepo
+      ? bookBindingRepo
+      : options.bindingRepositoryFactory(input.env, input.uid, requestBody.bookId, unitKey);
     for (const activityKey of expectedKeys) {
       const versionRecord = committed.get(activityKey)!;
-      const binding = await repository.read({ ownerId: input.uid, bookId: requestBody.bookId, unitKey, activityKey });
+      const binding = cachedBookBindings !== null
+        ? (cachedBookBindings[unitKey]?.[activityKey] ?? null)
+        : await repository.read({ ownerId: input.uid, bookId: requestBody.bookId, unitKey, activityKey });
       const pinned = activation?.activationReceipt.activities.find((activity) =>
         activity.unitKey === unitKey && activity.activityKey === activityKey);
       if (!binding || binding.activityId !== versionRecord.activityId
@@ -392,6 +403,12 @@ const recordPublishedBindings = async (
           || binding.candidateId !== pinned.activityCandidateId
           || binding.candidateRevision !== pinned.activityCandidateRevision))) {
         throw new Error('book_assembly_activity_binding_conflict');
+      }
+      // Skip unchanged/already-recorded bindings (e.g., carried-forward units or idempotent replays)
+      // to stay well under the Cloudflare Workers Free 50-subrequest ceiling.
+      if (binding.activityVersionId === versionRecord.activityVersionId
+        && binding.activityVersion === versionRecord.activityVersion) {
+        continue;
       }
       const status = await repository.recordPublication({
         ownerId: input.uid, bookId: requestBody.bookId, unitKey, activityKey,

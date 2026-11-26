@@ -58,6 +58,7 @@ class Repository implements BookAssemblyRepositoryPort {
   scope: BookAssemblyScope = { candidates: { [candidate.candidateId]: candidate } };
   readValue = async () => ({ role: 'teacher', status: 'active' });
   readScope = async () => structuredClone(this.scope);
+  readBookScopes = async () => ({ [candidate.unitKey]: structuredClone(this.scope) });
   transaction = async <T,>(_bookId: string, _unitKey: string, mutate: (scope: BookAssemblyScope) => { outcome: T; next?: BookAssemblyScope; write: boolean }) => {
     const result = mutate(structuredClone(this.scope));
     if (result.write) this.scope = structuredClone(result.next ?? this.scope);

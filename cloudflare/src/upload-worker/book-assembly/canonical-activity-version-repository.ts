@@ -726,10 +726,11 @@ implements ExactPublishedActivityVersionReader {
           bookActivity.createdByCommandId as string,
         ));
       if (!publicationVisible(current, operation, bookActivity, request)) return null;
-    const bookSafeProjection = await rtdb.readValue(bookSafeProjectionPath(
-      request.bookId,
-      bookActivity.safeProjectionId as string,
-    ));
+    const [bookSafeProjection, rawCanonical, rawStudentSafeProjection] = await Promise.all([
+      rtdb.readValue(bookSafeProjectionPath(request.bookId, bookActivity.safeProjectionId as string)),
+      rtdb.readValue(paths.canonical),
+      rtdb.readValue(paths.studentSafeProjection),
+    ]);
     if (!sameBookSafeProjection(
       bookSafeProjection,
       bookActivity,
@@ -737,21 +738,20 @@ implements ExactPublishedActivityVersionReader {
       publicationRevision as number,
     )) return null;
 
-    const canonical = parseCanonicalFromRtdb(await rtdb.readValue(paths.canonical));
+    const canonical = parseCanonicalFromRtdb(rawCanonical);
     if (!canonical || !sameCanonicalIdentity(canonical, request, bookActivity)) return null;
     const placementIds = (bookSafeProjection as Record<string, unknown>).placementIds as string[];
     if (stable([...placementIds].sort()) !== stable([...canonical.placementIds].sort())) return null;
-    for (const placementId of placementIds) {
-      if (!sameBookPlacement(
-        await rtdb.readValue(bookPlacementPath(request.bookId, placementId)),
-        bookActivity,
-        request,
-        publicationRevision as number,
-      )) return null;
-    }
-    const studentSafeProjection = hydrateStudentSafeProjectionFromRtdb(
-      await rtdb.readValue(paths.studentSafeProjection),
+    const placements = await Promise.all(
+      placementIds.map((placementId) => rtdb.readValue(bookPlacementPath(request.bookId, placementId))),
     );
+    if (placements.some((placement) => !sameBookPlacement(
+      placement,
+      bookActivity,
+      request,
+      publicationRevision as number,
+    ))) return null;
+    const studentSafeProjection = hydrateStudentSafeProjectionFromRtdb(rawStudentSafeProjection);
     if (stable(studentSafeProjection) !== stable(safeProjectionFor(canonical))) return null;
     return canonical;
   }

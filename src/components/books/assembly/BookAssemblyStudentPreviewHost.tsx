@@ -85,6 +85,7 @@ const BookAssemblyStudentPreviewReady = ({
 
   const viewer = useMemo(() => ({
     title: `${bookTitle} — ${preview.unitKey}`,
+    reportsPageReady: true,
     status: route
       ? { state: 'ready' as const, message: 'Authorized candidate PDF is ready.' }
       : { state: 'error' as const, message: 'The current candidate PDF authorization is unavailable.' },
@@ -98,6 +99,7 @@ const BookAssemblyStudentPreviewReady = ({
           getIdToken={getIdToken}
           initialPage={input.combinedPhysicalPage}
           onPageChange={input.onPageChange}
+          onPageReady={input.onPageReady}
           route={route}
           title={validFullPdfRequest ? `${bookTitle} — Book document` : `${bookTitle} — combined student document`}
           trustedWorkerOrigins={trustedWorkerOrigins}

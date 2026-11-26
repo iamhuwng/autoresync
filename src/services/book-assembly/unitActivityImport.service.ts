@@ -425,6 +425,30 @@ export const discardStagedUnitActivities = async (
   }
 };
 
+export class UnitActivityImportPartialCommitError extends UnitActivityImportError {
+  constructor(
+    readonly committedActivityKeys: readonly string[],
+    readonly rolledBackActivityKeys: readonly string[],
+    readonly failedActivityKey: string,
+    message: string,
+  ) {
+    super(
+      rolledBackActivityKeys.length === committedActivityKeys.length
+        ? 'partial-commit-rolled-back'
+        : 'partial-commit-failed',
+      message,
+    );
+    this.name = 'UnitActivityImportPartialCommitError';
+  }
+}
+
+export interface PreviousSlotSnapshot {
+  readonly content: unknown;
+  readonly evidenceRefs?: readonly string[];
+  readonly sourceEvidenceRefs?: readonly string[];
+  readonly answerEvidenceRefs?: readonly string[];
+}
+
 export const stageUnitActivityImportBundle = async ({
   text,
   manifest,
@@ -432,6 +456,8 @@ export const stageUnitActivityImportBundle = async ({
   activityAuthoring,
   expectedActivityRevisions = {},
   resolveActivityTargetId,
+  previousSnapshotsBySlot,
+  onCommitPhaseStart,
   signal,
 }: {
   readonly text: string;
@@ -440,6 +466,8 @@ export const stageUnitActivityImportBundle = async ({
   readonly activityAuthoring: ActivityAuthoringService;
   readonly expectedActivityRevisions?: Readonly<Record<string, number>>;
   readonly resolveActivityTargetId: (slot: UnitActivityImportSlot) => string | null | undefined;
+  readonly previousSnapshotsBySlot?: Readonly<Record<string, PreviousSlotSnapshot>>;
+  readonly onCommitPhaseStart?: () => void;
   readonly signal?: AbortSignal;
 }): Promise<UnitActivityImportResult> => {
   const bundle = parseUnitActivityImportBundle(text, manifest, unitKey);
@@ -452,6 +480,12 @@ export const stageUnitActivityImportBundle = async ({
     readonly validatedRevision: number;
   }> = [];
   const committedCandidateIds = new Set<string>();
+  const committedEntries: Array<{
+    readonly activityKey: string;
+    readonly targetActivityId: string;
+    readonly savedActivityRevision: number;
+  }> = [];
+  let failingSaveSlotKey: string | null = null;
   try {
     // Phase 1: stage and validate every slot BEFORE saving any draft or writing
     // any unit binding, so a revision conflict, schema error, or cancel on a
@@ -504,9 +538,16 @@ export const stageUnitActivityImportBundle = async ({
       }
     }
 
+    // Lock cancellation before entering Phase 2 commit.
+    if (signal?.aborted) {
+      throw new UnitActivityImportError('canceled', 'Import was canceled.');
+    }
+    onCommitPhaseStart?.();
+
     // Phase 2: commit all validated slots once every slot is conflict-free.
     const committed: StagedUnitActivity[] = [];
     for (const { slot, result, validatedRevision } of validatedSlots) {
+      failingSaveSlotKey = slot.activityKey;
       const saved = await activityAuthoring.saveDraft({
         candidateId: result.candidateId,
         expectedRevision: validatedRevision,
@@ -522,12 +563,18 @@ export const stageUnitActivityImportBundle = async ({
         throw new UnitActivityImportError('activity-binding-save-failed', `Activity slot ${slot.activityKey} was not saved.`);
       }
       committedCandidateIds.add(result.candidateId);
+      committedEntries.push({
+        activityKey: slot.activityKey,
+        targetActivityId: result.targetActivityId,
+        savedActivityRevision: saved.revision,
+      });
       committed.push({
         ...result,
         revision: saved.candidateRevision,
         unitActivityBinding: { unitKey, activityKey: slot.activityKey },
       });
     }
+    failingSaveSlotKey = null;
     return { bundle, staged: committed };
   } catch (error) {
     const uncommitted = staged.filter((entry) => !committedCandidateIds.has(entry.candidateId));
@@ -541,6 +588,60 @@ export const stageUnitActivityImportBundle = async ({
           // Best-effort cleanup of remaining uncommitted slots; preserve the original save failure.
         }
       }
+    }
+    if (committedEntries.length > 0) {
+      const rolledBackKeys: string[] = [];
+      for (const entry of [...committedEntries].reverse()) {
+        const snapshot = previousSnapshotsBySlot?.[entry.activityKey];
+        if (!snapshot) continue;
+        try {
+          const restoredStage = await activityAuthoring.stage({
+            bookId: manifest.bookId,
+            targetActivityId: entry.targetActivityId,
+            expectedRevision: entry.savedActivityRevision,
+            unitActivityBinding: { unitKey, activityKey: entry.activityKey },
+            clientValidationContext: {
+              mappedBookPageRefs: clientMappedBookPageRefsForSlot(unit, entry.activityKey),
+            },
+            content: snapshot.content,
+            evidenceRefs: [...(snapshot.evidenceRefs ?? [])],
+            sourceEvidenceRefs: [...(snapshot.sourceEvidenceRefs ?? [])],
+            answerEvidenceRefs: [...(snapshot.answerEvidenceRefs ?? [])],
+          });
+          const restoredValidated = await activityAuthoring.validate({
+            candidateId: restoredStage.candidateId,
+            expectedRevision: restoredStage.revision,
+            unitActivityBinding: { unitKey, activityKey: entry.activityKey },
+            evidenceRefs: [...(snapshot.evidenceRefs ?? [])],
+            sourceEvidenceRefs: [...(snapshot.sourceEvidenceRefs ?? [])],
+            answerEvidenceRefs: [...(snapshot.answerEvidenceRefs ?? [])],
+          });
+          const restoredSaved = await activityAuthoring.saveDraft({
+            candidateId: restoredStage.candidateId,
+            expectedRevision: restoredValidated.revision,
+            evidenceRefs: [...(snapshot.evidenceRefs ?? [])],
+            sourceEvidenceRefs: [...(snapshot.sourceEvidenceRefs ?? [])],
+            answerEvidenceRefs: [...(snapshot.answerEvidenceRefs ?? [])],
+            unitActivityBinding: { unitKey, activityKey: entry.activityKey },
+            replaceExistingUnitActivityBinding: true,
+          });
+          if (restoredSaved.status === 'saved') {
+            rolledBackKeys.push(entry.activityKey);
+          }
+        } catch {
+          // Surface exact partial-commit state via UnitActivityImportPartialCommitError below.
+        }
+      }
+      const committedKeys = committedEntries.map((entry) => entry.activityKey);
+      const cause = error instanceof Error ? error.message : 'Save failed.';
+      throw new UnitActivityImportPartialCommitError(
+        committedKeys,
+        rolledBackKeys,
+        failingSaveSlotKey ?? committedKeys[committedKeys.length - 1]!,
+        rolledBackKeys.length === committedKeys.length
+          ? `Import failed on ${failingSaveSlotKey ?? 'slot'} (${cause}). Earlier slots were rolled back.`
+          : `Import failed on ${failingSaveSlotKey ?? 'slot'} (${cause}) after committing ${committedKeys.join(', ')}.`,
+      );
     }
     throw error;
   }

@@ -54,6 +54,7 @@ import {
   FirebaseRestBookDeliveryRepository,
 } from '../book-delivery/repository.ts';
 import {
+  BookDeliveryWorkerError,
   createTrustedBookDeliveryPublication,
 } from '../book-delivery/worker.ts';
 import {
@@ -369,6 +370,138 @@ export const deriveRevokedBookSourceVersionIds = (
   return sourceVersionIds.filter((sourceVersionId) => revoked.has(sourceVersionId));
 };
 
+export const fullPdfPublicationContainsTeacherOnlyPages = (
+  scope: {
+    readonly versions?: Readonly<Record<string, {
+      readonly manifest?: {
+        readonly units?: readonly {
+          readonly pageGroups?: readonly { readonly mode?: string }[];
+        }[];
+      };
+    }>>;
+  },
+  manifestVersionId: string,
+): boolean => {
+  const publishedVersion = scope.versions?.[manifestVersionId];
+  return publishedVersion?.manifest?.units?.some(
+    (unit) => unit.pageGroups?.some((group) => group.mode === 'teacher_only') ?? false,
+  ) ?? false;
+};
+
+export const createBookSourceDocumentAuthorityReader = (deps: {
+  readonly readPublicationScope: (
+    bookId: string,
+  ) => Promise<Awaited<ReturnType<FirebaseRestBookAssemblyPublicationRepository['readScope']>>>;
+  readonly readAccountState: () => Promise<ReturnType<typeof validateBookSourceUploadAccountState>>;
+  readonly readScheduleOpen: (binding: BookDeliveryBinding) => Promise<boolean>;
+  readonly readComponentStudentDocument: (
+    binding: BookDeliveryBinding,
+    scope: Awaited<ReturnType<FirebaseRestBookAssemblyPublicationRepository['readScope']>>,
+  ) => Promise<ReturnType<typeof resolveActiveComponentStudentDocument> | null>;
+  readonly providerTag: 'b2' | 'r2';
+  readonly privateBucketName: string;
+}): BookSourceDocumentRuntime['readCurrentAuthority'] => async (binding) => {
+  if (binding.context.kind === 'future_live') {
+    throw new Error('unsupported_book_document_context');
+  }
+  const scope = await deps.readPublicationScope(binding.book.bookId);
+  if (binding.sourceSet.strategy === 'full_pdf'
+    && fullPdfPublicationContainsTeacherOnlyPages(scope, binding.book.manifestVersionId)) {
+    return {
+      publicationStatus: 'unpublished',
+      scheduleOpen: false,
+      sourceVersionIds: [],
+      revokedSourceVersionIds: [],
+      sourceLocations: [],
+    };
+  }
+  let publication: ReturnType<typeof createTrustedBookDeliveryPublication>;
+  try {
+    publication = createTrustedBookDeliveryPublication({
+      bookId: binding.book.bookId,
+      publicationId: binding.book.publicationId,
+      publicationRevision: binding.book.publicationRevision,
+      recipientId: binding.recipient.recipientId,
+      contextKind: binding.context.kind as 'solo' | 'preview' | 'homework' | 'course' | 'class',
+      contextId: binding.context.contextId,
+      scope: binding.scope,
+    }, scope, binding.schedulePolicy);
+  } catch (error) {
+    if (error instanceof BookDeliveryWorkerError
+      && error.code === 'book_delivery_teacher_only_unstripped_forbidden') {
+      return {
+        publicationStatus: 'unpublished',
+        scheduleOpen: false,
+        sourceVersionIds: [],
+        revokedSourceVersionIds: [],
+        sourceLocations: [],
+      };
+    }
+    throw error;
+  }
+  const accountState = await deps.readAccountState();
+  const sourceVersionIds = publication.sourceSet.sources.map(
+    (source) => source.sourceVersionId,
+  );
+  const scheduleOpen = await deps.readScheduleOpen(binding);
+  const revokedSourceVersionIds = deriveRevokedBookSourceVersionIds(
+    accountState.operations,
+    sourceVersionIds,
+  );
+  const sourceLocations: BookDocumentAuthorizedSource[] = [];
+  const componentDocument = binding.sourceSet.strategy === 'component_pdfs'
+    ? await deps.readComponentStudentDocument(binding, scope)
+    : null;
+  if (binding.sourceSet.strategy === 'component_pdfs') {
+    const descriptor = componentDocument?.activation.bookRevision === binding.book.bookRevision
+      ? componentDocument.descriptor
+      : undefined;
+    const operation = descriptor
+      ? findReadyStudentDocumentOperation(accountState.operations, {
+        bookId: binding.book.bookId, ownerId: binding.issuer.ownerId, sourceVersionId: descriptor.sourceVersionId,
+      }) : null;
+    if (descriptor && studentDocumentOperationMatchesDescriptor(operation, descriptor)) {
+      sourceLocations.push({ ...operation.verifiedStorage, provider: deps.providerTag, bucket: deps.privateBucketName, objectKey: operation.verifiedStorage.providerObjectKey });
+      return {
+        publicationStatus: 'published', scheduleOpen,
+        sourceVersionIds: [descriptor.sourceVersionId],
+        revokedSourceVersionIds: deriveRevokedBookSourceVersionIds(accountState.operations, [descriptor.sourceVersionId]),
+        sourceLocations,
+        studentDocument: {
+          sourceVersionId: descriptor.sourceVersionId,
+          descriptorRevision: descriptor.descriptorRevision,
+          descriptorFingerprint: componentDocument!.activation.studentDocument.descriptorFingerprint,
+        },
+      };
+    }
+    return { publicationStatus: 'unpublished', scheduleOpen: false, sourceVersionIds: [], revokedSourceVersionIds: [], sourceLocations: [] };
+  }
+  for (const sourceVersionId of sourceVersionIds) {
+    const matches = Object.values(accountState.operations).filter(
+      (operation) => readySourceOperation(operation)
+        && operation.bookId === binding.book.bookId
+        && operation.ownerId === binding.issuer.ownerId
+        && operation.sourceVersionId === sourceVersionId
+        && operation.verifiedStorage !== undefined,
+    );
+    if (matches.length !== 1) continue;
+    const storage = matches[0]!.verifiedStorage!;
+    sourceLocations.push({
+      ...storage,
+      provider: deps.providerTag,
+      bucket: deps.privateBucketName,
+      objectKey: storage.providerObjectKey,
+    });
+  }
+  return {
+    publicationStatus: 'published',
+    scheduleOpen,
+    sourceVersionIds,
+    revokedSourceVersionIds,
+    sourceLocations,
+  };
+};
+
 export const defaultRuntimeFactory = (
   env: Record<string, unknown>,
 ): BookSourceDocumentRuntime => {
@@ -456,6 +589,12 @@ export const defaultRuntimeFactory = (
       };
     },
     readHistoricalSource: async ({ binding, sourceVersionId }) => {
+      if (binding.sourceSet.strategy === 'full_pdf') {
+        const scope = await publicationRepository.readScope(binding.book.bookId);
+        if (fullPdfPublicationContainsTeacherOnlyPages(scope, binding.book.manifestVersionId)) {
+          return { availability: 'revoked', source: null };
+        }
+      }
       const accountState = await readAccountState();
       const matches = Object.values(accountState.operations).filter(
         (operation) => operation.bookId === binding.book.bookId
@@ -570,95 +709,29 @@ export const defaultRuntimeFactory = (
         },
       };
     },
-    readCurrentAuthority: async (binding) => {
-      if (binding.context.kind === 'future_live') {
-        throw new Error('unsupported_book_document_context');
-      }
-      const scope = await publicationRepository.readScope(binding.book.bookId);
-      const publication = createTrustedBookDeliveryPublication({
-        bookId: binding.book.bookId,
-        publicationId: binding.book.publicationId,
-        publicationRevision: binding.book.publicationRevision,
-        recipientId: binding.recipient.recipientId,
-        contextKind: binding.context.kind as 'solo' | 'preview' | 'homework' | 'course' | 'class',
-        contextId: binding.context.contextId,
-        scope: binding.scope,
-      }, scope, binding.schedulePolicy);
-      const accountState = await readAccountState();
-      const sourceVersionIds = publication.sourceSet.sources.map(
-        (source) => source.sourceVersionId,
-      );
-      const scheduleOpen = binding.context.kind === 'public'
-        ? await authorizePublicBookProjection(env, binding)
-        : binding.context.kind === 'solo'
-        ? true
-        : binding.context.kind === 'homework'
-          ? await homeworkScheduleOpen(binding, homeworkStore, new Date())
-          : false;
-      const revokedSourceVersionIds = deriveRevokedBookSourceVersionIds(
-        accountState.operations,
-        sourceVersionIds,
-      );
-      const sourceLocations: BookDocumentAuthorizedSource[] = [];
-      const componentDocument = binding.sourceSet.strategy === 'component_pdfs'
-        ? await (async () => {
-          try {
-            const authority = await readProductionBookAssemblyAuthority(env, binding.issuer.ownerId, binding.book.bookId, 'current');
-            return authority ? resolveActiveComponentStudentDocument(authority, scope) : null;
-          } catch {
-            return null;
-          }
-        })()
-        : null;
-      if (binding.sourceSet.strategy === 'component_pdfs') {
-        const descriptor = componentDocument?.activation.bookRevision === binding.book.bookRevision
-          ? componentDocument.descriptor
-          : undefined;
-        const operation = descriptor
-          ? findReadyStudentDocumentOperation(accountState.operations, {
-            bookId: binding.book.bookId, ownerId: binding.issuer.ownerId, sourceVersionId: descriptor.sourceVersionId,
-          }) : null;
-        if (descriptor && studentDocumentOperationMatchesDescriptor(operation, descriptor)) {
-          sourceLocations.push({ ...operation.verifiedStorage, provider: providerTag, bucket: privateBucketName, objectKey: operation.verifiedStorage.providerObjectKey });
-          return {
-            publicationStatus: 'published', scheduleOpen,
-            sourceVersionIds: [descriptor.sourceVersionId],
-            revokedSourceVersionIds: deriveRevokedBookSourceVersionIds(accountState.operations, [descriptor.sourceVersionId]),
-            sourceLocations,
-            studentDocument: {
-              sourceVersionId: descriptor.sourceVersionId,
-              descriptorRevision: descriptor.descriptorRevision,
-              descriptorFingerprint: componentDocument!.activation.studentDocument.descriptorFingerprint,
-            },
-          };
+    readCurrentAuthority: createBookSourceDocumentAuthorityReader({
+      readPublicationScope: (bookId) => publicationRepository.readScope(bookId),
+      readAccountState,
+      readScheduleOpen: async (binding) => (
+        binding.context.kind === 'public'
+          ? authorizePublicBookProjection(env, binding)
+          : binding.context.kind === 'solo'
+            ? true
+            : binding.context.kind === 'homework'
+              ? homeworkScheduleOpen(binding, homeworkStore, new Date())
+              : false
+      ),
+      readComponentStudentDocument: async (binding, scope) => {
+        try {
+          const authority = await readProductionBookAssemblyAuthority(env, binding.issuer.ownerId, binding.book.bookId, 'current');
+          return authority ? resolveActiveComponentStudentDocument(authority, scope) : null;
+        } catch {
+          return null;
         }
-        return { publicationStatus: 'unpublished', scheduleOpen: false, sourceVersionIds: [], revokedSourceVersionIds: [], sourceLocations: [] };
-      }
-      for (const sourceVersionId of sourceVersionIds) {
-        const matches = Object.values(accountState.operations).filter(
-          (operation) => readySourceOperation(operation)
-            && operation.bookId === binding.book.bookId
-            && operation.ownerId === binding.issuer.ownerId
-            && operation.sourceVersionId === sourceVersionId
-            && operation.verifiedStorage !== undefined,
-        );
-        if (matches.length !== 1) continue;
-        const storage = matches[0]!.verifiedStorage!;
-        sourceLocations.push({
-          ...storage,
-          provider: providerTag,
-          bucket: privateBucketName,
-          objectKey: storage.providerObjectKey,
-        });
-      }
-      return {
-        publicationStatus: 'published',
-        scheduleOpen,
-        sourceVersionIds,
-        revokedSourceVersionIds,
-        sourceLocations,
-      };
-    },
+      },
+      providerTag,
+      privateBucketName,
+    }),
   };
 };
 

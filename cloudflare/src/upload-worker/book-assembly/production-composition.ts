@@ -140,7 +140,7 @@ const savedActivityMatchesFinalManifest = (
 /** Authoring-only saved slots; this proves no setup activation or publication. */
 export const readVerifiedDraftActivityKeys = async (
   candidate: BookAssemblyCandidateRecord,
-  bindingRepository: Pick<UnitActivityBindingRepository, 'read' | 'readBookBindings'>,
+  bindingRepository: Pick<UnitActivityBindingRepository, 'readBookBindings'>,
   activityRepository: Pick<FirebaseRestBookActivityAuthoringRepository, 'readOwnerRoot'>,
   cachedOwnerRoot?: Awaited<ReturnType<FirebaseRestBookActivityAuthoringRepository['readOwnerRoot']>>,
   cachedBookBindings?: Readonly<Record<string, Readonly<Record<string, UnitActivityBinding>>>>,
@@ -150,15 +150,11 @@ export const readVerifiedDraftActivityKeys = async (
   if (!manifest || !unit) return [];
   const root = cachedOwnerRoot ?? await activityRepository.readOwnerRoot(ownerId);
   const isFullPdf = manifest.sourceSet.sourceStrategy === 'full_pdf';
-  const bindingsBySlot = cachedBookBindings
-    ? unit.activitySlots.map(({ activityKey }) => ({
-      activityKey,
-      binding: cachedBookBindings[unitKey]?.[activityKey] ?? null,
-    }))
-    : await Promise.all(unit.activitySlots.map(async ({ activityKey }) => ({
-      activityKey,
-      binding: await bindingRepository.read({ ownerId, bookId, unitKey, activityKey }),
-    })));
+  const bookBindings = cachedBookBindings ?? await bindingRepository.readBookBindings!(ownerId, bookId);
+  const bindingsBySlot = unit.activitySlots.map(({ activityKey }) => ({
+    activityKey,
+    binding: bookBindings[unitKey]?.[activityKey] ?? null,
+  }));
   const savedKeys: string[] = [];
   for (const { activityKey, binding } of bindingsBySlot) {
     if (!binding || binding.candidateLifecycle !== 'saved'

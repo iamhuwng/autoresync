@@ -179,6 +179,14 @@ const scopedRuntimePageGroupKey = (
   return hasCrossUnitCollision && unitKey ? `${unitKey}::${pageGroupKey}` : pageGroupKey;
 };
 
+const placementNavigationPageGroupKeys = (
+  placement: BookRuntimeProjection['activities'][number],
+): readonly string[] => (
+  placement.sourceContext.pageGroupKeys.length > 0
+    ? placement.sourceContext.pageGroupKeys
+    : (placement.navigationPageGroupKeys ?? [])
+);
+
 const detectCrossUnitPageGroupCollision = (
   deliveryProjection: BookRuntimeProjection,
 ): boolean => {
@@ -186,7 +194,7 @@ const detectCrossUnitPageGroupCollision = (
   for (const placement of deliveryProjection.activities) {
     const unitKey = placementUnitKey(placement);
     if (!unitKey) continue;
-    for (const key of placement.sourceContext.pageGroupKeys) {
+    for (const key of placementNavigationPageGroupKeys(placement)) {
       const prevUnit = ownerUnitByGroupKey.get(key);
       if (prevUnit !== undefined && prevUnit !== unitKey) return true;
       ownerUnitByGroupKey.set(key, unitKey);
@@ -198,10 +206,15 @@ const detectCrossUnitPageGroupCollision = (
 const placementScopedPages = (
   placement: BookRuntimeProjection['activities'][number],
   request: BookRuntimeDeliveryDocumentRequest | BookRuntimeStudentDocumentRequest | null,
-): number[] => (placement.sourceContext.sourcePageScopes ?? [])
-  .filter((scope) => !request || !('sourceKey' in request) || scope.sourceKey === request.sourceKey)
-  .flatMap((scope) => scope.pages)
-  .filter((page) => Number.isSafeInteger(page) && page >= 1);
+): number[] => {
+  const scopes = (placement.sourceContext.sourcePageScopes ?? []).length > 0
+    ? placement.sourceContext.sourcePageScopes
+    : (placement.navigationPageScopes ?? []);
+  return scopes
+    .filter((scope) => !request || !('sourceKey' in request) || scope.sourceKey === request.sourceKey)
+    .flatMap((scope) => scope.pages)
+    .filter((page) => Number.isSafeInteger(page) && page >= 1);
+};
 
 const deriveFullPdfPageGroups = (
   deliveryProjection: BookRuntimeProjection,
@@ -213,7 +226,7 @@ const deriveFullPdfPageGroups = (
   for (const placement of deliveryProjection.activities) {
     const pages = placementScopedPages(placement, request);
     if (pages.length === 0) continue;
-    for (const rawKey of placement.sourceContext.pageGroupKeys) {
+    for (const rawKey of placementNavigationPageGroupKeys(placement)) {
       const pageGroupKey = scopedRuntimePageGroupKey(placement, rawKey, hasCrossUnitCollision);
       let set = byKey.get(pageGroupKey);
       if (!set) {
@@ -240,7 +253,7 @@ const isolateCollidingDeclaredPageGroups = (
   for (const placement of deliveryProjection.activities) {
     const unitKey = placementUnitKey(placement);
     if (!unitKey) continue;
-    for (const rawKey of placement.sourceContext.pageGroupKeys) {
+    for (const rawKey of placementNavigationPageGroupKeys(placement)) {
       const prevUnit = ownerUnitByRawKey.get(rawKey);
       if (prevUnit !== undefined && prevUnit !== unitKey) collidingRawKeys.add(rawKey);
       ownerUnitByRawKey.set(rawKey, unitKey);
@@ -252,7 +265,7 @@ const isolateCollidingDeclaredPageGroups = (
   }
   for (const placement of deliveryProjection.activities) {
     const scopedPages = placementScopedPages(placement, request);
-    for (const rawKey of placement.sourceContext.pageGroupKeys) {
+    for (const rawKey of placementNavigationPageGroupKeys(placement)) {
       const pageGroupKey = scopedRuntimePageGroupKey(placement, rawKey, true);
       const pages = collidingRawKeys.has(rawKey)
         ? scopedPages
@@ -270,7 +283,7 @@ const isolateCollidingDeclaredPageGroups = (
     }
   }
   const placementRawKeys = new Set(
-    deliveryProjection.activities.flatMap((placement) => placement.sourceContext.pageGroupKeys),
+    deliveryProjection.activities.flatMap((placement) => placementNavigationPageGroupKeys(placement)),
   );
   for (const group of declaredPageGroups) {
     if (placementRawKeys.has(group.pageGroupKey) || byScopedKey.has(group.pageGroupKey)) continue;
@@ -345,7 +358,7 @@ const resolveActivities = (
         && (content.activityVersion === undefined || content.activityVersion === placement.activityVersion);
     });
     if (!activity) return null;
-    const declaredPageGroupKeys = placement.sourceContext.pageGroupKeys
+    const declaredPageGroupKeys = placementNavigationPageGroupKeys(placement)
       .map((pageGroupKey) => scopedRuntimePageGroupKey(placement, pageGroupKey, hasCrossUnitCollision))
       .filter((pageGroupKey) => (
         pageGroups.some((pageGroup) => pageGroup.pageGroupKey === pageGroupKey)
@@ -441,10 +454,21 @@ const BookRuntimeShellReady = ({ deliveryProjection, display, activities, pageGr
   validationByInteractionId = {}, onResponseChange, responseMode, initialNavigation, onFlushBeforeNavigate,
   onNavigationStateChange, onNavigationError, onAction, personalTimer, integrityCapture, persistence,
   renderActivity, activitySummaries = {}, onReturn }: BookRuntimeShellReadyProps) => {
+  const fullPdfPhysicalPageCount = deliveryProjection.sourceSet.strategy === 'full_pdf'
+    && 'physicalPageCount' in request
+    && typeof request.physicalPageCount === 'number'
+    && Number.isSafeInteger(request.physicalPageCount)
+    && request.physicalPageCount >= 1
+    ? request.physicalPageCount
+    : undefined;
   const navigationActivities = useMemo(() => activities.map((activity) => ({ runtimeKey: activity.runtimeKey!, activityId: activity.activityId, pageGroupKeys: activity.pageGroupKeys! })), [activities]);
-  const navigation = useBookRuntimeNavigation({ activities: navigationActivities, pageGroups, initialState: initialNavigation,
+  const navigation = useBookRuntimeNavigation({ activities: navigationActivities, pageGroups, totalPhysicalPages: fullPdfPhysicalPageCount, initialState: initialNavigation,
     onFlushBeforeNavigate, onNavigate: onNavigationStateChange, onNavigationError });
-  const allowedPages = useMemo(() => [...new Set(pageGroups.flatMap((group) => group.combinedPhysicalPages))].sort((a, b) => a - b), [pageGroups]);
+  const allowedPages = useMemo(() => (
+    fullPdfPhysicalPageCount !== undefined
+      ? Array.from({ length: fullPdfPhysicalPageCount }, (_, index) => index + 1)
+      : [...new Set(pageGroups.flatMap((group) => group.combinedPhysicalPages))].sort((a, b) => a - b)
+  ), [fullPdfPhysicalPageCount, pageGroups]);
   const documentKey = JSON.stringify([deliveryProjection.context.contextId, request]);
   const [successfulPage, setSuccessfulPage] = useState<{ key: string; page: number } | null>(null);
   const displayedPage = viewer.reportsPageReady ? successfulPage?.key === documentKey ? successfulPage.page : null : navigation.state.combinedPhysicalPage;

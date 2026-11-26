@@ -787,4 +787,222 @@ describe('Book publication route composition', () => {
         init: { status: 503 },
       });
   });
+
+  it('reconciles Full-PDF publication bindings with 1 readBookBindings GET and skips unchanged carried-forward slots (5-unit fresh and 20-unit incremental)', async () => {
+    const buildMultiUnitManifest = (unitCount: number): BookAssemblyManifestCandidate => ({
+      bookId: 'book-1',
+      sourceSet: {
+        sourceStrategy: 'full_pdf',
+        sources: [{ sourceKey: 'full', sourceVersionId: 'source-v1', sourceOrder: 1 }],
+      },
+      nodes: [
+        { nodeKey: 'root', parentNodeKey: null, nodeType: 'section', order: 1 },
+        ...Array.from({ length: unitCount }, (_, idx) => ({
+          nodeKey: `unit-${idx + 1}`,
+          parentNodeKey: 'root',
+          nodeType: 'unit' as const,
+          order: idx + 1,
+        })),
+      ],
+      units: Array.from({ length: unitCount }, (_, idx) => ({
+        unitKey: `unit-${idx + 1}`,
+        activitySlots: [{
+          activityKey: `slot-${idx + 1}`,
+          order: 1,
+          contextRequirement: 'required' as const,
+          pageGroupKeys: [`pages-${idx + 1}`],
+        }],
+        pageGroups: [{
+          pageGroupKey: `pages-${idx + 1}`,
+          sourceKey: 'full',
+          pages: [idx + 1],
+          activityKeys: [`slot-${idx + 1}`],
+          mode: 'activity' as const,
+        }],
+      })),
+    });
+
+    const runScenario = async (unitCount: number, prePublishedUnits: number) => {
+      const multiManifest = buildMultiUnitManifest(unitCount);
+      const repository = new InMemoryBookAssemblyPublicationRepository<BookAssemblyPublicationResult>();
+      const writer = new InMemoryCanonicalActivityVersionRepository();
+      const storedBindings: Record<string, Record<string, UnitActivityBinding>> = {};
+      for (let idx = 1; idx <= unitCount; idx += 1) {
+        const unitKey = `unit-${idx}`;
+        const activityKey = `slot-${idx}`;
+        storedBindings[unitKey] = {
+          [activityKey]: {
+            schemaVersion: 1,
+            ownerId: 'teacher-1',
+            bookId: 'book-1',
+            unitKey,
+            activityKey,
+            activityId: `activity:${activityKey}`,
+            candidateId: `cand-${idx}`,
+            candidateRevision: 2,
+            candidateLifecycle: 'saved',
+          },
+        };
+      }
+      let readCalls = 0;
+      let readBookBindingsCalls = 0;
+      let recordPublicationCalls = 0;
+      const bindingRepo: UnitActivityBindingRepository = {
+        read: async () => {
+          readCalls += 1;
+          throw new Error('unexpected_per_slot_read');
+        },
+        readBookBindings: async () => {
+          readBookBindingsCalls += 1;
+          return structuredClone(storedBindings);
+        },
+        bindCandidate: async () => 'replayed',
+        recordPublication: async (value) => {
+          recordPublicationCalls += 1;
+          const existing = storedBindings[value.unitKey]?.[value.activityKey];
+          if (existing) {
+            storedBindings[value.unitKey]![value.activityKey] = {
+              ...existing,
+              activityVersionId: value.activityVersionId,
+              activityVersion: value.activityVersion,
+            };
+          }
+          return 'updated';
+        },
+      };
+      const makeCandidateForUnit = (unitKey: string): BookAssemblyCandidateRecord => ({
+        candidateId: `candidate-${unitKey}`,
+        ownerId: 'teacher-1',
+        bookId: 'book-1',
+        bookRevision: 9,
+        sourceSetRevision: 3,
+        unitKey,
+        revision: 6,
+        lifecycle: 'validated',
+        manifest: multiManifest,
+        validation: { valid: true, errors: [] },
+        updatedAt: now,
+      });
+      let currentPublicationId: string | null = null;
+      let opCounter = 0;
+      const makeHandlers = () => createBookAssemblyPublicationRouteHandlers({
+        repositoryFactory: () => repository,
+        activityVersionWriterFactory: () => writer,
+        bindingRepositoryFactory: () => bindingRepo,
+        allocateOperationId: () => `00000000-0000-4000-8000-${String(++opCounter).padStart(12, '0')}`,
+        allocateId: (kind, key) => (kind === 'activity' ? `activity:${key}` : `${kind}:${opCounter}:${key}`),
+        now: () => now,
+        fullPdf: {
+          readUser: async () => ({ role: 'teacher', status: 'active' }),
+          readAuthority: async () => ({
+            ...authority('full_pdf'),
+            sourceVersionAuthority: {
+              getSourceVersion: () => ({
+                sourceKey: 'full',
+                sourceVersionId: 'source-v1',
+                bookId: 'book-1',
+                checksum: { algorithm: 'sha-256' as const, value: 'a'.repeat(64) },
+                purpose: 'book-source' as const,
+                studentSafeStatus: 'ready' as const,
+                studentSafeDecision: {
+                  decidedBy: 'teacher-1',
+                  decidedAt: '2026-07-27T00:00:00.000Z',
+                  sourceVersionId: 'source-v1',
+                  sha256Hex: 'a'.repeat(64),
+                  reasonCode: 'teacher-reviewed' as const,
+                },
+                physicalPageCount: 30,
+                verifiedUsable: true,
+              }),
+            },
+          }),
+          readCandidate: async ({ unitKey }) => makeCandidateForUnit(unitKey),
+          readActivities,
+          readPreviewApproval: async ({ unitKey, approvalId }) => createPreviewApproval({
+            approvalId,
+            approvalRevision: 1,
+            actorId: 'teacher-1',
+            preview: createCandidateUnitPreview({
+              candidate: makeCandidateForUnit(unitKey),
+              sourceVersions: [{
+                sourceVersionId: 'source-v1',
+                bookId: 'book-1',
+                physicalPageCount: 30,
+                verifiedUsable: true,
+              }],
+              sourceIsPreviewReady: () => true,
+              bookRevision: 9,
+              sourceSetRevision: 3,
+              registryVersion: 'registry-1',
+              activitiesByKey: { [`slot-${unitKey.split('-')[1]}`]: activity() },
+            }),
+            canonicalActivitiesByKey: { [`slot-${unitKey.split('-')[1]}`]: activity() },
+            approvedAt: '2026-07-27T12:00:00.000Z',
+            expiresAt: '2026-07-27T14:00:00.000Z',
+          }),
+          sourceIsPreviewReady: async () => true,
+        },
+      });
+      const handlers = makeHandlers();
+      const env = {
+        BOOK_FULL_PDF_PUBLICATION_ENABLED: 'true',
+        BOOK_ASSEMBLY_REGISTRY_VERSION: 'registry-1',
+        readDatabaseValue: async () => ({ role: 'teacher', status: 'active' }),
+      };
+
+      // Seed prior units sequentially so predecessor scope has prePublishedUnits already published
+      for (let idx = 1; idx <= prePublishedUnits; idx += 1) {
+        const unitKey = `unit-${idx}`;
+        const res = await handlers.fullPdfPublish({
+          request: request(undefined, {
+            ...body(),
+            unitKey,
+            candidateId: `candidate-${unitKey}`,
+            expectedCurrentPublicationId: currentPublicationId,
+            previewApproval: { ...body().previewApproval, approvalId: `approval-${idx}` },
+          }),
+          env,
+          uid: 'teacher-1',
+        });
+        expect(res.init.status).toBe(200);
+        currentPublicationId = (res.body as { publicationId: string }).publicationId;
+      }
+
+      // Reset counters and measure the target publish request!
+      readCalls = 0;
+      readBookBindingsCalls = 0;
+      recordPublicationCalls = 0;
+      const targetUnitIdx = prePublishedUnits + 1;
+      const targetUnitKey = `unit-${targetUnitIdx}`;
+      const res = await handlers.fullPdfPublish({
+        request: request(undefined, {
+          ...body(),
+          unitKey: targetUnitKey,
+          candidateId: `candidate-${targetUnitKey}`,
+          expectedCurrentPublicationId: currentPublicationId,
+          previewApproval: { ...body().previewApproval, approvalId: `approval-${targetUnitIdx}` },
+        }),
+        env,
+        uid: 'teacher-1',
+      });
+      expect(res.init.status).toBe(200);
+      return { readCalls, readBookBindingsCalls, recordPublicationCalls };
+    };
+
+    // 5-unit fresh publish (publishing unit 5 after 4 published units -> 4 carried-forward + 1 new)
+    const fiveUnitIncremental = await runScenario(5, 4);
+    expect(fiveUnitIncremental).toEqual({
+      readCalls: 0,
+      readBookBindingsCalls: 1,
+      recordPublicationCalls: 1,
+    });
+
+    // 20-unit incremental publish (19 carried-forward units + 1 new unit -> 1 GET + 1 PUT = 2 binding subrequests)
+    const twentyUnitIncremental = await runScenario(20, 19);
+    expect(twentyUnitIncremental).toEqual({
+      readCalls: 0,
+      readBookBindingsCalls: 1,
+      recordPublicationCalls: 1,
+    });
+  });
 });

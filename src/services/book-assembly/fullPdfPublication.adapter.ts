@@ -641,6 +641,10 @@ const createPublicationRecords = (
   };
 };
 
+const hasTeacherOnlyPageGroups = (
+  units: readonly BookUnitCandidate[],
+): boolean => units.some((entry) => entry.pageGroups.some((group) => group.mode === 'teacher_only'));
+
 export const createFullPdfPublicationAdapter = (
   input: CreateFullPdfPublicationAdapterPlanInput,
 ): FullPdfPublicationAdapterOutput => {
@@ -651,6 +655,9 @@ export const createFullPdfPublicationAdapter = (
   if (!unit) throw new FullPdfPublicationAdapterError('full_pdf_unit_missing');
   const carriedUnits = resolveCarriedForwardUnits(manifest, input.unitKey, input.predecessor);
   const publishedUnits = orderPublishedUnits(manifest, unit, carriedUnits);
+  if (hasTeacherOnlyPageGroups(manifest.units) || hasTeacherOnlyPageGroups(publishedUnits)) {
+    throw new FullPdfPublicationAdapterError('full_pdf_teacher_only_unstripped_forbidden');
+  }
   const selectedManifest: BookAssemblyManifestCandidate = {
     ...manifest,
     units: publishedUnits,

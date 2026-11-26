@@ -71,13 +71,15 @@ const fullPdfPageGroups = (
   const sourceKey = binding.sourceSet.sources[0]?.sourceKey;
   if (!sourceKey) return [];
   const byKey = new Map<string, Set<number>>();
-  for (const placement of binding.placements) {
-    const pages = placement.sourcePageScopes
+  const activityKeys = new Set<string>();
+  const addPages = (pageGroupKeys: readonly string[], scopes: BookDeliveryPlacement['sourcePageScopes']) => {
+    const pages = scopes
       .filter((scope) => scope.sourceKey === sourceKey)
       .flatMap((scope) => scope.pages)
       .filter((page) => Number.isSafeInteger(page) && page >= 1);
-    if (pages.length === 0) continue;
-    for (const pageGroupKey of placement.pageGroupKeys) {
+    if (pages.length === 0) return;
+    for (const pageGroupKey of pageGroupKeys) {
+      activityKeys.add(pageGroupKey);
       let set = byKey.get(pageGroupKey);
       if (!set) {
         set = new Set<number>();
@@ -85,9 +87,15 @@ const fullPdfPageGroups = (
       }
       pages.forEach((page) => set!.add(page));
     }
+  };
+  for (const placement of binding.placements) {
+    addPages(placement.pageGroupKeys, placement.sourcePageScopes);
+    if (placement.navigationPageGroupKeys && placement.navigationPageScopes) {
+      addPages(placement.navigationPageGroupKeys, placement.navigationPageScopes);
+    }
   }
   for (const group of binding.referencePageGroups ?? []) {
-    if (group.sourceKey !== sourceKey) continue;
+    if (group.sourceKey !== sourceKey || activityKeys.has(group.pageGroupKey)) continue;
     const pages = group.pages.filter((page) => Number.isSafeInteger(page) && page >= 1);
     if (pages.length === 0) continue;
     let set = byKey.get(group.pageGroupKey);
@@ -185,6 +193,7 @@ export const createBookDeliveryProjectionResolver = (options: {
         sourceVersionId: source.sourceVersionId,
         opaqueRouteKey: makeOpaqueRouteKey(binding, source.sourceKey, source.sourceVersionId),
         localPageScope: source.localPageScope,
+        ...(source.physicalPageCount !== undefined ? { physicalPageCount: source.physicalPageCount } : {}),
       }));
       return {
         schemaVersion: 1,
@@ -212,13 +221,21 @@ export const createBookDeliveryProjectionResolver = (options: {
           order: placement.order,
           contextMode: placement.contextMode,
           sourceContext: {
-            available: combined
+            available: placement.contextMode !== 'none' && (combined
               ? placement.pageGroupKeys.length > 0 && placement.pageGroupKeys.every((key) => combined.pageGroups.some((group) => group.pageGroupKey === key))
-              : placement.sourcePageScopes.length > 0,
-            description: combined ? 'Combined student document.' : contextDescription(binding.sourceSet, placement),
+              : placement.sourcePageScopes.length > 0),
+            description: placement.contextMode === 'none'
+              ? 'No source context required.'
+              : combined ? 'Combined student document.' : contextDescription(binding.sourceSet, placement),
             pageGroupKeys: placement.pageGroupKeys,
             sourcePageScopes: combined ? [] : placement.sourcePageScopes,
           },
+          ...(placement.navigationPageGroupKeys !== undefined
+            ? { navigationPageGroupKeys: placement.navigationPageGroupKeys }
+            : {}),
+          ...(placement.navigationPageScopes !== undefined
+            ? { navigationPageScopes: combined ? [] : placement.navigationPageScopes }
+            : {}),
         })),
         actionFlags: actionFlags(binding.context.kind),
         provenance: {

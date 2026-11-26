@@ -1372,4 +1372,158 @@ describe('Book Activity authoring Worker boundary', () => {
       uid: 'teacher-1',
     })).toMatchObject({ init: { status: 200 }, body: { status: 'discarded', lifecycle: 'discarded' } });
   });
+
+  it('preserves active bound candidates and in-flight bindingReceipt candidates during candidate pruning at capacity', async () => {
+    const candidates: Record<string, unknown> = {
+      'cand-bound-by-repo': {
+        candidateId: 'cand-bound-by-repo',
+        targetActivityId: 'act-bound-repo',
+        ownerId: 'teacher-1',
+        bookId: 'book-1',
+        targetRevision: 0,
+        revision: 3,
+        lifecycle: 'saved',
+        content: activity,
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [],
+        sourceEvidenceRefs: [],
+        answerEvidenceRefs: [],
+        updatedAt: 50,
+      },
+      // Newer saved revision on the SAME targetActivityId so latestSavedByTarget alone would NOT protect cand-bound-by-repo
+      'cand-bound-by-repo-newer': {
+        candidateId: 'cand-bound-by-repo-newer',
+        targetActivityId: 'act-bound-repo',
+        ownerId: 'teacher-1',
+        bookId: 'book-1',
+        targetRevision: 1,
+        revision: 4,
+        lifecycle: 'saved',
+        content: activity,
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [],
+        sourceEvidenceRefs: [],
+        answerEvidenceRefs: [],
+        updatedAt: 9000,
+      },
+      'cand-in-flight-receipt': {
+        candidateId: 'cand-in-flight-receipt',
+        targetActivityId: 'act-in-flight',
+        ownerId: 'teacher-1',
+        bookId: 'book-1',
+        targetRevision: 0,
+        revision: 3,
+        lifecycle: 'saved',
+        content: activity,
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [],
+        sourceEvidenceRefs: [],
+        answerEvidenceRefs: [],
+        updatedAt: 60,
+      },
+      // Newer saved revision on the SAME targetActivityId so latestSavedByTarget alone would NOT protect cand-in-flight-receipt
+      'cand-in-flight-receipt-newer': {
+        candidateId: 'cand-in-flight-receipt-newer',
+        targetActivityId: 'act-in-flight',
+        ownerId: 'teacher-1',
+        bookId: 'book-1',
+        targetRevision: 1,
+        revision: 4,
+        lifecycle: 'saved',
+        content: activity,
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [],
+        sourceEvidenceRefs: [],
+        answerEvidenceRefs: [],
+        updatedAt: 9001,
+      },
+    };
+    for (let index = 0; index < 1532; index += 1) {
+      const id = `cand-unbound-saved-${index}`;
+      candidates[id] = {
+        candidateId: id,
+        targetActivityId: 'act-shared-history',
+        ownerId: 'teacher-1',
+        bookId: 'book-1',
+        targetRevision: index,
+        revision: 3,
+        lifecycle: 'saved',
+        content: activity,
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [],
+        sourceEvidenceRefs: [],
+        answerEvidenceRefs: [],
+        updatedAt: 200 + index,
+      };
+    }
+    const readBookBindings = vi.fn(async () => ({
+      'unit-1': {
+        'slot-1': {
+          schemaVersion: 1 as const,
+          ownerId: 'teacher-1',
+          bookId: 'book-1',
+          unitKey: 'unit-1',
+          activityKey: 'slot-1',
+          activityId: 'act-bound-repo',
+          candidateId: 'cand-bound-by-repo',
+          candidateRevision: 3,
+          candidateLifecycle: 'saved' as const,
+        },
+      },
+    }));
+    const current = worker({
+      state: {
+        'teacher-1': {
+          candidates,
+          operations: {
+            [operation('850')]: {
+              ownerId: 'teacher-1',
+              fingerprint: 'fnv1a64:1111111111111111',
+              createdAt: 100,
+              result: {
+                status: 'binding-pending',
+                candidateId: 'cand-in-flight-receipt',
+                binding: {
+                  schemaVersion: 1,
+                  phase: 'binding-pending',
+                  ownerId: 'teacher-1',
+                  bookId: 'book-1',
+                  unitKey: 'unit-1',
+                  activityKey: 'slot-2',
+                  activityId: 'act-in-flight',
+                  candidateId: 'cand-in-flight-receipt',
+                  candidateRevision: 3,
+                  candidateLifecycle: 'saved',
+                },
+              },
+            },
+          },
+        },
+      },
+      bindingRepositoryFactory: () => ({
+        read: vi.fn(async () => null),
+        readBookBindings,
+        bindCandidate: vi.fn(async () => 'created' as const),
+        recordPublication: vi.fn(async () => 'updated' as const),
+      }),
+    });
+
+    const staged = await current.handlers.stage({
+      request: request({ operationId: operation('851'), expectedRevision: 0, content: activity }),
+      env: {},
+      uid: 'teacher-1',
+    });
+    expect(staged.init.status).toBe(200);
+    expect(readBookBindings).toHaveBeenCalledWith('teacher-1', 'book-1');
+    // Both protected bound candidates MUST survive pruning despite having the oldest updatedAt
+    expect(current.state['teacher-1'].candidates?.['cand-bound-by-repo']).toBeDefined();
+    expect(current.state['teacher-1'].candidates?.['cand-in-flight-receipt']).toBeDefined();
+    // Oldest unbound saved candidate was evicted instead
+    expect(current.state['teacher-1'].candidates?.['cand-unbound-saved-0']).toBeUndefined();
+  });
 });

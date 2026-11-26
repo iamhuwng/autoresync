@@ -123,6 +123,10 @@ class MemoryRepository implements BookAssemblyRepositoryPort {
     this.readScopeCalls += 1;
     return structuredClone(this.root);
   }
+  async readBookScopes(): Promise<Readonly<Record<string, BookAssemblyScope>>> {
+    this.readScopeCalls += 1;
+    return Object.fromEntries(this.unitKeys.map((key) => [key, structuredClone(this.root)]));
+  }
   async transaction<T>(
     _bookId: string,
     _unitKey: string,
@@ -738,6 +742,7 @@ describe('PRD0062 ticket 13A Assembly candidate Worker', () => {
       ),
       listUnitKeys: async () => Array.from(scopes.keys()),
       readScope: async (_bookId, unitKey) => structuredClone(scopes.get(unitKey) ?? {}),
+      readBookScopes: async () => Object.fromEntries(Array.from(scopes.entries()).map(([k, v]) => [k, structuredClone(v)])),
       transaction: async (_bookId, unitKey, mutate, options = {}) => {
         const current = structuredClone(scopes.get(unitKey) ?? {});
         const output = mutate(current);
