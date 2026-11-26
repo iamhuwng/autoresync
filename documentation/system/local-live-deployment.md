@@ -471,11 +471,12 @@ For a checked production build without remote mutation:
 npm run build:production
 ```
 
-Request publication through GitHub Actions **Release Promotion** on protected
-`main`. Prepare checks the production artifact over localhost HTTP before the
-owner approves the protected publication job. The workflow invokes the guarded
-executor and verifies the live artifact. For an interrupted publication, resume
-the recorded operation through the same workflow.
+Request publication through GitHub Actions **Release Promotion** (`operation=publish`)
+on protected `main`. The single serialized `publish` job observes live Hosting, assesses
+the exact candidate, builds once, checks the production artifact over localhost HTTP,
+invokes the guarded executor, and verifies the live artifact with bounded readback. For
+an interrupted publication, resume the recorded operation with `operation=verify-existing`
+through the same workflow.
 [Routine Hosting release and recovery](release-safety.md#routine-hosting-release)
 
 The deploy script:

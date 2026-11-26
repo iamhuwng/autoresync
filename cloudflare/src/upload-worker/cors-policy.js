@@ -67,18 +67,22 @@ const SPARE_HOSTED_ORIGINS = new Set([
   'https://luyentap-pdf-qa-20261021.web.app',
 ]);
 
-const isSpareHostedOrigin = (origin, env) => (
+const isSpareEnvironment = (env) => (
   env?.FIREBASE_PROJECT_ID === SPARE_FIREBASE_PROJECT_ID
   && parseSpareAllowedLocalhostOrigins(env).size > 0
-  && SPARE_HOSTED_ORIGINS.has(origin)
 );
 
-export const isApprovedOrigin = (origin, env) => (
-  typeof origin === 'string'
-  && (APPROVED_ORIGINS.has(origin)
-    || parseSpareAllowedLocalhostOrigins(env).has(origin)
-    || isSpareHostedOrigin(origin, env))
-);
+export const isApprovedOrigin = (origin, env) => {
+  if (typeof origin !== 'string') return false;
+  if (isSpareEnvironment(env)) {
+    return SPARE_HOSTED_ORIGINS.has(origin)
+      || origin === 'http://localhost:5173'
+      || origin === 'http://localhost:5174'
+      || parseSpareAllowedLocalhostOrigins(env).has(origin);
+  }
+  return APPROVED_ORIGINS.has(origin)
+    || parseSpareAllowedLocalhostOrigins(env).has(origin);
+};
 
 export const isApprovedProductionAppOrigin = (origin) => (
   typeof origin === 'string' && PRODUCTION_APP_ORIGINS.has(origin)

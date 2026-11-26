@@ -35,18 +35,6 @@ concurrency:
   group: ${{ (inputs.operation == 'health' || inputs.operation == 'plan') && 'luyentap-hosting-read-only' || 'luyentap-hosting-production' }}
   cancel-in-progress: false
 
-# Optional public inputs used only to reconcile a historical combined manifest hash.
-# They are not build inputs or a requirement for a production-only baseline.
-env:
-  LUYENTAP_QUALIFICATION_FIREBASE_API_KEY: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_API_KEY }}
-  LUYENTAP_QUALIFICATION_FIREBASE_HOSTING_SITE: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_HOSTING_SITE }}
-  LUYENTAP_QUALIFICATION_FIREBASE_AUTH_DOMAIN: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_AUTH_DOMAIN }}
-  LUYENTAP_QUALIFICATION_FIREBASE_DATABASE_URL: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_DATABASE_URL }}
-  LUYENTAP_QUALIFICATION_FIREBASE_PROJECT_ID: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_PROJECT_ID }}
-  LUYENTAP_QUALIFICATION_FIREBASE_STORAGE_BUCKET: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_STORAGE_BUCKET }}
-  LUYENTAP_QUALIFICATION_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_MESSAGING_SENDER_ID }}
-  LUYENTAP_QUALIFICATION_FIREBASE_APP_ID: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_APP_ID }}
-
 jobs:
   preflight:
     if: ${{ github.repository == 'iamhuwng/autoresync' && github.ref == 'refs/heads/main' && (inputs.operation == 'health' || inputs.operation == 'plan') }}
@@ -273,12 +261,23 @@ jobs:
           const assessment = await assess({ cwd: process.cwd(), mode: 'release', target: 'hosting', base: observation.revision,
             hostingObservation: observation, productionEnvFingerprint: process.env.ENV_FINGERPRINT,
             productionEnvFile: `${process.env.RUNNER_TEMP}/.env.production` });
-          if (!['PASS', 'NOT_APPLICABLE'].includes(assessment.decision)) {
-            throw new Error(`Release assessment is ${assessment.decision}.`);
-          }
           const receipt = `tmp/release-receipts/ci-${process.env.GITHUB_RUN_ID}.json`;
           mkdirSync('tmp/release-receipts', { recursive: true });
           writeFileSync(receipt, `${JSON.stringify({ ...assessment, observedProviderIdentity: liveProviderIdentity })}\n`);
+          if (!['PASS', 'NOT_APPLICABLE'].includes(assessment.decision)) {
+            const nonPass = (assessment.findings || []).filter(finding => finding.status !== 'PASS');
+            const detailLines = nonPass.length
+              ? nonPass.map(finding => `- [${finding.status}] ${String(finding.message || '').replace(/\s+/g, ' ')}`)
+              : ['- No detailed findings were recorded.'];
+            console.error(`Release assessment is ${assessment.decision}:\n${detailLines.join('\n')}`);
+            if (process.env.GITHUB_STEP_SUMMARY) {
+              appendFileSync(
+                process.env.GITHUB_STEP_SUMMARY,
+                `## Hosting preflight ${assessment.decision}\n${detailLines.join('\n')}\n`,
+              );
+            }
+            throw new Error(`Release assessment is ${assessment.decision}.`);
+          }
           appendFileSync(
             process.env.GITHUB_OUTPUT,
             `live_sha=${observation.revision}\nlive_fingerprint=${observation.fingerprint}\nlive_provider_identity=${liveProviderIdentity}\nenv_fingerprint=${process.env.ENV_FINGERPRINT}\n`,

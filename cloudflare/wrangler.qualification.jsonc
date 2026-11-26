@@ -53,7 +53,7 @@
     "BOOK_EVALUATION_HISTORY_ROUTES_ENABLED": "enabled",
     "BOOK_COURSE_PLACEMENT_ROUTES_ENABLED": "enabled",
     "BOOK_SOURCE_UPLOAD_ACCOUNT_ID": "book_oci_primary",
-    "BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN": "http://localhost:5173,http://localhost:5174,https://luyentap-pdf-qa-20261021.web.app",
+    "BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN": "http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:5177,http://localhost:5178,http://localhost:5179,http://localhost:5180,http://localhost:5181,http://localhost:5182,https://luyentap-pdf-qa-20261021.web.app",
     "BOOK_SOURCE_OCI_PROVIDER_STATE": "enabled",
     "BOOK_SOURCE_OCI_ENDPOINT": "https://axgsodluzsdz.compat.objectstorage.ap-singapore-1.oraclecloud.com",
     "BOOK_SOURCE_OCI_REGION": "ap-singapore-1",

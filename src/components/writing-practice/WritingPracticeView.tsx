@@ -150,6 +150,11 @@ export default function WritingPracticeView({
     const showTask1 = testData.metadata.format !== 'task2-only';
     const showTask2 = testData.metadata.format !== 'task1-only';
     const defaultTask = (showTask1 ? 1 : 2) as 1 | 2;
+    const clampTaskNumber = useCallback((candidate: number): 1 | 2 => {
+        if (candidate === 1 && showTask1) return 1;
+        if (candidate === 2 && showTask2) return 2;
+        return defaultTask;
+    }, [defaultTask, showTask1, showTask2]);
 
     // State
     const [activeTask, setActiveTask] = useState<1 | 2>(defaultTask);
@@ -166,16 +171,23 @@ export default function WritingPracticeView({
     const [recoveryBlocked, setRecoveryBlocked] = useState(false);
     const pendingSubmissionRef = useRef<WritingSubmission | null>(null);
     const submissionInFlightRef = useRef(false);
+    const submittedRef = useRef(false);
+    submittedRef.current = submitted;
+    const persistenceReadyRef = useRef(false);
+    persistenceReadyRef.current = persistenceReady;
     const essaysRef = useRef<{ 1: string; 2: string }>(homeworkContext?.previousEssay || { 1: '', 2: '' });
     const activeTaskRef = useRef<1 | 2>(defaultTask);
     const pasteAttemptCountRef = useRef(0);
+    const activeTimeSeededRef = useRef(false);
+    const hasPendingSaveRef = useRef(false);
+    const resumeDialogRef = useRef<HTMLDialogElement>(null);
 
     // Teacher list for SubmitToTeacherModal
     const [teachers, setTeachers] = useState<TeacherInfo[]>([]);
     const [teachersLoaded, setTeachersLoaded] = useState(false);
 
     // Auto-save indicator
-    const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving'>('saved');
+    const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     const startedAtRef = useRef<number>(homeworkContext?.startedAt ?? Date.now());
     const timerExpiredRef = useRef(false);
@@ -208,7 +220,47 @@ export default function WritingPracticeView({
         ],
     );
 
+    const buildProgressPayload = useCallback((
+        overrideEssays?: { 1: string; 2: string },
+        overrideTask?: 1 | 2,
+    ): SavedWritingPracticeState => ({
+        essays: overrideEssays ?? essaysRef.current,
+        activeTask: overrideTask ?? activeTaskRef.current,
+        startedAt: startedAtRef.current,
+        pasteAttemptCount: isHomework ? pasteAttemptCountRef.current : undefined,
+        activeTimeSeconds: {
+            1: activeTime.getActiveTime?.(1) ?? 0,
+            2: activeTime.getActiveTime?.(2) ?? 0,
+        },
+    }), [activeTime, isHomework]);
+
+    const flushLocalProgressNow = useCallback(() => {
+        clearTimeout(saveTimerRef.current);
+        if (
+            !hasPendingSaveRef.current
+            || !studentId
+            || !persistenceReadyRef.current
+            || submittedRef.current
+            || pendingSubmissionRef.current
+        ) {
+            return;
+        }
+        hasPendingSaveRef.current = false;
+        void writeWritingProgress({
+            materialId,
+            studentId,
+            scopeContext: writingScopeContext,
+        }, buildProgressPayload()).then(() => {
+            setAutoSaveStatus('saved');
+        }).catch(() => {
+            setAutoSaveStatus('error');
+            console.warn('[WritingPracticeView] storage save failed');
+        });
+    }, [buildProgressPayload, materialId, studentId, writingScopeContext]);
+
     const handleBack = useCallback(() => {
+        activeTime.pause?.();
+        flushLocalProgressNow();
         void studentResumeService.clearResume();
         if (isHomework) {
             navigate(buildRoute('STUDENT_HOMEWORK'));
@@ -216,17 +268,25 @@ export default function WritingPracticeView({
         }
 
         navigate(-1);
-    }, [isHomework, navigate]);
+    }, [activeTime, flushLocalProgressNow, isHomework, navigate]);
 
     const hasValidHomeworkIdentity = !isHomework
         || Boolean(homeworkContext?.homeworkId && homeworkContext?.submissionId);
 
     const applySavedProgress = useCallback((saved: SavedWritingPracticeState) => {
+        essaysRef.current = saved.essays;
+        const clampedTask = clampTaskNumber(saved.activeTask);
+        activeTaskRef.current = clampedTask;
         setEssays(saved.essays);
-        setActiveTask(saved.activeTask);
+        setActiveTask(clampedTask);
 
         if (isHomework) {
             setPasteAttemptCount(saved.pasteAttemptCount ?? 0);
+        }
+
+        if (!activeTimeSeededRef.current && saved.activeTimeSeconds) {
+            activeTimeSeededRef.current = true;
+            activeTime.seedActiveTimes?.(saved.activeTimeSeconds);
         }
 
         const resolvedStartedAt = isHomework
@@ -235,7 +295,7 @@ export default function WritingPracticeView({
 
         startedAtRef.current = resolvedStartedAt;
         setTimeRemaining(getTimerSecondsRemaining(timerMinutes, resolvedStartedAt));
-    }, [homeworkContext?.startedAt, isHomework, setPasteAttemptCount, timerMinutes]);
+    }, [activeTime, clampTaskNumber, homeworkContext?.startedAt, isHomework, setPasteAttemptCount, timerMinutes]);
 
     const resetPracticeSession = useCallback(() => {
         if (pendingSubmissionRef.current) return;
@@ -422,81 +482,114 @@ export default function WritingPracticeView({
         loadTeachers();
     }, [studentId, teachersLoaded, isHomework, homeworkContext?.teacherId]);
 
-    // ── Timer (optional) ────────────────────────────────────
+    // ── Timer (optional — wall-clock synchronized so background tabs cannot drift) ──
     useEffect(() => {
         if (!persistenceReady || pendingSubmissionId || recoveryBlocked || timerMinutes === null || timerMinutes <= 0 || submitted || showResumeModal) return;
 
-        if ((timeRemainingRef.current ?? 0) <= 0) {
-            if (!timerExpiredRef.current) {
-                timerExpiredRef.current = true;
-                if (isHomework) {
-                    setAutoSubmitOnTimeout(true);
-                } else {
-                    setShowSubmitModal(true);
+        const checkRemaining = () => {
+            const remaining = getTimerSecondsRemaining(timerMinutes, startedAtRef.current);
+            if (remaining === null) return false;
+            setTimeRemaining(remaining);
+
+            if (remaining <= 0) {
+                if (!timerExpiredRef.current) {
+                    timerExpiredRef.current = true;
+                    if (isHomework) {
+                        setAutoSubmitOnTimeout(true);
+                    } else {
+                        setShowSubmitModal(true);
+                    }
                 }
+                return true;
             }
+            return false;
+        };
+
+        if (checkRemaining()) {
             return;
         }
 
         const interval = setInterval(() => {
-            setTimeRemaining(prev => {
-                if (prev === null) {
-                    return null;
-                }
-
-                if (prev <= 1) {
-                    clearInterval(interval);
-
-                    if (!timerExpiredRef.current) {
-                        timerExpiredRef.current = true;
-                        if (isHomework) {
-                            setAutoSubmitOnTimeout(true);
-                        } else {
-                            setShowSubmitModal(true);
-                        }
-                    }
-
-                    return 0;
-                }
-
-                return prev - 1;
-            });
+            if (checkRemaining()) {
+                clearInterval(interval);
+            }
         }, 1000);
         return () => clearInterval(interval);
     }, [isHomework, pendingSubmissionId, persistenceReady, recoveryBlocked, showResumeModal, submitted, timerMinutes]);
 
+    // ── Flush unsaved local draft on page hide / visibility hidden / unmount ──
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'hidden') {
+                activeTime.pause?.();
+                flushLocalProgressNow();
+            }
+        };
+
+        const handlePageHide = () => {
+            activeTime.pause?.();
+            flushLocalProgressNow();
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('pagehide', handlePageHide);
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('pagehide', handlePageHide);
+            flushLocalProgressNow();
+        };
+    }, [activeTime, flushLocalProgressNow]);
+
+    // ── Native modal sync for Resume dialog ─────────────────
+    useEffect(() => {
+        const dialog = resumeDialogRef.current;
+        if (!dialog) return;
+
+        if (showResumeModal && !dialog.open) {
+            if (typeof dialog.showModal === 'function') {
+                dialog.showModal();
+            } else {
+                dialog.setAttribute('open', '');
+            }
+        } else if (!showResumeModal && dialog.open) {
+            if (typeof dialog.close === 'function') {
+                dialog.close();
+            } else {
+                dialog.removeAttribute('open');
+            }
+        }
+    }, [showResumeModal]);
+
     // ── beforeunload warning ────────────────────────────────
     useEffect(() => {
         const handler = (e: BeforeUnloadEvent) => {
-            if (essays[1] || essays[2]) {
+            if (!submitted && (essays[1] || essays[2])) {
                 e.preventDefault();
             }
         };
         window.addEventListener('beforeunload', handler);
         return () => window.removeEventListener('beforeunload', handler);
-    }, [essays]);
+    }, [essays, submitted]);
 
     // ── Auto-save to localStorage (debounced 2s) ────────────
     const triggerAutoSave = useCallback((updatedEssays: { 1: string; 2: string }, task: 1 | 2) => {
+        hasPendingSaveRef.current = true;
         setAutoSaveStatus('saving');
         clearTimeout(saveTimerRef.current);
         saveTimerRef.current = setTimeout(() => {
+            hasPendingSaveRef.current = false;
             void writeWritingProgress({
                 materialId,
                 studentId,
                 scopeContext: writingScopeContext,
-            }, {
-                essays: updatedEssays,
-                activeTask: task,
-                startedAt: startedAtRef.current,
-                pasteAttemptCount: isHomework ? pasteAttemptCountRef.current : undefined,
-            }).then(() => {
+            }, buildProgressPayload(updatedEssays, task)).then(() => {
                 setAutoSaveStatus('saved');
             }).catch(() => {
+                setAutoSaveStatus('error');
                 console.warn('[WritingPracticeView] storage save failed');
             });
         }, 2000);
-    }, [isHomework, materialId, studentId, writingScopeContext]);
+    }, [buildProgressPayload, materialId, studentId, writingScopeContext]);
 
     useEffect(() => {
         if (!isHomework || !persistenceReady || !studentId) {
@@ -508,39 +601,40 @@ export default function WritingPracticeView({
             studentId,
             scopeContext: writingScopeContext,
         }, {
-            essays: essaysRef.current,
-            activeTask: activeTaskRef.current,
-            startedAt: startedAtRef.current,
+            ...buildProgressPayload(),
             pasteAttemptCount,
         });
-    }, [isHomework, materialId, pasteAttemptCount, persistenceReady, studentId, writingScopeContext]);
+    }, [buildProgressPayload, isHomework, materialId, pasteAttemptCount, persistenceReady, studentId, writingScopeContext]);
 
     // ── Essay change handler ────────────────────────────────
     const handleEssayChange = useCallback((text: string) => {
-        const updated = { ...essays, [activeTask]: text } as { 1: string; 2: string };
+        const currentTask = activeTaskRef.current;
+        const updated = { ...essaysRef.current, [currentTask]: text } as { 1: string; 2: string };
+        essaysRef.current = updated;
         setEssays(updated);
-        activeTime.onKeystroke(activeTask);
-        triggerAutoSave(updated, activeTask);
-    }, [activeTask, essays, activeTime, triggerAutoSave]);
+        activeTime.onKeystroke(currentTask);
+        triggerAutoSave(updated, currentTask);
+    }, [activeTime, triggerAutoSave]);
 
     // ── Tab switch ──────────────────────────────────────────
     const handleTabSwitch = useCallback((taskNum: 1 | 2) => {
         // Flush pending saves
         clearTimeout(saveTimerRef.current);
+        hasPendingSaveRef.current = false;
+        activeTime.switchTask(taskNum);
+        activeTaskRef.current = taskNum;
         void writeWritingProgress({
             materialId,
             studentId,
             scopeContext: writingScopeContext,
-        }, {
-            essays,
-            activeTask: taskNum,
-            startedAt: startedAtRef.current,
-            pasteAttemptCount: isHomework ? pasteAttemptCount : undefined,
+        }, buildProgressPayload(essaysRef.current, taskNum)).then(() => {
+            setAutoSaveStatus('saved');
+        }).catch(() => {
+            setAutoSaveStatus('error');
+            console.warn('[WritingPracticeView] storage save failed');
         });
-        setAutoSaveStatus('saved');
-        activeTime.switchTask(taskNum);
         setActiveTask(taskNum);
-    }, [activeTime, essays, isHomework, materialId, pasteAttemptCount, studentId, writingScopeContext]);
+    }, [activeTime, buildProgressPayload, materialId, studentId, writingScopeContext]);
 
     // ── Word count helper ───────────────────────────────────
     const getWordCount = (text: string) =>
@@ -598,7 +692,9 @@ export default function WritingPracticeView({
             const resultId = pending?.id ?? push(ref(database)).key;
             if (!resultId) throw new Error('Failed to generate resultId');
 
-            // Build submission tasks
+            // Build submission tasks from latest ref so timeout auto-submits never drop keystrokes
+            const latestEssays = essaysRef.current;
+            activeTime.pause?.();
             const submissionTasks = testData.tasks
                 .filter(t => {
                     if (testData.metadata.format === 'task1-only') return t.taskNumber === 1;
@@ -611,8 +707,8 @@ export default function WritingPracticeView({
                     promptText: t.promptText,
                     promptImageUrl: t.promptImageUrl,
                     wordMinimum: t.wordMinimum,
-                    essayText: essays[t.taskNumber as 1 | 2] || '',
-                    wordCount: getWordCount(essays[t.taskNumber as 1 | 2] || ''),
+                    essayText: latestEssays[t.taskNumber as 1 | 2] || '',
+                    wordCount: getWordCount(latestEssays[t.taskNumber as 1 | 2] || ''),
                     activeTimeSeconds: activeTime.getActiveTime(t.taskNumber),
                 }));
 
@@ -814,6 +910,7 @@ export default function WritingPracticeView({
         .map(t => ({
             taskNumber: t.taskNumber,
             wordCount: getWordCount(essays[t.taskNumber as 1 | 2] || ''),
+            wordMinimum: t.wordMinimum,
         }));
 
     // NOTE: No submitted overlay — after submit, we navigate immediately
@@ -823,14 +920,11 @@ export default function WritingPracticeView({
     if (!hasValidHomeworkIdentity) {
         return (
             <div className="wpv-submitted-overlay">
-                <style>{`.wpv-submitted-overlay div:first-of-type { display: none; }`}</style>
-                <div style={{ fontSize: 64 }}>âš ï¸</div>
-                <div style={{ fontSize: 64 }}>!</div>
+                <div className="wpv-overlay-badge" aria-hidden="true">!</div>
                 <h1>Homework Unavailable</h1>
                 <p>This homework launch is missing attempt details. Please reopen it from the homework page.</p>
-                <button className="wpv-done-btn" onClick={handleBack} style={{ fontSize: 0 }}>
-                    â† Back to Homework
-                    <span style={{ fontSize: '1rem' }}>Back to Homework</span>
+                <button type="button" className="wpv-done-btn" onClick={handleBack}>
+                    Back to Homework
                 </button>
             </div>
         );
@@ -839,11 +933,11 @@ export default function WritingPracticeView({
     if (persistenceReady && !pendingSubmissionId && isHomework && homeworkDueDate && !homeworkLateAllowed && Date.now() > homeworkDueDate) {
         return (
             <div className="wpv-submitted-overlay">
-                <div style={{ fontSize: 64 }}>⏰</div>
+                <div className="wpv-overlay-badge" aria-hidden="true">⏰</div>
                 <h1>Deadline Passed</h1>
                 <p>The deadline for this homework has passed. Submissions are no longer accepted.</p>
-                <button className="wpv-done-btn" onClick={handleBack}>
-                    ← Back to Homework
+                <button type="button" className="wpv-done-btn" onClick={handleBack}>
+                    Back to Homework
                 </button>
             </div>
         );
@@ -853,11 +947,11 @@ export default function WritingPracticeView({
         <div className="wpv-page">
             {/* ── Header ──────────────────────────────────── */}
             <div className="wpv-header">
-                <button className="wpv-back-btn" onClick={handleBack}>
+                <button type="button" className="wpv-back-btn" onClick={handleBack}>
                     ← Back
                 </button>
                 <div className="wpv-title-area">
-                    <h1 className="wpv-title">{testData.metadata.title}</h1>
+                    <h1 className="wpv-title" title={testData.metadata.title}>{testData.metadata.title}</h1>
                     <p className="wpv-subtitle">
                         {testData.metadata.format === 'full-test'
                             ? 'Task 1 + Task 2'
@@ -867,35 +961,51 @@ export default function WritingPracticeView({
                     </p>
                 </div>
                 <span className="wpv-practice-badge">
-                    {isHomework ? '📝 Homework' : '✍️ Solo Practice'}
+                    {isHomework ? 'Homework' : 'Solo Practice'}
                 </span>
 
                 {/* Homework deadline banner */}
                 {isHomework && homeworkDueDate && (
                     <div className={`wpv-deadline-badge ${Date.now() > homeworkDueDate ? 'wpv-deadline-badge--overdue' : ''}`}>
-                        ⏰ Due: {new Date(homeworkDueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        Due: {new Date(homeworkDueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         {Date.now() > homeworkDueDate && homeworkLateAllowed && ' (Late)'}
                     </div>
                 )}
 
                 {/* Auto-save indicator */}
-                <div className="wpv-autosave-indicator">
-                    <span className={`wpv-autosave-dot ${autoSaveStatus === 'saving' ? 'wpv-autosave-dot--saving' : ''}`} />
-                    {autoSaveStatus === 'saving' ? 'Saving...' : 'Saved'}
+                <div className="wpv-autosave-indicator" role="status" aria-live="polite">
+                    <span
+                        className={`wpv-autosave-dot ${
+                            autoSaveStatus === 'saving'
+                                ? 'wpv-autosave-dot--saving'
+                                : autoSaveStatus === 'error'
+                                    ? 'wpv-autosave-dot--error'
+                                    : ''
+                        }`}
+                        aria-hidden="true"
+                    />
+                    {autoSaveStatus === 'saving'
+                        ? 'Saving...'
+                        : autoSaveStatus === 'error'
+                            ? 'Save failed'
+                            : 'Saved'}
                 </div>
 
                 {/* Optional timer */}
                 {timeRemaining !== null && (
-                    <div className={`wpv-timer ${getTimerClass()}`}>
+                    <div className={`wpv-timer ${getTimerClass()}`} aria-label={`Time remaining ${formatTime(timeRemaining)}`}>
                         ⏱ {formatTime(timeRemaining)}
                     </div>
                 )}
             </div>
 
             {/* ── Tab Bar ─────────────────────────────────── */}
-            <div className="wpv-tab-bar">
+            <div className="wpv-tab-bar" role="tablist" aria-label="Writing tasks">
                 {hasBothTasks && showTask1 && (
                     <button
+                        type="button"
+                        role="tab"
+                        aria-selected={activeTask === 1}
                         className={`wpv-tab ${activeTask === 1 ? 'wpv-tab--active' : ''}`}
                         onClick={() => handleTabSwitch(1)}
                     >
@@ -904,6 +1014,9 @@ export default function WritingPracticeView({
                 )}
                 {hasBothTasks && showTask2 && (
                     <button
+                        type="button"
+                        role="tab"
+                        aria-selected={activeTask === 2}
                         className={`wpv-tab ${activeTask === 2 ? 'wpv-tab--active' : ''}`}
                         onClick={() => handleTabSwitch(2)}
                     >
@@ -911,16 +1024,17 @@ export default function WritingPracticeView({
                     </button>
                 )}
                 {!hasBothTasks && (
-                    <span className="wpv-tab wpv-tab--active">
+                    <span className="wpv-tab wpv-tab--active" role="tab" aria-selected="true">
                         Task {activeTask} ({getWordCount(essays[activeTask])} words)
                     </span>
                 )}
                 <button
+                    type="button"
                     className="wpv-tab wpv-tab--submit"
                     onClick={() => pendingSubmissionId ? void handleSubmit({ teacherId: null, note: '' }) : setShowSubmitModal(true)}
                     disabled={submitting || !persistenceReady || recoveryBlocked}
                 >
-                    {submitting ? 'Submitting...' : pendingSubmissionId ? 'Retry submission' : '📤 Submit'}
+                    {submitting ? 'Submitting...' : pendingSubmissionId ? 'Retry submission' : 'Submit'}
                 </button>
             </div>
 
@@ -935,6 +1049,8 @@ export default function WritingPracticeView({
                     onChange={handleEssayChange}
                     disabled={submitting || Boolean(pendingSubmissionId) || recoveryBlocked}
                     attachToTextarea={attachToTextarea}
+                    wordMinimum={currentTestTask?.wordMinimum}
+                    taskNumber={activeTask}
                 />
             </div>
 
@@ -948,27 +1064,40 @@ export default function WritingPracticeView({
                 isSubmitting={submitting}
             />
 
-            {/* ── Resume Modal (native, NO Mantine) ────────── */}
+            {/* ── Resume Modal (native <dialog>, NO Mantine) ─ */}
             {showResumeModal && (
-                <div className="wpv-resume-overlay">
+                <dialog
+                    ref={resumeDialogRef}
+                    className="wpv-resume-dialog"
+                    aria-labelledby="wpv-resume-title"
+                    onCancel={(event) => {
+                        event.preventDefault();
+                        handleResume();
+                    }}
+                >
                     <div className="wpv-resume-modal">
-                        <h2>📝 Resume Practice?</h2>
+                        <h1 id="wpv-resume-title">Resume Practice?</h1>
                         <p>
                             You have a saved practice session for this test.
                             Would you like to resume where you left off, or start fresh?
                         </p>
                         <div className="wpv-resume-actions">
                             {!shouldForceResume && (
-                                <button className="wpv-resume-btn wpv-resume-btn--new" onClick={handleStartNew}>
+                                <button type="button" className="wpv-resume-btn wpv-resume-btn--new" onClick={handleStartNew}>
                                     Start New
                                 </button>
                             )}
-                            <button className="wpv-resume-btn wpv-resume-btn--resume" onClick={handleResume}>
+                            <button
+                                type="button"
+                                className="wpv-resume-btn wpv-resume-btn--resume"
+                                onClick={handleResume}
+                                autoFocus
+                            >
                                 Resume
                             </button>
                         </div>
                     </div>
-                </div>
+                </dialog>
             )}
         </div>
     );

@@ -56,6 +56,14 @@ Login toggle (`teacher@test.com` / `student@test.com`) is enabled strictly on
 environment. Existing shared media URLs may be read for fixtures. Do not use production
 endpoints as a fallback.
 
+> **Spare Worker coverage:** `npm.cmd run dev` routes upload, listening, student auth,
+> and Book PDF workflows to `luyentap-qualification-upload-signer`, and intentionally
+> leaves `VITE_BACKUP_WORKER_URL`, `VITE_HOMEWORK_NOTIFICATION_URL`,
+> `VITE_WRITING_NOTIFICATION_URL`, `VITE_HOMEWORK_RESULT_AUTHORITY_URL`,
+> `VITE_COURSE_ENROLLMENT_APPROVAL_URL`, and `VITE_THCS_GEMMA_WORKER_URL` unset so spare
+> sessions never leak traffic to production Workers. Use `npm.cmd run dev:emulators`
+> when verifying Homework assignment/notification or local AI gateway flows.
+
 See the [native development guide](native-development.md) and the [release safety
 workflow](release-safety.md#adaptive-verification-and-self-judgment).
 

@@ -110,9 +110,7 @@ const jsonResponse = (data: unknown, status = 200): Response =>
         status,
         headers: {
             'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            Vary: 'Origin',
         },
     });
 
