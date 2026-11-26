@@ -1,25 +1,10 @@
 /**
  * StudentGrid Component
- * 
+ *
  * Grid layout for displaying multiple StudentCard components.
- * Handles responsive layout and empty states.
- * 
- * @example
- * <StudentGrid
- *   students={filteredStudents}
- *   assignments={assignmentsByStudent}
- *   teachers={allTeachers}
- *   onViewAnalytics={(id) => navigate(...)}
- *   onEdit={handleEdit}
- *   onAssignToTeacher={handleAssign}
- *   onRelease={handleRelease}
- *   onAddToClass={handleAddToClass}
- *   isSuperAdmin={true}
- *   isTeacher={false}
- * />
  */
 
-import { StudentCard } from './StudentCard';
+import { StudentCard, type StudentCardClassBadge } from './StudentCard';
 import type { UserProfile } from '../../services/userService';
 import type { StudentTeacherAssignment } from '../../types/assignment.types';
 
@@ -27,12 +12,14 @@ export interface StudentGridProps {
     students: UserProfile[];
     assignments: Record<string, StudentTeacherAssignment[]>;
     teachers: UserProfile[];
+    classesByStudent?: Record<string, StudentCardClassBadge[]>;
+    currentUserId?: string | null;
 
-    // Actions (passed to StudentCard)
+    // Actions (passed to StudentCard; omitted handlers hide their button)
     onViewAnalytics: (studentId: string) => void;
-    onEdit: (student: UserProfile) => void;
+    onEdit?: (student: UserProfile) => void;
     onAssignToTeacher?: (student: UserProfile) => void;
-    onRelease: (student: UserProfile) => void;
+    onRelease?: (student: UserProfile) => void;
     onAddToClass?: (student: UserProfile) => void;
 
     // Permissions
@@ -52,6 +39,8 @@ export function StudentGrid({
     students,
     assignments,
     teachers,
+    classesByStudent,
+    currentUserId = null,
     onViewAnalytics,
     onEdit,
     onAssignToTeacher,
@@ -62,6 +51,7 @@ export function StudentGrid({
 }: StudentGridProps) {
     return (
         <div
+            data-testid="student-grid"
             style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
@@ -72,6 +62,7 @@ export function StudentGrid({
             {students.map((student, index) => {
                 const variant = CARD_VARIANTS[index % CARD_VARIANTS.length];
                 const studentAssignments = assignments[student.uid] || [];
+                const enrolledClasses = classesByStudent?.[student.uid] || [];
 
                 return (
                     <StudentCard
@@ -81,6 +72,8 @@ export function StudentGrid({
                         index={index}
                         assignments={studentAssignments}
                         teachers={teachers}
+                        enrolledClasses={enrolledClasses}
+                        currentUserId={currentUserId}
                         onViewAnalytics={onViewAnalytics}
                         onEdit={onEdit}
                         onAssignToTeacher={onAssignToTeacher}

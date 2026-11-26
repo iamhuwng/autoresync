@@ -94,22 +94,28 @@ export const getTeacherStudents = async (
 
     // Get assignments for this teacher
     const assignments = await getAssignmentsByTeacher(targetTeacherId);
-    const studentIds = assignments.map(a => a.studentId);
+    // A student can hold more than one active assignment row for the same
+    // teacher; de-duplicate so each student renders exactly once.
+    const studentIds = Array.from(new Set(
+        assignments.map(a => a.studentId).filter((id): id is string => Boolean(id))
+    ));
 
     if (studentIds.length === 0) {
         return [];
     }
 
-    // Fetch student profiles
-    const students: UserProfile[] = [];
-    for (const studentId of studentIds) {
-        const profile = await getUserById(studentId);
-        if (profile) {
-            students.push(profile);
+    // Fetch student profiles in parallel (previously one sequential round-trip
+    // per student, which dominated the Students page load time).
+    const profiles = await Promise.all(studentIds.map(async (studentId) => {
+        try {
+            return await getUserById(studentId);
+        } catch (error) {
+            console.error(`[getTeacherStudents] Failed to load profile ${studentId}:`, error);
+            return null;
         }
-    }
+    }));
 
-    return students;
+    return profiles.filter((profile): profile is UserProfile => profile !== null);
 };
 
 export const getUsersByRole = async (role: string): Promise<UserProfile[]> => {

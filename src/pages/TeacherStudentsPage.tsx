@@ -1,103 +1,108 @@
 /**
  * TeacherStudentsPage
- * 
+ *
  * Dedicated student management page for teachers.
  * Security: Teachers can ONLY see students assigned to them.
  * Separated from /admin/users for proper access control.
- * 
+ *
+ * Native HTML/CSS only (Rule 15 - no Mantine).
+ *
  * @security This page enforces teacher-level access only.
  * @route /teacher/students
  */
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
+import {
+    IconUsers,
+    IconSchool,
+    IconUserPlus,
+    IconRefresh,
+    IconX,
+} from '@tabler/icons-react';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigation } from '../hooks/useNavigation';
-import { getCoursesByOwner } from '../services/courseManager';
-import { getClasses, enrollStudent } from '../services/classManager';
-import { removeAssignment } from '../services/assignmentManager';
-import { IconUsers, IconTrendingUp, IconUserPlus } from '@tabler/icons-react';
-import type { AdminTab, EditUserForm } from '../types/admin.types';
-
-// Custom Hooks - Reusing from admin
-import {
-    useUserManagement,
-    useAssignments,
-    useAdminModals,
-    useStudentRequests
-} from '../hooks/admin';
-
-// Components - Reusing from admin
-import {
-    AlertMessages,
-    AdminPageTitle,
-    AdminTabsContainer,
-    AdminModalsManager
-} from '../components/admin';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../config/featureRegistry';
+import { useTeacherStudentRoster } from '../hooks/admin/useTeacherStudentRoster';
+import { enrollStudent } from '../services/classManager';
+import { createStudentRequest, removeAssignment } from '../services/assignmentManager';
+import type { UserProfile } from '../services/userService';
 import { TeacherHeader } from '../components/navigation';
-import { AppShell } from '@mantine/core';
+import { StudentGrid } from '../components/admin/StudentGrid';
+import { AddToClassModal } from '../components/assignment/AddToClassModal';
+import { ReleaseStudentModal } from '../components/assignment/ReleaseStudentModal';
+import { TeacherRequestModal } from '../components/assignment/TeacherRequestModal';
+import { Card, CardBody, Button, VanillaLoader, toast } from '../components/modern';
+import { SearchIcon } from '../components/modern/icons';
+import './TeacherStudentsPage.css';
+
+type TeacherStudentsTab = 'students' | 'requests';
+type ClassFilterValue = 'all' | 'none' | string;
+
+const formatRequestDate = (timestamp?: number): string => {
+    if (!timestamp) return 'Recently requested';
+    try {
+        return new Date(timestamp).toLocaleDateString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+        });
+    } catch {
+        return 'Recently requested';
+    }
+};
 
 const TeacherStudentsPage: React.FC = () => {
-    const { user, profile, logout } = useAuth();
+    const { user, profile, loading: authLoading, logout } = useAuth();
     const { navigateTo } = useNavigation('teacher');
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.teacherStudents);
 
-    // Security: Force teacher mode - Always filter by current teacher
-    const isTeacher = true; // This page is ONLY for teachers
-    const isSuperAdmin = false; // Never show super admin features
-    const filterByTeacherId = user?.uid || null;
+    const isTeacher = profile?.role === 'teacher';
+    const roster = useTeacherStudentRoster(isTeacher ? user?.uid : null);
 
-    // Tab state - Limited tabs for teachers (only 'students' and 'requests')
-    const [activeTab, setActiveTab] = useState<AdminTab>('students');
+    // UI state
+    const [activeTab, setActiveTab] = useState<TeacherStudentsTab>('students');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [classFilter, setClassFilter] = useState<ClassFilterValue>('all');
 
-    // ============================================================================
-    // CUSTOM HOOKS
-    // ============================================================================
-    const assignments = useAssignments();
-    const userManagement = useUserManagement({
-        activeTab,
-        assignmentsByStudent: assignments.assignmentsByStudent,
-        filterByTeacherId // Always filtered to this teacher
-    });
-    const modals = useAdminModals();
-    const studentRequestsHook = useStudentRequests();
+    // Modal state
+    const [studentForClass, setStudentForClass] = useState<UserProfile | null>(null);
+    const [studentToRelease, setStudentToRelease] = useState<UserProfile | null>(null);
+    const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
 
-    // Local state for courses/classes (teacher's only)
-    const [courses, setCourses] = useState<Array<{ value: string; label: string }>>([]);
-    const [classes, setClasses] = useState<Array<{ value: string; label: string }>>([]);
+    const filteredStudents = useMemo(() => {
+        const normalizedSearch = searchTerm.trim().toLowerCase();
 
-    // Derived options - Only students (no teacher list needed for teachers)
-    const studentOptions = userManagement.users
-        .filter(u => u.role === 'student')
-        .map(u => ({ value: u.uid, label: u.displayName || u.email }));
+        return roster.students.filter((student) => {
+            const studentClasses = roster.classesByStudent[student.uid] || [];
 
-    // ============================================================================
-    // LOAD DATA
-    // ============================================================================
-    useEffect(() => {
-        if (!user?.uid) return;
+            if (classFilter === 'none') {
+                if (studentClasses.length > 0) return false;
+            } else if (classFilter !== 'all') {
+                if (!studentClasses.some((cls) => cls.id === classFilter)) return false;
+            }
 
-        if (activeTab === 'requests') {
-            studentRequestsHook.loadRequests();
-        } else {
-            userManagement.loadUsers().then(() => assignments.loadAssignments());
-            loadCoursesAndClasses();
-        }
-        userManagement.setAssignmentFilter('all');
-    }, [user?.uid, activeTab]);
+            if (!normalizedSearch) return true;
 
-    const loadCoursesAndClasses = async () => {
-        if (!user?.uid) return;
+            const classText = studentClasses
+                .map((cls) => `${cls.name} ${cls.classCode}`)
+                .join(' ')
+                .toLowerCase();
 
-        try {
-            // Teacher's courses only
-            const fetchedCourses = await getCoursesByOwner(user.uid);
-            setCourses(fetchedCourses.map(c => ({ value: c.id, label: `${c.name} (${c.code})` })));
+            return (
+                (student.displayName || '').toLowerCase().includes(normalizedSearch) ||
+                (student.email || '').toLowerCase().includes(normalizedSearch) ||
+                ((student.studentGroup as string | undefined) || '').toLowerCase().includes(normalizedSearch) ||
+                classText.includes(normalizedSearch)
+            );
+        });
+    }, [roster.students, roster.classesByStudent, searchTerm, classFilter]);
 
-            // Teacher's classes only
-            const fetchedClasses = await getClasses(user.uid);
-            setClasses(fetchedClasses.map(c => ({ value: c.id, label: `${c.name} (${c.classCode})` })));
-        } catch (err) {
-            console.error('[TeacherStudentsPage] Error loading courses/classes:', err);
-        }
-    };
+    const selectedStudentEnrolledClassIds = useMemo(() => {
+        if (!studentForClass) return [];
+        return (roster.classesByStudent[studentForClass.uid] || []).map((cls) => cls.id);
+    }, [studentForClass, roster.classesByStudent]);
+
+    const hasActiveFilters = searchTerm.trim().length > 0 || classFilter !== 'all';
 
     // ============================================================================
     // HANDLERS
@@ -107,249 +112,466 @@ const TeacherStudentsPage: React.FC = () => {
         navigateTo('LOGIN', {}, { reason: 'teacher_logout', replace: true });
     };
 
-
-
-    const handleTabChange = (tab: string | null) => {
-        // Only allow valid teacher tabs: 'students' and 'requests'
-        if (tab === 'students' || tab === 'requests') {
-            setActiveTab(tab);
-        }
+    const handleSwitchTab = (tab: TeacherStudentsTab) => {
+        setActiveTab(tab);
+        trackAction('switchStudentsTab', { tab });
     };
 
-    const handleConfirmRelease = async (assignmentIds: string[], unenrollCourseIds?: string[]) => {
-        if (!modals.modals.studentToRelease) return;
-        modals.setReleaseLoading(true);
-        try {
-            const results = await Promise.all(assignmentIds.map(id =>
-                removeAssignment(id, 'Released by teacher', unenrollCourseIds || [])
-            ));
-            const failed = results.filter(r => !r.success);
-            if (failed.length > 0) {
-                userManagement.setError(`Failed to release ${failed.length} assignment(s)`);
-            } else {
-                userManagement.setSuccessMessage(
-                    `Successfully released ${modals.modals.studentToRelease.displayName || modals.modals.studentToRelease.email}`
-                );
-                await userManagement.loadUsers().then(() => assignments.loadAssignments());
-            }
-        } catch (err) {
-            userManagement.setError('Failed to release student. Please try again.');
-        } finally {
-            modals.setReleaseLoading(false);
-            modals.closeReleaseModal();
-        }
+    const handleSync = async () => {
+        trackAction('syncStudents', { tab: activeTab });
+        await roster.reload();
     };
 
-    const handleRequestStudent = async (email: string) => {
-        if (!user?.uid) throw new Error("No teacher context");
-        await studentRequestsHook.createRequest(user.uid, email);
-        userManagement.setSuccessMessage(`Request sent for ${email}. Pending admin approval.`);
+    const handleClassFilterChange = (value: ClassFilterValue) => {
+        setClassFilter(value);
+        trackAction('filterStudentsByClass', { classFilter: value });
+    };
+
+    const handleViewAnalytics = (studentId: string) => {
+        trackAction('openStudentAnalytics', { studentId });
+        navigateTo('TEACHER_STUDENT_HISTORY', { studentId }, { reason: 'view_student_history' });
+    };
+
+    const handleOpenAddToClass = (student: UserProfile) => {
+        trackAction('openAddToClassModal', { studentId: student.uid });
+        setStudentForClass(student);
+    };
+
+    const handleOpenRelease = (student: UserProfile) => {
+        trackAction('openReleaseStudentModal', { studentId: student.uid });
+        setStudentToRelease(student);
+    };
+
+    const handleOpenRequestModal = () => {
+        trackAction('openRequestStudentModal');
+        setIsRequestModalOpen(true);
     };
 
     const handleConfirmAddToClass = async (classId: string) => {
-        if (!modals.modals.selectedStudentForClass) return;
-        const student = modals.modals.selectedStudentForClass;
-        const result = await enrollStudent(classId, student.uid, student.displayName || 'Student', student.email, {
-            approvalMode: 'active',
+        if (!studentForClass) return;
+        const student = studentForClass;
+        const studentLabel = student.displayName || student.email || 'Student';
+        const targetClass = roster.classes.find((cls) => cls.id === classId);
+
+        const result = await enrollStudent(
+            classId,
+            student.uid,
+            studentLabel,
+            student.email,
+            { approvalMode: 'active' }
+        );
+
+        if (!result.success) {
+            const message = result.error || 'Could not add student to class.';
+            toast.error(message);
+            throw new Error(message);
+        }
+
+        trackAction('addStudentToClass', { studentId: student.uid, classId });
+        toast.success(
+            targetClass
+                ? `Added ${studentLabel} to ${targetClass.name}.`
+                : `Added ${studentLabel} to class.`
+        );
+        await roster.reloadClasses();
+    };
+
+    const handleConfirmRelease = async (assignmentIds: string[], unenrollCourseIds: string[] = []) => {
+        if (!studentToRelease) return;
+        const student = studentToRelease;
+        const studentLabel = student.displayName || student.email || 'Student';
+
+        const results = await Promise.all(
+            assignmentIds.map((id) =>
+                removeAssignment(id, 'Released by teacher', unenrollCourseIds)
+            )
+        );
+        const failed = results.filter((r) => !r.success);
+
+        if (failed.length > 0) {
+            const message = failed[0]?.error || `Failed to release ${failed.length} assignment(s).`;
+            toast.error(message);
+            throw new Error(message);
+        }
+
+        trackAction('releaseStudent', {
+            studentId: student.uid,
+            assignmentCount: assignmentIds.length,
         });
-        result.success
-            ? userManagement.setSuccessMessage(`Added ${student.displayName} to class`)
-            : userManagement.setError(result.error || 'Failed to add to class');
-        if (result.success) loadCoursesAndClasses();
+        toast.success(`Released ${studentLabel} from your oversight.`);
+        await roster.reload();
     };
 
-    const handleApproveRequest = async (id: string) => {
-        if (!user?.uid) return;
-        await studentRequestsHook.approveRequest(id, user.uid);
-        userManagement.setSuccessMessage('Request approved');
-    };
+    const handleRequestStudent = async (email: string) => {
+        if (!user?.uid) {
+            const message = 'No teacher account is signed in.';
+            toast.error(message);
+            throw new Error(message);
+        }
 
-    const handleDenyRequest = async (id: string) => {
-        if (!confirm('Deny this request?')) return;
-        if (!user?.uid) return;
-        await studentRequestsHook.denyRequest(id, user.uid);
-        userManagement.setSuccessMessage('Request denied');
-    };
+        const result = await createStudentRequest(user.uid, email);
+        if (!result.success) {
+            const message = result.error || 'Could not submit student request.';
+            toast.error(message);
+            throw new Error(message);
+        }
 
-    // Placeholder edit form for disabled modal
-    const placeholderEditForm: EditUserForm = {
-        displayName: '',
-        studentGroup: '',
-        status: 'active'
+        trackAction('requestStudent', { studentEmail: email });
+        toast.success(`Requested access to ${email}. Pending admin approval.`);
+        await roster.reloadRequests();
     };
 
     // ============================================================================
     // RENDER
     // ============================================================================
-    const pendingRequestCount = studentRequestsHook.requests.filter(r => r.status === 'pending').length;
-
-    // Security check: Only teachers can access this page
-    // Note: Super admins should use /admin/users instead (per security architecture)
-    if (profile?.role !== 'teacher') {
+    if (authLoading) {
         return (
-            <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minHeight: '100vh',
-                background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)'
-            }}>
-                <div style={{
-                    textAlign: 'center',
-                    padding: '2rem',
-                    background: 'white',
-                    borderRadius: '1rem',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.1)'
-                }}>
-                    <h1 style={{ color: '#dc2626', marginBottom: '1rem' }}>🚫 Access Denied</h1>
-                    <p style={{ color: '#64748b' }}>This page is for teachers only.</p>
-                    <p style={{ color: '#94a3b8', fontSize: '0.875rem', marginTop: '0.5rem' }}>
-                        Super admins: Please use Admin Console → Users
+            <div className="teacher-students-shell">
+                <main className="teacher-students-main">
+                    <div className="teacher-students-loading" role="status" aria-live="polite">
+                        <VanillaLoader size="lg" />
+                        <span>Loading your students...</span>
+                    </div>
+                </main>
+            </div>
+        );
+    }
+
+    if (!isTeacher) {
+        return (
+            <div className="teacher-students-denied">
+                <div className="teacher-students-denied__card">
+                    <h1 className="teacher-students-denied__title">Access Denied</h1>
+                    <p className="teacher-students-denied__text">This page is for teachers only.</p>
+                    <p className="teacher-students-denied__hint">
+                        Super admins: Please use Admin Console &rarr; Users.
                     </p>
-                    <button
+                    <Button
+                        variant="primary"
                         onClick={() => navigateTo('LOGIN', {}, { replace: true })}
-                        style={{
-                            marginTop: '1rem',
-                            padding: '0.75rem 1.5rem',
-                            background: '#6366f1',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '0.5rem',
-                            cursor: 'pointer'
-                        }}
                     >
                         Go to Login
-                    </button>
+                    </Button>
                 </div>
             </div>
         );
     }
 
     return (
-        <div
-            style={{
-                minHeight: '100vh',
-                background: 'linear-gradient(135deg, #faf5ff 0%, #f0f9ff 25%, #f0fdfa 50%, #fff7ed 75%, #faf5ff 100%)',
-                backgroundAttachment: 'fixed',
-            }}
-        >
-            <AppShell padding="md">
-                {/* Unified Teacher Header with Navigation */}
-                <TeacherHeader
-                    pageTitle="Students"
-                    userId={user?.uid}
-                    userRole={profile?.role}
-                    userDisplayName={profile?.displayName || user?.displayName || user?.email}
-                    userEmail={profile?.email || user?.email}
-                    userAvatarUrl={profile?.avatarUrl || profile?.photoURL || user?.photoURL}
-                    onLogout={handleLogout}
-                />
+        <div className="teacher-students-shell">
+            {/* Shared Teacher Header attached directly to the viewport edge */}
+            <TeacherHeader
+                pageTitle="Students"
+                userId={user?.uid}
+                userRole={profile?.role}
+                userDisplayName={profile?.displayName || user?.displayName || user?.email}
+                userEmail={profile?.email || user?.email}
+                userAvatarUrl={profile?.avatarUrl || profile?.photoURL || user?.photoURL}
+                onLogout={handleLogout}
+            />
 
-                <AppShell.Main>
-                    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '2rem 1rem' }}>
-                        <AdminPageTitle
-                            title="My Students"
-                            subtitle="Manage your assigned students and track their progress"
-                            stats={[
-                                {
-                                    label: 'Active Students',
-                                    value: userManagement.filteredUsers.length,
-                                    icon: <IconUsers size={24} />,
-                                    color: '#6366f1',
-                                    bg: 'rgba(99, 102, 241, 0.1)'
-                                },
-                                {
-                                    label: 'Attendance Rate',
-                                    value: 98,
-                                    icon: <IconTrendingUp size={24} />,
-                                    color: '#10b981',
-                                    bg: 'rgba(16, 185, 129, 0.1)'
-                                },
-                                {
-                                    label: 'Pending Requests',
-                                    value: pendingRequestCount,
-                                    icon: <IconUserPlus size={24} />,
-                                    color: '#f59e0b',
-                                    bg: 'rgba(245, 158, 11, 0.1)'
-                                }
-                            ]}
-                        />
-
-                        <AlertMessages
-                            error={userManagement.error}
-                            successMessage={userManagement.successMessage}
-                            onClearError={userManagement.clearMessages}
-                            onClearSuccess={userManagement.clearMessages}
-                        />
-
-                        <AdminTabsContainer
-                            activeTab={activeTab}
-                            onTabChange={handleTabChange}
-                            isSuperAdmin={isSuperAdmin}
-                            isTeacher={isTeacher}
-                            currentUserId={user?.uid || ''}
-                            userManagement={userManagement}
-                            assignments={assignments}
-                            requests={studentRequestsHook.requests}
-                            pendingRequestCount={pendingRequestCount}
-                            filterByTeacherId={filterByTeacherId}
-                            onTeacherFilterChange={() => { }} // Teachers can't change filter
-                            invitations={[]} // No invitations for teachers
-                            onGenerateInvite={() => { }} // Disabled for teachers
-                            onRevokeInvite={() => { }} // Disabled for teachers
-                            courseTypes={[]} // No course types for teachers
-                            pendingTypeRequests={[]} // No pending requests for teachers
-                            onApproveType={() => { }} // Disabled for teachers
-                            onRejectType={() => { }} // Disabled for teachers
-                            onApproveRequest={handleApproveRequest}
-                            onDenyRequest={handleDenyRequest}
-                            onViewAnalytics={(studentId) => {
-                                navigateTo('TEACHER_STUDENT_HISTORY', { studentId }, { reason: 'view_student_history' });
-                            }}
-                            onEdit={() => { }} // Teachers can't edit users
-                            onAssignToTeacher={() => { }} // Teachers can't assign to other teachers
-                            onRelease={modals.openReleaseModal}
-                            onAddToClass={modals.openAddToClassModal}
-                            onDeleteUser={() => { }} // Teachers can't delete users
-                            onAssignStudents={() => { }} // Teachers can't bulk assign
-                            onAddStudent={() => modals.openRequestModal()}
-                        />
+            <main className="teacher-students-main">
+                {/* Page Title & Live Stats */}
+                <header className="teacher-students-header">
+                    <div className="teacher-students-heading">
+                        <h1 className="teacher-students-title">My Students</h1>
+                        <p className="teacher-students-subtitle">
+                            Manage your assigned students, classes, and progress
+                        </p>
                     </div>
 
-                    <AdminModalsManager
-                        isEditModalOpen={false} // Teachers can't edit
-                        closeEditModal={() => { }}
-                        editForm={placeholderEditForm}
-                        setEditForm={() => { }}
-                        onSaveUser={() => { }}
-                        isAssignmentModalOpen={false} // Teachers can't assign
-                        closeAssignmentModal={() => { }}
-                        assignmentMode={null}
-                        selectedUserForAssignment={null}
-                        teacherOptions={[]}
-                        studentOptions={studentOptions}
-                        courses={courses}
-                        currentUserId={user?.uid}
-                        onAssignmentSuccess={() => { }}
-                        loadAssignments={assignments.loadAssignments}
-                        isReleaseModalOpen={modals.modals.isReleaseModalOpen}
-                        closeReleaseModal={modals.closeReleaseModal}
-                        studentToRelease={modals.modals.studentToRelease}
-                        assignmentsByStudent={assignments.assignmentsByStudent}
-                        currentTeacherId={user?.uid || null}
-                        availableCourses={courses}
-                        onConfirmRelease={handleConfirmRelease}
-                        isRequestModalOpen={modals.modals.isRequestModalOpen}
-                        closeRequestModal={modals.closeRequestModal}
-                        onRequestStudent={handleRequestStudent}
-                        isAddToClassModalOpen={modals.modals.isAddToClassModalOpen}
-                        closeAddToClassModal={modals.closeAddToClassModal}
-                        selectedStudentForClass={modals.modals.selectedStudentForClass}
-                        classes={classes}
-                        onConfirmAddToClass={handleConfirmAddToClass}
-                    />
-                </AppShell.Main>
-            </AppShell>
+                    <div className="teacher-students-stats" aria-label="Student roster summary">
+                        <div className="teacher-students-stat">
+                            <span className="teacher-students-stat__icon teacher-students-stat__icon--indigo" aria-hidden="true">
+                                <IconUsers size={22} />
+                            </span>
+                            <div>
+                                <span className="teacher-students-stat__label">Active Students</span>
+                                <span className="teacher-students-stat__value" data-testid="stat-active-students">
+                                    {roster.students.length}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="teacher-students-stat">
+                            <span className="teacher-students-stat__icon teacher-students-stat__icon--teal" aria-hidden="true">
+                                <IconSchool size={22} />
+                            </span>
+                            <div>
+                                <span className="teacher-students-stat__label">Active Classes</span>
+                                <span className="teacher-students-stat__value" data-testid="stat-active-classes">
+                                    {roster.classOptions.length}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="teacher-students-stat">
+                            <span className="teacher-students-stat__icon teacher-students-stat__icon--amber" aria-hidden="true">
+                                <IconUserPlus size={22} />
+                            </span>
+                            <div>
+                                <span className="teacher-students-stat__label">Pending Requests</span>
+                                <span className="teacher-students-stat__value" data-testid="stat-pending-requests">
+                                    {roster.pendingRequestCount}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </header>
+
+                {/* Native Section Tabs */}
+                <div className="teacher-students-tabs" role="tablist" aria-label="Student views">
+                    <button
+                        type="button"
+                        role="tab"
+                        aria-selected={activeTab === 'students'}
+                        className={`teacher-students-tab${activeTab === 'students' ? ' is-active' : ''}`}
+                        onClick={() => handleSwitchTab('students')}
+                    >
+                        <IconUsers size={16} aria-hidden="true" />
+                        Students
+                    </button>
+                    <button
+                        type="button"
+                        role="tab"
+                        aria-selected={activeTab === 'requests'}
+                        className={`teacher-students-tab${activeTab === 'requests' ? ' is-active' : ''}`}
+                        onClick={() => handleSwitchTab('requests')}
+                    >
+                        <IconUserPlus size={16} aria-hidden="true" />
+                        My Requests
+                        {roster.pendingRequestCount > 0 && (
+                            <span className="teacher-students-tab__badge">{roster.pendingRequestCount}</span>
+                        )}
+                    </button>
+                </div>
+
+                {/* Toolbar */}
+                <Card variant="glass" className="teacher-students-toolbar">
+                    <CardBody>
+                        <div className="teacher-students-toolbar__row">
+                            {activeTab === 'students' && (
+                                <>
+                                    <div className="teacher-students-search">
+                                        <span className="teacher-students-search__icon" aria-hidden="true">
+                                            <SearchIcon size={16} />
+                                        </span>
+                                        <input
+                                            type="search"
+                                            className="teacher-students-search__input"
+                                            aria-label="Search students"
+                                            placeholder="Search students by name, email, or class..."
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                        />
+                                        {searchTerm && (
+                                            <button
+                                                type="button"
+                                                className="teacher-students-search__clear"
+                                                onClick={() => setSearchTerm('')}
+                                                aria-label="Clear search"
+                                            >
+                                                <IconX size={15} aria-hidden="true" />
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <div className="teacher-students-filter">
+                                        <select
+                                            aria-label="Filter by class"
+                                            className="teacher-students-filter__select"
+                                            value={classFilter}
+                                            onChange={(e) => handleClassFilterChange(e.target.value)}
+                                        >
+                                            <option value="all">All Classes</option>
+                                            {roster.classOptions.map((cls) => (
+                                                <option key={cls.value} value={cls.value}>
+                                                    {cls.label}
+                                                </option>
+                                            ))}
+                                            <option value="none">Not in a Class</option>
+                                        </select>
+                                    </div>
+                                </>
+                            )}
+
+                            <div className="teacher-students-toolbar__actions" style={activeTab === 'requests' ? { marginLeft: 'auto' } : undefined}>
+                                <Button variant="primary" onClick={handleOpenRequestModal}>
+                                    <IconUserPlus size={16} aria-hidden="true" />
+                                    Add Student
+                                </Button>
+
+                                <Button
+                                    variant="glass"
+                                    onClick={handleSync}
+                                    disabled={roster.loading || roster.refreshing}
+                                >
+                                    <IconRefresh
+                                        size={16}
+                                        aria-hidden="true"
+                                        className={roster.refreshing ? 'teacher-students-spin' : undefined}
+                                    />
+                                    {roster.refreshing ? 'Syncing...' : 'Sync'}
+                                </Button>
+                            </div>
+                        </div>
+                    </CardBody>
+                </Card>
+
+                {/* Main Content Panel */}
+                <Card variant="glass" className="teacher-students-panel">
+                    <CardBody>
+                        {roster.error && (
+                            <div className="teacher-students-error" role="alert">
+                                <span>{roster.error}</span>
+                                <Button variant="outline" size="sm" onClick={handleSync}>
+                                    Retry
+                                </Button>
+                            </div>
+                        )}
+
+                        {activeTab === 'students' ? (
+                            roster.loading ? (
+                                <div className="teacher-students-loading" role="status" aria-live="polite">
+                                    <VanillaLoader size="lg" />
+                                    <span>Loading your students...</span>
+                                </div>
+                            ) : roster.students.length === 0 ? (
+                                <div className="teacher-students-empty">
+                                    <div className="teacher-students-empty__icon" aria-hidden="true">
+                                        <IconUsers size={28} />
+                                    </div>
+                                    <h2 className="teacher-students-empty__title">No students assigned yet</h2>
+                                    <p className="teacher-students-empty__desc">
+                                        Request access to a student by email to start managing their classes and tracking progress.
+                                    </p>
+                                    <div className="teacher-students-empty__actions">
+                                        <Button variant="primary" onClick={handleOpenRequestModal}>
+                                            <IconUserPlus size={16} aria-hidden="true" />
+                                            Add Student
+                                        </Button>
+                                    </div>
+                                </div>
+                            ) : filteredStudents.length === 0 ? (
+                                <div className="teacher-students-empty">
+                                    <div className="teacher-students-empty__icon" aria-hidden="true">
+                                        <IconUsers size={28} />
+                                    </div>
+                                    <h2 className="teacher-students-empty__title">No students match your filter</h2>
+                                    <p className="teacher-students-empty__desc">
+                                        Try adjusting your search query or switching the class filter.
+                                    </p>
+                                    <div className="teacher-students-empty__actions">
+                                        {hasActiveFilters && (
+                                            <Button
+                                                variant="glass"
+                                                onClick={() => {
+                                                    setSearchTerm('');
+                                                    setClassFilter('all');
+                                                }}
+                                            >
+                                                Clear Filters
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="teacher-students-summary">
+                                        <span>
+                                            Showing <strong>{filteredStudents.length}</strong> of{' '}
+                                            <strong>{roster.students.length}</strong>{' '}
+                                            {roster.students.length === 1 ? 'student' : 'students'}
+                                        </span>
+                                        {hasActiveFilters && (
+                                            <Button
+                                                variant="glass"
+                                                size="xs"
+                                                onClick={() => {
+                                                    setSearchTerm('');
+                                                    setClassFilter('all');
+                                                }}
+                                            >
+                                                Clear Filters
+                                            </Button>
+                                        )}
+                                    </div>
+
+                                    <StudentGrid
+                                        students={filteredStudents}
+                                        assignments={roster.assignmentsByStudent}
+                                        teachers={[]}
+                                        classesByStudent={roster.classesByStudent}
+                                        currentUserId={user?.uid || null}
+                                        onViewAnalytics={handleViewAnalytics}
+                                        onAddToClass={handleOpenAddToClass}
+                                        onRelease={handleOpenRelease}
+                                        isTeacher
+                                    />
+                                </>
+                            )
+                        ) : roster.requests.length === 0 ? (
+                            <div className="teacher-students-empty">
+                                <div className="teacher-students-empty__icon" aria-hidden="true">
+                                    <IconUserPlus size={28} />
+                                </div>
+                                <h2 className="teacher-students-empty__title">No student requests yet</h2>
+                                <p className="teacher-students-empty__desc">
+                                    When you request access to a student, the request status will appear here until an administrator reviews it.
+                                </p>
+                                <div className="teacher-students-empty__actions">
+                                    <Button variant="primary" onClick={handleOpenRequestModal}>
+                                        <IconUserPlus size={16} aria-hidden="true" />
+                                        Add Student
+                                    </Button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="teacher-requests-list" aria-label="Submitted student requests">
+                                {roster.requests.map((request) => (
+                                    <div key={request.id} className="teacher-request-row">
+                                        <div>
+                                            <p className="teacher-request-row__email">{request.studentEmail}</p>
+                                            <p className="teacher-request-row__meta">
+                                                Requested {formatRequestDate(request.requestedAt)}
+                                            </p>
+                                        </div>
+                                        <span className={`teacher-request-status teacher-request-status--${request.status}`}>
+                                            {request.status}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </CardBody>
+                </Card>
+            </main>
+
+            {/* Native Modals */}
+            <AddToClassModal
+                opened={Boolean(studentForClass)}
+                onClose={() => setStudentForClass(null)}
+                student={studentForClass}
+                classes={roster.classOptions}
+                enrolledClassIds={selectedStudentEnrolledClassIds}
+                onConfirm={handleConfirmAddToClass}
+            />
+
+            <ReleaseStudentModal
+                opened={Boolean(studentToRelease)}
+                onClose={() => setStudentToRelease(null)}
+                student={studentToRelease}
+                assignments={studentToRelease ? (roster.assignmentsByStudent[studentToRelease.uid] || []) : []}
+                currentTeacherId={user?.uid || null}
+                availableCourses={roster.courses}
+                onConfirm={handleConfirmRelease}
+            />
+
+            <TeacherRequestModal
+                opened={isRequestModalOpen}
+                onClose={() => setIsRequestModalOpen(false)}
+                onSubmit={handleRequestStudent}
+            />
         </div>
     );
 };

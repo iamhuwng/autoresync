@@ -1,27 +1,16 @@
-// @ts-nocheck
 /**
  * Release Student Modal Component
- * 
- * Handles releasing a student from a teacher's oversight.
- * Includes option to unenroll from associated courses.
+ *
+ * Native <dialog> modal for releasing a student from a teacher's oversight.
+ * Includes option to record course unenrollment for associated courses.
  */
 
-import React, { useState, useEffect } from 'react';
-import {
-    Modal,
-    Stack,
-    Button,
-    Group,
-    Text,
-    Alert,
-    Checkbox,
-    MultiSelect,
-    Divider
-} from '@mantine/core';
+import React, { useEffect, useId, useMemo, useState } from 'react';
 import { IconAlertCircle, IconUserMinus } from '@tabler/icons-react';
-import { StudentTeacherAssignment } from '../../types/assignment.types';
+import type { StudentTeacherAssignment } from '../../types/assignment.types';
+import { NativeDialog } from './NativeDialog';
 
-interface ReleaseStudentModalProps {
+export interface ReleaseStudentModalProps {
     opened: boolean;
     onClose: () => void;
     student: {
@@ -30,7 +19,7 @@ interface ReleaseStudentModalProps {
         email: string;
     } | null;
     assignments: StudentTeacherAssignment[];
-    currentTeacherId?: string | null; // If provided, only release from THIS teacher
+    currentTeacherId?: string | null;
     availableCourses: Array<{ value: string; label: string }>;
     onConfirm: (assignmentIds: string[], unenrollCourseIds: string[]) => Promise<void>;
 }
@@ -42,38 +31,51 @@ export const ReleaseStudentModal: React.FC<ReleaseStudentModalProps> = ({
     assignments,
     currentTeacherId,
     availableCourses,
-    onConfirm
+    onConfirm,
 }) => {
-    // State
+    const checkboxId = useId();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [unenrollFromCourses, setUnenrollFromCourses] = useState(false);
     const [selectedCoursesToUnenroll, setSelectedCoursesToUnenroll] = useState<string[]>([]);
 
-    // Filter assignments to only those for the current teacher if applicable
-    const relevantAssignments = currentTeacherId
-        ? assignments.filter(a => a.teacherId === currentTeacherId && a.status === 'active')
-        : assignments.filter(a => a.status === 'active');
+    const relevantAssignments = useMemo(
+        () =>
+            currentTeacherId
+                ? assignments.filter((a) => a.teacherId === currentTeacherId && a.status === 'active')
+                : assignments.filter((a) => a.status === 'active'),
+        [assignments, currentTeacherId]
+    );
 
-    // Get all enrolled courses for this student from the relevant assignments
-    const enrolledCourseIds = Array.from(new Set(
-        relevantAssignments.flatMap(a => a.coursesEnrolled || [])
-    ));
+    const enrolledCourseIds = useMemo(
+        () => Array.from(new Set(relevantAssignments.flatMap((a) => a.coursesEnrolled || []))),
+        [relevantAssignments]
+    );
 
-    // Filter available courses to only those the student is actually enrolled in
-    const filteredAvailableCourses = availableCourses.filter(c => enrolledCourseIds.includes(c.value));
+    const filteredAvailableCourses = useMemo(
+        () => availableCourses.filter((c) => enrolledCourseIds.includes(c.value)),
+        [availableCourses, enrolledCourseIds]
+    );
 
-    // Reset when modal opens/closes
     useEffect(() => {
         if (!opened) {
             setUnenrollFromCourses(false);
             setSelectedCoursesToUnenroll([]);
             setError(null);
-        } else if (enrolledCourseIds.length > 0) {
-            // Default to selecting all currently enrolled courses if unenroll is toggled
+            setLoading(false);
+        } else {
+            setUnenrollFromCourses(false);
             setSelectedCoursesToUnenroll(enrolledCourseIds);
+            setError(null);
+            setLoading(false);
         }
-    }, [opened]);
+    }, [opened, student?.uid, enrolledCourseIds]);
+
+    const toggleCourse = (courseId: string) => {
+        setSelectedCoursesToUnenroll((prev) =>
+            prev.includes(courseId) ? prev.filter((id) => id !== courseId) : [...prev, courseId]
+        );
+    };
 
     const handleConfirm = async () => {
         if (!student || relevantAssignments.length === 0) return;
@@ -82,7 +84,7 @@ export const ReleaseStudentModal: React.FC<ReleaseStudentModalProps> = ({
         setError(null);
 
         try {
-            const assignmentIds = relevantAssignments.map(a => a.id);
+            const assignmentIds = relevantAssignments.map((a) => a.id);
             await onConfirm(assignmentIds, unenrollFromCourses ? selectedCoursesToUnenroll : []);
             onClose();
         } catch (err) {
@@ -94,83 +96,103 @@ export const ReleaseStudentModal: React.FC<ReleaseStudentModalProps> = ({
     };
 
     return (
-        <Modal
+        <NativeDialog
             opened={opened}
             onClose={onClose}
-            title={
-                <Group spacing="xs">
-                    <IconUserMinus size={20} color="orange" />
-                    <Text fw={600}>Release Student</Text>
-                </Group>
-            }
-            size="md"
-            centered
+            title="Release Student"
+            icon={<IconUserMinus size={20} color="#ea580c" aria-hidden="true" />}
+            busy={loading}
         >
-            <Stack spacing="md">
-                {student && (
-                    <Text size="sm">
-                        Are you sure you want to release <strong>{student.displayName || student.email}</strong> from {currentTeacherId ? 'your oversight' : 'all assigned teachers'}?
-                    </Text>
-                )}
+            {student && (
+                <p className="assignment-dialog__text">
+                    Are you sure you want to release{' '}
+                    <strong>{student.displayName || student.email}</strong> from{' '}
+                    {currentTeacherId ? 'your oversight' : 'all assigned teachers'}?
+                </p>
+            )}
 
-                {relevantAssignments.length > 1 && !currentTeacherId && (
-                    <Alert color="orange" icon={<IconAlertCircle size={16} />}>
-                        This student is assigned to {relevantAssignments.length} teachers. Releasing will remove all these assignments.
-                    </Alert>
-                )}
+            {relevantAssignments.length > 1 && !currentTeacherId && (
+                <div className="assignment-dialog__alert assignment-dialog__alert--warning" role="status">
+                    <IconAlertCircle size={16} className="assignment-dialog__alert-icon" aria-hidden="true" />
+                    <span>
+                        This student is assigned to {relevantAssignments.length} teachers. Releasing will remove all
+                        these assignments.
+                    </span>
+                </div>
+            )}
 
-                {error && (
-                    <Alert color="red" icon={<IconAlertCircle size={16} />}>
-                        {error}
-                    </Alert>
-                )}
+            {error && (
+                <div className="assignment-dialog__alert assignment-dialog__alert--error" role="alert">
+                    <IconAlertCircle size={16} className="assignment-dialog__alert-icon" aria-hidden="true" />
+                    <span>{error}</span>
+                </div>
+            )}
 
-                {enrolledCourseIds.length > 0 && (
-                    <>
-                        <Divider label="Course Access" labelPosition="center" />
+            {enrolledCourseIds.length > 0 && (
+                <>
+                    <div className="assignment-dialog__divider">Course Access</div>
 
-                        <Checkbox
-                            label="Also unenroll from courses?"
-                            description="Remove the student from selected courses associated with this assignment"
+                    <label htmlFor={checkboxId} className="assignment-dialog__checkbox-row">
+                        <input
+                            id={checkboxId}
+                            type="checkbox"
                             checked={unenrollFromCourses}
                             onChange={(e) => setUnenrollFromCourses(e.currentTarget.checked)}
                             disabled={loading}
                         />
+                        <span>
+                            Also unenroll from courses?
+                            <span className="assignment-dialog__checkbox-hint">
+                                Remove the student from selected courses associated with this assignment
+                            </span>
+                        </span>
+                    </label>
 
-                        {unenrollFromCourses && filteredAvailableCourses.length > 0 && (
-                            <MultiSelect
-                                label="Select Courses to Unenroll"
-                                placeholder="Choose courses"
-                                data={filteredAvailableCourses}
-                                value={selectedCoursesToUnenroll}
-                                onChange={setSelectedCoursesToUnenroll}
-                                disabled={loading}
-                                clearable
-                            />
-                        )}
+                    {unenrollFromCourses && filteredAvailableCourses.length > 0 && (
+                        <div className="assignment-dialog__course-list" role="group" aria-label="Select Courses to Unenroll">
+                            <div className="assignment-dialog__course-legend">Select Courses to Unenroll</div>
+                            {filteredAvailableCourses.map((course) => (
+                                <label key={course.value} className="assignment-dialog__checkbox-row">
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedCoursesToUnenroll.includes(course.value)}
+                                        onChange={() => toggleCourse(course.value)}
+                                        disabled={loading}
+                                    />
+                                    <span>{course.label}</span>
+                                </label>
+                            ))}
+                        </div>
+                    )}
 
-                        {unenrollFromCourses && filteredAvailableCourses.length === 0 && enrolledCourseIds.length > 0 && (
-                            <Text size="xs" c="dimmed" fs="italic">
-                                Note: Student is enrolled in {enrolledCourseIds.length} course(s), but course names are not available.
-                            </Text>
-                        )}
-                    </>
-                )}
+                    {unenrollFromCourses && filteredAvailableCourses.length === 0 && (
+                        <p className="assignment-dialog__text" style={{ fontSize: '0.8rem', fontStyle: 'italic' }}>
+                            Note: Student is enrolled in {enrolledCourseIds.length} course(s), but course names are not
+                            available.
+                        </p>
+                    )}
+                </>
+            )}
 
-                <Group position="right" mt="md">
-                    <Button variant="subtle" onClick={onClose} disabled={loading}>
-                        Cancel
-                    </Button>
-                    <Button
-                        color="orange"
-                        onClick={handleConfirm}
-                        loading={loading}
-                        disabled={relevantAssignments.length === 0}
-                    >
-                        Confirm Release
-                    </Button>
-                </Group>
-            </Stack>
-        </Modal>
+            <div className="assignment-dialog__footer">
+                <button
+                    type="button"
+                    className="assignment-dialog__btn assignment-dialog__btn--secondary"
+                    onClick={onClose}
+                    disabled={loading}
+                    autoFocus
+                >
+                    Cancel
+                </button>
+                <button
+                    type="button"
+                    className="assignment-dialog__btn assignment-dialog__btn--warning"
+                    onClick={handleConfirm}
+                    disabled={relevantAssignments.length === 0 || loading}
+                >
+                    {loading ? 'Releasing...' : 'Confirm Release'}
+                </button>
+            </div>
+        </NativeDialog>
     );
 };

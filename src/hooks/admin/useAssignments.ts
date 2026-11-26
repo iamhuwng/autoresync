@@ -18,56 +18,90 @@
  * const studentAssignments = assignments.getStudentAssignments('student-uid-123');
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
     getAllAssignments,
+    getAssignmentsByTeacher,
     removeAssignment as removeAssignmentService
 } from '../../services/assignmentManager';
-import type { UseAssignmentsReturn } from '../../types/admin.types';
+import type { UseAssignmentsReturn, LoadAssignmentsOptions } from '../../types/admin.types';
 import type { StudentTeacherAssignment } from '../../types/assignment.types';
 
-export function useAssignments(): UseAssignmentsReturn {
+export interface UseAssignmentsOptions {
+    /**
+     * When set, only this teacher's active assignments are loaded (one indexed
+     * query) instead of every assignment in the system. Teacher-facing pages
+     * must pass their own uid here.
+     */
+    teacherId?: string | null;
+}
+
+const groupAssignments = (all: StudentTeacherAssignment[]) => {
+    const byStudent: Record<string, StudentTeacherAssignment[]> = {};
+    const byTeacher: Record<string, StudentTeacherAssignment[]> = {};
+    all.forEach((assignment) => {
+        (byStudent[assignment.studentId] ||= []).push(assignment);
+        (byTeacher[assignment.teacherId] ||= []).push(assignment);
+    });
+    return { byStudent, byTeacher };
+};
+
+export function useAssignments(options: UseAssignmentsOptions = {}): UseAssignmentsReturn {
+    const teacherId = options.teacherId ?? null;
     const [assignments, setAssignments] = useState<StudentTeacherAssignment[]>([]);
     const [assignmentsByStudent, setAssignmentsByStudent] = useState<Record<string, StudentTeacherAssignment[]>>({});
     const [assignmentsByTeacher, setAssignmentsByTeacher] = useState<Record<string, StudentTeacherAssignment[]>>({});
     const [loading, setLoading] = useState(false);
 
+    // Cache marker lives in a ref so callers never read a stale closure value.
+    // (Previously the cache check read `assignmentsByStudent` state, so a reload
+    // right after a release/approve was silently skipped and the list went stale.)
+    const loadedScopeRef = useRef<string | null>(null);
+    const requestIdRef = useRef(0);
+
     // ============================================================================
-    // LOAD ASSIGNMENTS (BATCH - NO N+1!)
+    // LOAD ASSIGNMENTS
     // ============================================================================
 
-    const loadAssignments = useCallback(async () => {
-        // Avoid reloading if already populated
-        if (Object.keys(assignmentsByStudent).length > 0) {
-            console.log('📦 [useAssignments] Assignments already loaded, skipping...');
+    const loadAssignments = useCallback(async (loadOptions: LoadAssignmentsOptions = {}) => {
+        const scope = teacherId ? `teacher:${teacherId}` : 'all';
+        if (!loadOptions.force && loadedScopeRef.current === scope) {
             return;
         }
 
+        const requestId = ++requestIdRef.current;
         setLoading(true);
         try {
-            console.log('🏫 [useAssignments] Loading assignments... (BATCH MODE - NO N+1!)');
+            let all: StudentTeacherAssignment[];
+            let byStudent: Record<string, StudentTeacherAssignment[]>;
+            let byTeacher: Record<string, StudentTeacherAssignment[]>;
 
-            // FIXED: Use batch method instead of N+1 queries
-            // Before: 100 students = 100+ Firestore calls
-            // After: 1 Firestore call total
-            const { all, byStudent, byTeacher } = await getAllAssignments();
+            if (teacherId) {
+                all = await getAssignmentsByTeacher(teacherId);
+                ({ byStudent, byTeacher } = groupAssignments(all));
+            } else {
+                ({ all, byStudent, byTeacher } = await getAllAssignments());
+            }
 
+            if (requestId !== requestIdRef.current) return; // superseded by a newer load
             setAssignments(all);
             setAssignmentsByStudent(byStudent);
             setAssignmentsByTeacher(byTeacher);
-
-            console.log(`✅ [useAssignments] Assignments loaded: ${all.length} total (1 query)`);
+            loadedScopeRef.current = scope;
         } catch (err) {
             console.error('Error loading assignments:', err);
-            // Don't throw - assignments are supplementary data
-            // Set empty state to allow UI to continue
+            if (requestId !== requestIdRef.current) return;
+            // Assignments are supplementary data - keep the UI usable.
             setAssignments([]);
             setAssignmentsByStudent({});
             setAssignmentsByTeacher({});
+            loadedScopeRef.current = null;
         } finally {
-            setLoading(false);
+            if (requestId === requestIdRef.current) {
+                setLoading(false);
+            }
         }
-    }, [assignmentsByStudent]);
+    }, [teacherId]);
 
     // ============================================================================
     // REMOVE ASSIGNMENT
@@ -81,10 +115,7 @@ export function useAssignments(): UseAssignmentsReturn {
                 throw new Error(result.error || 'Failed to remove assignment');
             }
 
-            // Reload assignments after removal
-            // Clear the cache first to force reload
-            setAssignmentsByStudent({});
-            await loadAssignments();
+            await loadAssignments({ force: true });
         } catch (err) {
             console.error('Error removing assignment:', err);
             throw err;

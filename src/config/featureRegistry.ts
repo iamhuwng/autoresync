@@ -35,6 +35,7 @@ export const FEATURE_IDS = {
   bookAuthoring: 'bookAuthoring',
   results: 'results',
   studentDashboard: 'studentDashboard',
+  teacherStudents: 'teacherStudents',
   testTaking: 'testTaking',
   testCreation: 'testCreation',
 } as const;
@@ -757,6 +758,26 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'openHomeworkDashboard',
     ],
     description: 'Class management and viewing',
+  },
+  {
+    id: FEATURE_IDS.teacherStudents,
+    name: 'Teacher Students',
+    routes: [
+      '/teacher/students',
+    ],
+    actions: [
+      'syncStudents',
+      'switchStudentsTab',
+      'filterStudentsByClass',
+      'openStudentAnalytics',
+      'openAddToClassModal',
+      'addStudentToClass',
+      'openReleaseStudentModal',
+      'releaseStudent',
+      'openRequestStudentModal',
+      'requestStudent',
+    ],
+    description: 'Teacher student roster, class enrollment, release, and request workflows',
   },
   {
     id: 'liveSessions',

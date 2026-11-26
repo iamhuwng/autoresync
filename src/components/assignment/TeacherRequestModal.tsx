@@ -1,29 +1,31 @@
-import React, { useState, useEffect } from 'react';
-import {
-    Modal,
-    TextInput,
-    Button,
-    Text,
-    Alert
-} from '@mantine/core';
-import { IconAlertCircle } from '@tabler/icons-react';
+/**
+ * TeacherRequestModal Component
+ *
+ * Native <dialog> modal for requesting admin approval to assign a student by email.
+ */
 
-interface TeacherRequestModalProps {
+import React, { useEffect, useId, useState } from 'react';
+import { IconAlertCircle, IconUserPlus } from '@tabler/icons-react';
+import { NativeDialog } from './NativeDialog';
+
+export interface TeacherRequestModalProps {
     opened: boolean;
     onClose: () => void;
     onSubmit: (email: string) => Promise<void>;
 }
 
+const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
 export const TeacherRequestModal: React.FC<TeacherRequestModalProps> = ({
     opened,
     onClose,
-    onSubmit
+    onSubmit,
 }) => {
+    const emailId = useId();
     const [email, setEmail] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // Reset state when modal opens
     useEffect(() => {
         if (opened) {
             setEmail('');
@@ -31,10 +33,6 @@ export const TeacherRequestModal: React.FC<TeacherRequestModalProps> = ({
             setLoading(false);
         }
     }, [opened]);
-
-    const validateEmail = (email: string) => {
-        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-    };
 
     const handleSubmit = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
@@ -47,7 +45,7 @@ export const TeacherRequestModal: React.FC<TeacherRequestModalProps> = ({
             return;
         }
 
-        if (!validateEmail(trimmedEmail)) {
+        if (!isValidEmail(trimmedEmail)) {
             setError('Please enter a valid email address');
             return;
         }
@@ -59,56 +57,39 @@ export const TeacherRequestModal: React.FC<TeacherRequestModalProps> = ({
         } catch (err) {
             console.error('Error requesting student:', err);
             setError(err instanceof Error ? err.message : 'Failed to send request');
-            setLoading(false); // Only stop loading on error, keep loading on success until close
+            setLoading(false);
         }
     };
 
     return (
-        <Modal
+        <NativeDialog
             opened={opened}
             onClose={onClose}
-            title={
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <span style={{ fontSize: '1.5rem' }}>👥</span>
-                    <span style={{ fontWeight: 800, fontSize: '1.25rem' }}>Request Student</span>
-                </div>
-            }
-            size="md"
-            padding="xl"
-            radius="lg"
-            centered
-            styles={{
-                header: {
-                    paddingBottom: '1.5rem',
-                    borderBottom: '1px solid #f1f5f9'
-                },
-                body: {
-                    paddingTop: '1.5rem'
-                }
-            }}
+            title="Request Student"
+            icon={<IconUserPlus size={20} color="#6366f1" aria-hidden="true" />}
+            busy={loading}
         >
-            <form onSubmit={handleSubmit}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                    <Text size="sm" c="dimmed" style={{ lineHeight: 1.6 }}>
-                        Enter the email address of the student you want to request access to.
-                        The administrator will need to approve this request.
-                    </Text>
+            <form onSubmit={handleSubmit} noValidate className="assignment-dialog__field" style={{ gap: '1rem' }}>
+                <p className="assignment-dialog__text">
+                    Enter the email address of the student you want to request access to. The administrator will need to
+                    approve this request.
+                </p>
 
-                    {error && (
-                        <Alert
-                            icon={<IconAlertCircle size={16} />}
-                            color="red"
-                            title="Error"
-                            styles={{
-                                root: { borderRadius: '0.75rem' }
-                            }}
-                        >
-                            {error}
-                        </Alert>
-                    )}
+                {error && (
+                    <div className="assignment-dialog__alert assignment-dialog__alert--error" role="alert">
+                        <IconAlertCircle size={16} className="assignment-dialog__alert-icon" aria-hidden="true" />
+                        <span>{error}</span>
+                    </div>
+                )}
 
-                    <TextInput
-                        label={<span style={{ fontWeight: 700, fontSize: '0.9rem' }}>Student Email</span>}
+                <div className="assignment-dialog__field">
+                    <label htmlFor={emailId} className="assignment-dialog__label">
+                        Student Email
+                    </label>
+                    <input
+                        id={emailId}
+                        type="email"
+                        className="assignment-dialog__input"
                         placeholder="student@example.com"
                         value={email}
                         onChange={(e) => {
@@ -116,48 +97,31 @@ export const TeacherRequestModal: React.FC<TeacherRequestModalProps> = ({
                             if (error) setError(null);
                         }}
                         disabled={loading}
+                        autoComplete="email"
+                        autoFocus
                         required
-                        data-autofocus
-                        styles={{
-                            input: {
-                                borderRadius: '0.75rem',
-                                padding: '0.75rem',
-                                height: '42px'
-                            }
-                        }}
                     />
+                </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
-                        <Button
-                            variant="default"
-                            onClick={onClose}
-                            disabled={loading}
-                            styles={{
-                                root: {
-                                    borderRadius: '0.75rem',
-                                    fontWeight: 600
-                                }
-                            }}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            type="submit"
-                            loading={loading}
-                            disabled={!email.trim()}
-                            styles={{
-                                root: {
-                                    borderRadius: '0.75rem',
-                                    fontWeight: 600
-                                }
-                            }}
-                        >
-                            Send Request
-                        </Button>
-                    </div>
+                <div className="assignment-dialog__footer">
+                    <button
+                        type="button"
+                        className="assignment-dialog__btn assignment-dialog__btn--secondary"
+                        onClick={onClose}
+                        disabled={loading}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="submit"
+                        className="assignment-dialog__btn assignment-dialog__btn--primary"
+                        disabled={!email.trim() || loading}
+                    >
+                        {loading ? 'Sending...' : 'Send Request'}
+                    </button>
                 </div>
             </form>
-        </Modal>
+        </NativeDialog>
     );
 };
 
