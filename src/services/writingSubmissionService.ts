@@ -1956,9 +1956,11 @@ export const autoSubmitFromRTDB = withRestoreGuard(
         ]);
         const writingData = writingSnap.val() || {};
         const sessionData = sessionSnap.exists() ? sessionSnap.val() : {};
-        const existingResultId = typeof writingData.resultId === 'string' ? writingData.resultId : null;
+        const existingResultId = typeof writingData.resultId === 'string' && writingData.resultId.trim()
+            ? writingData.resultId
+            : null;
 
-        if (writingData.submitted === true && existingResultId) {
+        if (writingData.submitted === true && writingData.reopened !== true && existingResultId) {
             const existingResultSnap = await get(ref(database, `test_results/${existingResultId}`));
             if (existingResultSnap.exists()) {
                 console.log('ℹ️ Writing submission already materialized:', existingResultId);
@@ -1966,10 +1968,40 @@ export const autoSubmitFromRTDB = withRestoreGuard(
             }
         }
 
-        // Generate resultId using Firebase push ID
-        const resultId = existingResultId || push(ref(database, 'test_results')).key;
-        if (!resultId) {
+        // Atomically claim a single canonical resultId in RTDB so concurrent student + teacher
+        // auto-submits converge on the exact same submission ID instead of creating duplicates.
+        const candidateResultId = existingResultId || push(ref(database, 'test_results')).key;
+        if (!candidateResultId) {
             throw new Error('Failed to generate writing submission resultId');
+        }
+
+        let resultId = existingResultId;
+        if (!resultId) {
+            const claimResult = await runTransaction(
+                ref(database, `game_sessions/${sessionCode}/students/${studentUid}/writing/resultId`),
+                (current) => (typeof current === 'string' && current.trim() ? current : candidateResultId),
+                { applyLocally: false },
+            );
+            const claimedValue = claimResult?.snapshot?.val?.();
+            resultId = typeof claimedValue === 'string' && claimedValue.trim()
+                ? claimedValue
+                : candidateResultId;
+
+            if (resultId !== candidateResultId) {
+                const [latestWritingSnap, existingClaimedResultSnap] = await Promise.all([
+                    get(writingRef),
+                    get(ref(database, `test_results/${resultId}`)),
+                ]);
+                const latestWriting = latestWritingSnap?.val?.() || {};
+                if (
+                    latestWriting.submitted === true
+                    && latestWriting.reopened !== true
+                    && existingClaimedResultSnap.exists()
+                ) {
+                    console.log('ℹ️ Writing submission already materialized by concurrent caller:', resultId);
+                    return;
+                }
+            }
         }
 
         const submittedAt = typeof writingData.submittedAt === 'number'

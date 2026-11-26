@@ -1324,6 +1324,49 @@ describe('writingSubmissionService', () => {
         ).rejects.toThrow('firestore unavailable');
     });
 
+    it('claims a single canonical resultId via RTDB transaction so concurrent auto-submits do not duplicate submissions', async () => {
+        (push as any).mockReturnValue({ key: 'result-losing-race' });
+        (runTransaction as any).mockImplementationOnce(async (_path: string, updater: (current: unknown) => unknown) => {
+            // Simulate concurrent caller having already claimed 'result-winner'
+            const value = updater('result-winner');
+            return { snapshot: { val: () => value } };
+        });
+        let writingGetCalls = 0;
+        (get as any).mockImplementation((path: string) => {
+            if (path.includes('/writing')) {
+                writingGetCalls += 1;
+                return Promise.resolve({
+                    exists: () => true,
+                    val: () => (writingGetCalls === 1
+                        ? { task1: { text: 'Essay' } }
+                        : { submitted: true, reopened: false, resultId: 'result-winner', task1: { text: 'Essay' } }),
+                });
+            }
+            if (path === 'test_results/result-winner') {
+                return Promise.resolve({ exists: () => true, val: () => ({ resultId: 'result-winner' }) });
+            }
+            return Promise.resolve({ exists: () => true, val: () => ({}) });
+        });
+
+        await autoSubmitFromRTDB(
+            'SESSION-RACE',
+            'student-race',
+            'Student Race',
+            {
+                id: 'test-race',
+                testType: 'IELTS',
+                skill: 'Writing',
+                metadata: { title: 'Race Writing', duration: 60, format: 'task1-only' },
+                tasks: [{ taskNumber: 1, taskType: 'bar-chart', promptText: 'P1', wordMinimum: 150, showModelAnswerToStudent: false }],
+                createdBy: 'teacher-1',
+                ownerId: 'teacher-1',
+            } as any,
+        );
+
+        expect(setDoc).not.toHaveBeenCalled();
+        expect(mockCreateTrustedNotification).not.toHaveBeenCalled();
+    });
+
     it('blocks publish when a pending comment draft is still open', async () => {
         const submission = {
             id: 'submission-1',

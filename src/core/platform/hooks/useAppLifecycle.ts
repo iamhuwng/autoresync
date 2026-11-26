@@ -18,6 +18,8 @@ interface AppLifecycleOptions {
   onBackground?: () => void;
   /** Called when app comes to foreground (web: visibilitychange visible) */
   onForeground?: () => void;
+  /** Called when the page is being hidden/unloaded (web: pagehide) */
+  onPageHide?: () => void;
 }
 
 export function useAppLifecycle(options: AppLifecycleOptions): void {
@@ -46,11 +48,17 @@ export function useAppLifecycle(options: AppLifecycleOptions): void {
       }
     };
 
+    const handlePageHide = () => {
+      optionsRef.current.onPageHide?.();
+    };
+
     window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handlePageHide);
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handlePageHide);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);

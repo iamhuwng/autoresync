@@ -49,6 +49,7 @@ import {
 } from '../../services/writingProgress.service';
 import { useExternalPastePrevention } from '../../hooks/useExternalPastePrevention';
 import { useActiveTimeTracking } from '../../hooks/useActiveTimeTracking';
+import { useAppLifecycle } from '../../core/platform/hooks/useAppLifecycle';
 import WritingPromptPanel from '../writing-student/WritingPromptPanel';
 import WritingEditor from '../writing-student/WritingEditor';
 import SubmitToTeacherModal from './SubmitToTeacherModal';
@@ -517,28 +518,28 @@ export default function WritingPracticeView({
         return () => clearInterval(interval);
     }, [isHomework, pendingSubmissionId, persistenceReady, recoveryBlocked, showResumeModal, submitted, timerMinutes]);
 
-    // ── Flush unsaved local draft on page hide / visibility hidden / unmount ──
-    useEffect(() => {
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === 'hidden') {
-                activeTime.pause?.();
-                flushLocalProgressNow();
-            }
-        };
-
-        const handlePageHide = () => {
-            activeTime.pause?.();
-            flushLocalProgressNow();
-        };
-
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-        window.addEventListener('pagehide', handlePageHide);
-        return () => {
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
-            window.removeEventListener('pagehide', handlePageHide);
-            flushLocalProgressNow();
-        };
+    // ── Flush unsaved local draft via shared platform lifecycle + unmount ──
+    const handleLifecycleBackground = useCallback(() => {
+        activeTime.pause?.();
+        flushLocalProgressNow();
     }, [activeTime, flushLocalProgressNow]);
+
+    useAppLifecycle({
+        onBackground: handleLifecycleBackground,
+        onPageHide: handleLifecycleBackground,
+        onBeforeUnload: () => {
+            if (!submittedRef.current && (essaysRef.current[1] || essaysRef.current[2])) {
+                return 'You have unsaved writing progress.';
+            }
+            return undefined;
+        },
+    });
+
+    useEffect(() => {
+        return () => {
+            flushLocalProgressNow();
+        };
+    }, [flushLocalProgressNow]);
 
     // ── Native modal sync for Resume dialog ─────────────────
     useEffect(() => {
@@ -559,17 +560,6 @@ export default function WritingPracticeView({
             }
         }
     }, [showResumeModal]);
-
-    // ── beforeunload warning ────────────────────────────────
-    useEffect(() => {
-        const handler = (e: BeforeUnloadEvent) => {
-            if (!submitted && (essays[1] || essays[2])) {
-                e.preventDefault();
-            }
-        };
-        window.addEventListener('beforeunload', handler);
-        return () => window.removeEventListener('beforeunload', handler);
-    }, [essays, submitted]);
 
     // ── Auto-save to localStorage (debounced 2s) ────────────
     const triggerAutoSave = useCallback((updatedEssays: { 1: string; 2: string }, task: 1 | 2) => {
