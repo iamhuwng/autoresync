@@ -12,15 +12,9 @@
       ".read": "root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
       "$uid": {
         ".read": "auth != null",
-        ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || ($uid === auth.uid && newData.exists() && newData.child('role').val() === (data.exists() ? data.child('role').val() : 'student') && newData.child('status').val() === (data.exists() ? data.child('status').val() : 'active') && ((!data.child('roles').exists() && !newData.child('roles').exists()) || newData.child('roles').val() === data.child('roles').val()))",
-        "role": {
-          ".validate": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || ($uid === auth.uid && !data.exists())"
-        },
-        "status": {
-          ".validate": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || ($uid === auth.uid && !data.exists())"
-        },
-        "forceReauth": {
-          ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || $uid === auth.uid"
+        ".write": "root.child('users').child(auth.uid).child('role').val() === 'super_admin' || ($uid === auth.uid && !data.exists() && newData.child('role').val() === 'student' && newData.child('status').val() === 'active' && !newData.child('roles').exists())",
+        "$field": {
+          ".write": "$uid === auth.uid && data.parent().exists() && $field !== 'role' && $field !== 'roles' && $field !== 'status'"
         }
       },
       ".indexOn": [

@@ -25,9 +25,6 @@ const createMemoryDatabase = (seed: Record<string, unknown> = {}) => {
       writeValue(path, value);
       return true;
     }),
-    patchAdminMultiLocation: vi.fn(async (updates: Readonly<Record<string, unknown>>) => {
-      Object.entries(updates).forEach(([path, value]) => writeValue(path, value));
-    }),
   };
 };
 
@@ -63,6 +60,26 @@ const makeGoogleRegistration = (studentId: string) => makeRequest('/auth/student
 const googleIdentity = {
   valid: true, uid: 'google-new', email: 'google@example.com', emailVerified: true, hasGoogleIdentity: true,
 };
+
+const makeEmailRegistration = (studentId: string) => makeRequest('/auth/student/register', {
+  email: 'student@example.com', password: 'password123', displayName: 'Email Student', studentId,
+});
+
+const makeEmailWorker = (database: ReturnType<typeof createMemoryDatabase>, now?: () => number) => (
+  createStudentAuthWorkerHandlers({
+    databaseFactory: () => database,
+    identityToolkit: async () => ({
+      ok: true, status: 200, data: { localId: 'email-student', idToken: 'firebase-id-token' },
+    }),
+    createCustomToken: async () => 'signed-custom-token',
+    rateLimit: async () => true,
+    now,
+  })
+);
+
+const loginIndexPaths = (database: ReturnType<typeof createMemoryDatabase>) => (
+  [...database.values.keys()].filter((path) => path.startsWith('student_login_ids/'))
+);
 
 describe('student authentication Worker', () => {
   it('creates student-only profiles and a private hashed ID index', async () => {
@@ -115,140 +132,80 @@ describe('student authentication Worker', () => {
     expect(payload).not.toHaveProperty('email');
   });
 
-  it('returns success when the registration patch commits before its response is lost', async () => {
+  it('returns success when the profile is saved before the write response is lost', async () => {
     const database = createMemoryDatabase();
-    const patch = database.patchAdminMultiLocation.getMockImplementation()!;
-    database.patchAdminMultiLocation.mockImplementation(async (updates) => {
-      await patch(updates);
-      throw new Error('network_lost_after_commit');
-    });
-    const identityToolkit = vi.fn(async (operation: string, body: Record<string, unknown>) => (
-      operation === 'accounts:signInWithPassword'
-        ? { ok: false, status: 400, data: { error: { message: 'EMAIL_NOT_FOUND' } } }
-        : { ok: true, status: 200, data: { localId: 'committed-uid', idToken: 'committed-token', email: body.email } }
-    ));
-    const worker = createStudentAuthWorkerHandlers({
-      databaseFactory: () => database,
-      identityToolkit: identityToolkit as never,
-      createCustomToken: async () => 'committed-token',
-      rateLimit: async () => true,
+    const writeIfMatch = database.writeIfMatch.getMockImplementation()!;
+    database.writeIfMatch.mockImplementation(async (path, value, etag) => {
+      const saved = await writeIfMatch(path, value, etag);
+      if (path === 'users/email-student') throw new Error('profile_response_lost');
+      return saved;
     });
 
-    const response = await worker.fetch(makeRequest('/auth/student/register', {
-      email: 'committed@example.com', password: 'password123', displayName: 'Committed Student', studentId: 'committed-7',
-    }), makeEnv());
+    const response = await makeEmailWorker(database).fetch(makeEmailRegistration('committed-7'), makeEnv());
 
-    expect(response.status).toBe(201);
-    expect(database.values.get('users/committed-uid')).toMatchObject({ role: 'student', status: 'active' });
-    expect(database.values.get('student_identifiers/committed-uid')).toMatchObject({ studentId: 'committed-7' });
+    expect(response.status).toBe(200);
+    expect(database.values.get('users/email-student')).toMatchObject({ role: 'student', status: 'active' });
+    expect(database.values.get('student_identifiers/email-student')).toMatchObject({ studentId: 'committed-7' });
   });
 
-  it('cleans up every registration artifact when a profile write is only partially committed', async () => {
+  it('resumes registration from a confirmed ID after profile creation fails', async () => {
     const database = createMemoryDatabase();
-    const patch = database.patchAdminMultiLocation.getMockImplementation()!;
-    database.patchAdminMultiLocation.mockImplementation(async (updates) => {
-      await patch({ [`users/partial-profile`]: updates['users/partial-profile'] });
-      throw new Error('network_lost_after_profile_write');
+    const writeIfMatch = database.writeIfMatch.getMockImplementation()!;
+    database.writeIfMatch.mockImplementation(async (path, value, etag) => {
+      if (path === 'users/email-student') throw new Error('profile_write_failed');
+      return writeIfMatch(path, value, etag);
     });
-    const deletedAccounts: string[] = [];
-    const identityToolkit = vi.fn(async (operation: string, body: Record<string, unknown>) => {
-      if (operation === 'accounts:delete') {
-        deletedAccounts.push(String(body.idToken));
-        return { ok: true, status: 200, data: {} };
-      }
-      if (operation === 'accounts:signInWithPassword') {
-        return { ok: false, status: 400, data: { error: { message: 'EMAIL_NOT_FOUND' } } };
-      }
-      return { ok: true, status: 200, data: { localId: 'partial-profile', idToken: 'partial-token', email: body.email } };
-    });
-    const worker = createStudentAuthWorkerHandlers({
-      databaseFactory: () => database,
-      identityToolkit: identityToolkit as never,
-      rateLimit: async () => true,
-    });
+    const worker = makeEmailWorker(database);
 
-    const response = await worker.fetch(makeRequest('/auth/student/register', {
-      email: 'partial@example.com', password: 'password123', displayName: 'Partial Student', studentId: 'partial-7',
-    }), makeEnv());
+    const failed = await worker.fetch(makeEmailRegistration('resume-7'), makeEnv());
+    expect(failed.status).toBe(503);
+    expect(database.values.has('users/email-student')).toBe(false);
+    expect(database.values.get('student_identifiers/email-student')).toMatchObject({ studentId: 'resume-7' });
 
-    expect(response.status).toBe(503);
-    expect(await readJson(response)).toEqual({ code: 'student_auth_unavailable' });
-    expect(database.values.has('users/partial-profile')).toBe(false);
-    expect(database.values.has('student_identifiers/partial-profile')).toBe(false);
-    expect([...database.values.keys()].some((path) => path.startsWith('student_login_ids/'))).toBe(false);
-    expect(deletedAccounts).toEqual(['partial-token']);
+    database.writeIfMatch.mockImplementation(writeIfMatch);
+    const different = await worker.fetch(makeEmailRegistration('different-7'), makeEnv());
+    expect(await readJson(different)).toEqual({ code: 'student_id_already_assigned' });
+    const retry = await worker.fetch(makeEmailRegistration('RESUME-7'), makeEnv());
+    expect(retry.status).toBe(200);
+    expect(await readJson(retry)).toMatchObject({ studentId: 'resume-7' });
+    expect(database.values.get('users/email-student')).toMatchObject({ role: 'student', status: 'active' });
+    expect(loginIndexPaths(database)).toHaveLength(1);
   });
 
-  it('does not report success when IDs commit but the registration profile does not', async () => {
+  it.each([false, true])('preserves the assigned ID across competing requests (expired claim: %s)', async (expired) => {
     const database = createMemoryDatabase();
-    const patch = database.patchAdminMultiLocation.getMockImplementation()!;
-    database.patchAdminMultiLocation.mockImplementation(async (updates) => {
-      await patch(Object.fromEntries(Object.entries(updates).filter(([path]) => !path.startsWith('users/'))));
-      throw new Error('network_lost_before_profile_write');
-    });
-    const identityToolkit = vi.fn(async (operation: string, body: Record<string, unknown>) => (
-      operation === 'accounts:signInWithPassword'
-        ? { ok: false, status: 400, data: { error: { message: 'EMAIL_NOT_FOUND' } } }
-        : { ok: true, status: 200, data: { localId: 'ids-only', idToken: 'ids-only-token', email: body.email } }
-    ));
-    const worker = createStudentAuthWorkerHandlers({
-      databaseFactory: () => database,
-      identityToolkit: identityToolkit as never,
-      rateLimit: async () => true,
-    });
-
-    const response = await worker.fetch(makeRequest('/auth/student/register', {
-      email: 'ids-only@example.com', password: 'password123', displayName: 'IDs Only', studentId: 'ids-only-7',
-    }), makeEnv());
-
-    expect(response.status).toBe(503);
-    expect(database.values.has('users/ids-only')).toBe(false);
-    expect(database.values.has('student_identifiers/ids-only')).toBe(false);
-  });
-
-  it('serializes overlapping registrations for one Firebase UID without deleting the winner', async () => {
-    const database = createMemoryDatabase();
-    let releaseFirstPatch: (() => void) | null = null;
-    let firstPatchStarted: (() => void) | null = null;
-    const firstPatchReady = new Promise<void>((resolve) => { firstPatchStarted = resolve; });
-    const firstPatchReleased = new Promise<void>((resolve) => { releaseFirstPatch = resolve; });
-    const patch = database.patchAdminMultiLocation.getMockImplementation()!;
-    let patchCount = 0;
-    database.patchAdminMultiLocation.mockImplementation(async (updates) => {
-      patchCount += 1;
-      if (patchCount === 1) {
-        firstPatchStarted?.();
-        await firstPatchReleased;
+    const writeIfMatch = database.writeIfMatch.getMockImplementation()!;
+    const started = Promise.withResolvers<void>();
+    const resume = Promise.withResolvers<void>();
+    let time = 1_800_000_000_000;
+    database.writeIfMatch.mockImplementation(async (path, value, etag) => {
+      if (path === 'student_identifiers/email-student' && !database.values.has(path) && time === 1_800_000_000_000) {
+        started.resolve();
+        await resume.promise;
       }
-      await patch(updates);
+      return writeIfMatch(path, value, etag);
     });
-    const identityToolkit = vi.fn(async (operation: string, body: Record<string, unknown>) => (
-      operation === 'accounts:signInWithPassword'
-        ? { ok: true, status: 200, data: { localId: 'same-uid', idToken: 'same-token', email: body.email } }
-        : { ok: false, status: 400, data: { error: { message: 'EMAIL_EXISTS' } } }
-    ));
-    const worker = createStudentAuthWorkerHandlers({
-      databaseFactory: () => database,
-      identityToolkit: identityToolkit as never,
-      createCustomToken: async () => 'same-token',
-      rateLimit: async () => true,
-    });
+    const worker = makeEmailWorker(database, () => time);
+    const first = worker.fetch(makeEmailRegistration('first-7'), makeEnv());
+    await started.promise;
+    if (expired) time += 5 * 60 * 1000 + 1;
 
-    const first = worker.fetch(makeRequest('/auth/student/register', {
-      email: 'same@example.com', password: 'password123', displayName: 'Same Student', studentId: 'first-7',
-    }), makeEnv());
-    await firstPatchReady;
-    const second = worker.fetch(makeRequest('/auth/student/register', {
-      email: 'same@example.com', password: 'password123', displayName: 'Same Student', studentId: 'second-7',
-    }), makeEnv());
-    await expect(second).resolves.toMatchObject({ status: 409 });
-    releaseFirstPatch?.();
-
+    const second = await worker.fetch(makeEmailRegistration('second-7'), makeEnv());
+    resume.resolve();
     const firstResponse = await first;
-    expect(firstResponse.status).toBe(200);
-    expect(database.values.get('users/same-uid')).toMatchObject({ uid: 'same-uid', role: 'student' });
-    expect(database.values.get('student_identifiers/same-uid')).toMatchObject({ studentId: 'first-7' });
-    expect([...database.values.keys()].filter((path) => path.startsWith('student_login_ids/'))).toHaveLength(1);
+
+    const winner = expired ? 'second-7' : 'first-7';
+    expect((expired ? second : firstResponse).status).toBe(200);
+    const loser = expired ? firstResponse : second;
+    expect(loser.status).toBe(409);
+    expect(await readJson(loser)).toEqual({
+      code: expired ? 'student_id_already_assigned' : 'registration_in_progress',
+    });
+    expect(database.values.get('users/email-student')).toMatchObject({ uid: 'email-student', role: 'student' });
+    expect(database.values.get('student_identifiers/email-student')).toMatchObject({ studentId: winner });
+    expect(loginIndexPaths(database)).toHaveLength(1);
+    const later = await worker.fetch(makeEmailRegistration(expired ? 'first-7' : 'second-7'), makeEnv());
+    expect(await readJson(later)).toEqual({ code: 'student_id_already_assigned' });
   });
 
   it('authenticates student IDs without returning the linked email address', async () => {
@@ -300,14 +257,9 @@ describe('student authentication Worker', () => {
   it('does not allow a second account to claim an existing student ID', async () => {
     const database = createMemoryDatabase();
     let nextUid = 0;
-    const deletedAccounts: string[] = [];
     const identityToolkit = vi.fn(async (operation: string, body: Record<string, unknown>) => {
       if (operation === 'accounts:signInWithPassword') {
         return { ok: false, status: 400, data: { error: { message: 'EMAIL_NOT_FOUND' } } };
-      }
-      if (operation === 'accounts:delete') {
-        deletedAccounts.push(String(body.idToken));
-        return { ok: true, status: 200, data: {} };
       }
       nextUid += 1;
       return { ok: true, status: 200, data: { localId: `student-${nextUid}`, idToken: `id-token-${nextUid}`, email: body.email } };
@@ -329,7 +281,7 @@ describe('student authentication Worker', () => {
     expect(first.status).toBe(201);
     expect(second.status).toBe(409);
     expect(await readJson(second)).toEqual({ code: 'student_id_unavailable' });
-    expect(deletedAccounts).toContain('id-token-2');
+    expect(nextUid).toBe(1);
     expect(database.values.has('users/student-2')).toBe(false);
   });
 
@@ -479,7 +431,6 @@ describe('student authentication Worker', () => {
     expect(response.status).toBe(403);
     expect(await readJson(response)).toEqual({ code: 'account_unavailable' });
     expect(database.writeIfMatch).not.toHaveBeenCalled();
-    expect(database.patchAdminMultiLocation).not.toHaveBeenCalled();
   });
 
   it('rejects changing an assigned student ID without mutating the profile or identifier', async () => {

@@ -60,7 +60,6 @@ interface StudentAuthDatabase {
   readValue(path: string): Promise<unknown>;
   readWithEtag<T = unknown>(path: string): Promise<{ data: T | null; etag: string }>;
   writeIfMatch(path: string, value: unknown, etag: string): Promise<boolean>;
-  patchAdminMultiLocation(updates: Readonly<Record<string, unknown>>): Promise<void>;
 }
 
 interface RegistrationClaim {
@@ -81,7 +80,7 @@ interface StudentAuthWorkerOptions {
     fetchImpl: typeof fetch,
   ) => Promise<StudentAuthDatabase> | StudentAuthDatabase;
   readonly identityToolkit?: (
-    operation: 'accounts:signUp' | 'accounts:signInWithPassword' | 'accounts:delete',
+    operation: 'accounts:signUp' | 'accounts:signInWithPassword',
     body: Record<string, unknown>,
     origin: string,
     env: StudentAuthWorkerEnv,
@@ -187,15 +186,6 @@ const createLocalDatabase = (
       if (!response.ok) throw new Error(`database_write_failed:${response.status}`);
       return true;
     },
-    async patchAdminMultiLocation(updates) {
-      if (Object.keys(updates).length < 2) throw new Error('database_patch_invalid');
-      const response = await request('', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      });
-      if (!response.ok) throw new Error(`database_patch_failed:${response.status}`);
-    },
   };
 };
 
@@ -243,7 +233,7 @@ const createProductionDatabase = (
 };
 
 const identityToolkitRequest = async (
-  operation: 'accounts:signUp' | 'accounts:signInWithPassword' | 'accounts:delete',
+  operation: 'accounts:signUp' | 'accounts:signInWithPassword',
   body: Record<string, unknown>,
   origin: string,
   env: StudentAuthWorkerEnv,
@@ -405,14 +395,6 @@ const acquireRegistrationClaim = async (
   return { path, ...claim };
 };
 
-const ownsRegistrationClaim = async (
-  database: StudentAuthDatabase,
-  claim: RegistrationClaim,
-): Promise<boolean> => {
-  const current = asRecord(await database.readValue(claim.path));
-  return current?.uid === claim.uid && current.operationId === claim.operationId;
-};
-
 const releaseRegistrationClaim = async (
   database: StudentAuthDatabase,
   claim: RegistrationClaim,
@@ -423,75 +405,7 @@ const releaseRegistrationClaim = async (
       await database.writeIfMatch(claim.path, null, current.etag);
     }
   } catch {
-    // A stale claim expires and is fenced by its operation ID before cleanup.
-  }
-};
-
-const registrationStateMatches = (input: {
-  readonly uid: string;
-  readonly normalizedStudentId: string;
-  readonly profile: Record<string, unknown> | null;
-  readonly identifier: Record<string, unknown> | null;
-  readonly index: Record<string, unknown> | null;
-  readonly expectedProfile: Record<string, unknown>;
-  readonly profileWasCreated: boolean;
-}): boolean => {
-  const profileMatches = input.profile
-    && input.profile.uid === input.uid
-    && (!input.profileWasCreated || (
-      input.profile.role === input.expectedProfile.role
-      && input.profile.status === input.expectedProfile.status
-      && input.profile.email === input.expectedProfile.email
-      && input.profile.displayName === input.expectedProfile.displayName
-    ));
-  return Boolean(
-    profileMatches
-    && input.identifier?.uid === input.uid
-    && normalizeStudentId(input.identifier.studentId)?.normalized === input.normalizedStudentId
-    && input.index?.uid === input.uid,
-  );
-};
-
-const cleanupRegistrationArtifacts = async (input: {
-  readonly database: StudentAuthDatabase;
-  readonly uid: string;
-  readonly normalizedStudentId: string;
-  readonly reservationHash: string;
-  readonly profileWasCreated: boolean;
-  readonly identifierWasCreated: boolean;
-  readonly reservationWasCreated: boolean;
-  readonly expectedProfile: Record<string, unknown>;
-}): Promise<void> => {
-  const removeIfOwned = async (
-    path: string,
-    owns: (value: Record<string, unknown> | null) => boolean,
-  ): Promise<void> => {
-    try {
-      const current = await input.database.readWithEtag<Record<string, unknown>>(path);
-      if (owns(asRecord(current.data))) await input.database.writeIfMatch(path, null, current.etag);
-    } catch {
-      // Cleanup is best effort. The next registration attempt reconciles the records.
-    }
-  };
-
-  if (input.reservationWasCreated) {
-    await removeIfOwned(`student_login_ids/${input.reservationHash}`, (value) => value?.uid === input.uid);
-  }
-  if (input.identifierWasCreated) {
-    await removeIfOwned(`student_identifiers/${input.uid}`, (value) => (
-      value?.uid === input.uid
-      && normalizeStudentId(value.studentId)?.normalized === input.normalizedStudentId
-    ));
-  }
-  if (input.profileWasCreated) {
-    await removeIfOwned(`users/${input.uid}`, (value) => (
-      value?.uid === input.uid
-      && value.role === 'student'
-      && value.status === 'active'
-      && value.email === input.expectedProfile.email
-      && value.displayName === input.expectedProfile.displayName
-      && value.createdAt === input.expectedProfile.createdAt
-    ));
+    // A retry can replace an expired claim.
   }
 };
 
@@ -561,162 +475,94 @@ export const createStudentAuthWorkerHandlers = (options: StudentAuthWorkerOption
     if (!isValidRegistrationPassword(password)) return workerError('weak_password', 400);
     if (displayName.length < 2) return workerError('invalid_display_name', 400);
 
-    const signIn = await callIdentityToolkit('accounts:signInWithPassword', {
-      email,
-      password,
-      returnSecureToken: true,
-    }, origin, env);
-    let authResult: Record<string, unknown>;
-    let createdAccount = false;
-    if (signIn.ok) {
-      authResult = signIn.data;
-    } else {
-      const signUp = await callIdentityToolkit('accounts:signUp', {
-        email,
-        password,
-        returnSecureToken: true,
-      }, origin, env);
-      if (!signUp.ok) {
-        const code = identityErrorCode(signUp);
-        if (code === 'WEAK_PASSWORD : Password should be at least 6 characters'
-          || code.startsWith('WEAK_PASSWORD')) return workerError('weak_password', 400);
-        if (code === 'EMAIL_EXISTS') return workerError('email_or_password_invalid', 409);
-        return workerError('registration_unavailable', 400);
-      }
-      authResult = signUp.data;
-      createdAccount = true;
-    }
-
-    const uid = typeof authResult.localId === 'string' ? authResult.localId : '';
-    const idToken = typeof authResult.idToken === 'string' ? authResult.idToken : '';
-    const resolvedEmail = typeof authResult.email === 'string' ? authResult.email : email;
-    if (!uid || !idToken || !/^[A-Za-z0-9_-]{1,128}$/u.test(uid)) {
-      return workerError('registration_unavailable', 503);
-    }
-
-    let database: StudentAuthDatabase;
     try {
-      database = await resolveDatabase(env, fetchImpl);
-    } catch {
-      if (createdAccount) await callIdentityToolkit('accounts:delete', { idToken }, origin, env).catch(() => undefined);
-      return workerError('student_auth_unavailable', 503);
-    }
+      const database = await resolveDatabase(env, fetchImpl);
+      const credentials = { email, password, returnSecureToken: true };
+      let result = await callIdentityToolkit('accounts:signInWithPassword', credentials, origin, env);
+      const createdAccount = !result.ok;
+      if (createdAccount) {
+        const hash = await hashStudentId(studentId.normalized);
+        if (await database.readValue(`student_login_ids/${hash}`)) {
+          return workerError('student_id_unavailable', 409);
+        }
+        result = await callIdentityToolkit('accounts:signUp', credentials, origin, env);
+        if (!result.ok) {
+          const code = identityErrorCode(result);
+          if (code.startsWith('WEAK_PASSWORD')) return workerError('weak_password', 400);
+          if (code === 'EMAIL_EXISTS') return workerError('email_or_password_invalid', 409);
+          return workerError('registration_unavailable', 400);
+        }
+      }
 
-    let profile: Record<string, unknown> | null;
-    try {
-      profile = asRecord(await database.readValue(`users/${uid}`));
-    } catch {
-      if (createdAccount) await callIdentityToolkit('accounts:delete', { idToken }, origin, env).catch(() => undefined);
-      return workerError('student_auth_unavailable', 503);
-    }
-    if (profile && !accountAvailable(profile)) {
-      if (createdAccount) await callIdentityToolkit('accounts:delete', { idToken }, origin, env).catch(() => undefined);
-      return workerError('account_unavailable', 403);
-    }
-    let existingIdentifier: Record<string, unknown> | null;
-    try {
-      existingIdentifier = asRecord(await database.readValue(`student_identifiers/${uid}`));
-    } catch {
-      if (createdAccount) await callIdentityToolkit('accounts:delete', { idToken }, origin, env).catch(() => undefined);
-      return workerError('student_auth_unavailable', 503);
-    }
-    const existingStudentId = normalizeStudentId(existingIdentifier?.studentId);
-    if (existingStudentId && existingStudentId.normalized !== studentId.normalized) {
-      if (createdAccount) await callIdentityToolkit('accounts:delete', { idToken }, origin, env).catch(() => undefined);
-      return workerError('student_id_already_assigned', 409);
-    }
+      const uid = result.data.localId;
+      if (typeof uid !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/u.test(uid)
+        || typeof result.data.idToken !== 'string' || !result.data.idToken) {
+        return workerError('registration_unavailable', 503);
+      }
+      const resolvedEmail = typeof result.data.email === 'string' ? result.data.email : email;
+      const claim = await acquireRegistrationClaim(database, uid, now());
+      if (!claim) return workerError('registration_in_progress', 409);
 
-    let registrationClaim: RegistrationClaim | null;
-    try {
-      registrationClaim = await acquireRegistrationClaim(database, uid, now());
-    } catch {
-      if (createdAccount) await callIdentityToolkit('accounts:delete', { idToken }, origin, env).catch(() => undefined);
-      return workerError('student_auth_unavailable', 503);
-    }
-    if (!registrationClaim) return workerError('registration_in_progress', 409);
+      try {
+        const profilePath = `users/${uid}`;
+        const identifierPath = `student_identifiers/${uid}`;
+        const [profile, identifier] = await Promise.all([
+          database.readWithEtag<Record<string, unknown>>(profilePath),
+          database.readWithEtag<Record<string, unknown>>(identifierPath),
+        ]);
+        if (profile.data !== null && !accountAvailable(asRecord(profile.data))) {
+          return workerError('account_unavailable', 403);
+        }
+        let assignedId = normalizeStudentId(identifier.data?.studentId);
+        if (assignedId && assignedId.normalized !== studentId.normalized) {
+          return workerError('student_id_already_assigned', 409);
+        }
 
-    let reservation: { hash: string; createdAt: number; created: boolean } | null = null;
-    const profileWasCreated = !profile;
-    const identifierWasCreated = !existingIdentifier;
-    let expectedProfile: Record<string, unknown> = profile ?? {};
-    let registrationCommitted = false;
-    try {
-      if (!await ownsRegistrationClaim(database, registrationClaim)) {
-        throw new Error('registration_claim_lost');
-      }
-      reservation = await reserveStudentId(database, uid, studentId, now());
-      if (!reservation) {
-        if (createdAccount) await callIdentityToolkit('accounts:delete', { idToken }, origin, env).catch(() => undefined);
-        return workerError('student_id_unavailable', 409);
-      }
-      const nextProfile = profile
-        ? { ...profile, lastLoginAt: now() }
-        : createStudentProfile({
-          uid,
-          email: resolvedEmail,
-          displayName,
-          now: now(),
-        });
-      if (!profile) {
-        nextProfile.displayName = displayName;
-      }
-      expectedProfile = nextProfile;
-      const local = isLocalEmulator(env);
-      const token = local ? null : await signCustomToken(uid, env);
-      if (!await ownsRegistrationClaim(database, registrationClaim)) {
-        throw new Error('registration_claim_lost');
-      }
-      await database.patchAdminMultiLocation({
-        [`users/${uid}`]: nextProfile,
-        [`student_identifiers/${uid}`]: {
-          uid,
-          studentId: studentId.display,
-          normalizedStudentId: studentId.normalized,
-          createdAt: typeof existingIdentifier?.createdAt === 'number' ? existingIdentifier.createdAt : reservation.createdAt,
-        },
-        [`student_login_ids/${reservation.hash}`]: { uid, createdAt: reservation.createdAt },
-      }).catch(() => undefined);
+        const local = isLocalEmulator(env);
+        const token = local ? null : await signCustomToken(uid, env);
+        const reservation = await reserveStudentId(database, uid, assignedId ?? studentId, now());
+        if (!reservation) return workerError('student_id_unavailable', 409);
 
-      const [storedProfile, storedIdentifier, storedIndex] = await Promise.all([
-        database.readValue(`users/${uid}`).then(asRecord).catch(() => null),
-        database.readValue(`student_identifiers/${uid}`).then(asRecord).catch(() => null),
-        database.readValue(`student_login_ids/${reservation.hash}`).then(asRecord).catch(() => null),
-      ]);
-      registrationCommitted = registrationStateMatches({
-        uid,
-        normalizedStudentId: studentId.normalized,
-        profile: storedProfile,
-        identifier: storedIdentifier,
-        index: storedIndex,
-        expectedProfile: nextProfile,
-        profileWasCreated,
-      });
-      if (!registrationCommitted) throw new Error('student_profile_write_failed');
-      return {
-        body: {
-          studentId: studentId.display,
-          ...(local ? { email: resolvedEmail } : { customToken: token }),
-        },
-        status: createdAccount ? 201 : 200,
-      };
-    } catch {
-      const claimOwned = await ownsRegistrationClaim(database, registrationClaim).catch(() => false);
-      if (!registrationCommitted && reservation && claimOwned) {
-        await cleanupRegistrationArtifacts({
-          database,
-          uid,
-          normalizedStudentId: studentId.normalized,
-          reservationHash: reservation.hash,
-          profileWasCreated,
-          identifierWasCreated,
-          reservationWasCreated: reservation.created,
-          expectedProfile,
-        });
-        if (createdAccount) await callIdentityToolkit('accounts:delete', { idToken }, origin, env).catch(() => undefined);
+        if (!assignedId) {
+          // The identifier's conditional write decides the winner even after a claim expires.
+          const saved = await database.writeIfMatch(identifierPath, {
+            uid,
+            studentId: studentId.display,
+            normalizedStudentId: studentId.normalized,
+            createdAt: reservation.createdAt,
+          }, identifier.etag).catch(() => false);
+          const stored = saved ? studentId : normalizeStudentId(asRecord(await database.readValue(identifierPath))?.studentId);
+          if (!stored) return workerError('student_auth_unavailable', 503);
+          if (stored.normalized !== studentId.normalized) {
+            if (reservation.created) await releaseStudentIdReservation(database, reservation.hash, uid);
+            return workerError('student_id_already_assigned', 409);
+          }
+          assignedId = stored;
+        }
+
+        if (profile.data === null) {
+          const nextProfile = createStudentProfile({ uid, email: resolvedEmail, displayName, now: now() });
+          const saved = await database.writeIfMatch(profilePath, nextProfile, profile.etag).catch(() => false);
+          if (!saved) {
+            const stored = await database.readValue(profilePath);
+            if (stored === null) return workerError('student_auth_unavailable', 503);
+            if (!accountAvailable(asRecord(stored))) return workerError('account_unavailable', 403);
+          }
+        }
+
+        return {
+          body: {
+            studentId: assignedId.display,
+            ...(local ? { email: resolvedEmail } : { customToken: token }),
+          },
+          status: createdAccount ? 201 : 200,
+        };
+      } finally {
+        await releaseRegistrationClaim(database, claim);
       }
+    } catch {
+      // Auth and confirmed ID records can be resumed by a retry with the same credentials.
       return workerError('student_auth_unavailable', 503);
-    } finally {
-      await releaseRegistrationClaim(database, registrationClaim);
     }
   };
 
