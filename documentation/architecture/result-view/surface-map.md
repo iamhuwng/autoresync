@@ -1,5 +1,9 @@
 # Result View Surface Map
 
+## 2026-11-27 Teacher Lobby Students Roster & Student Card Fixes
+
+PR #344 registers `FEATURE_IDS.teacherStudents` (`/teacher/students`) and its student-management observability actions in `src/config/featureRegistry.ts` (including `openStudentAnalytics`, which continues navigating to the existing `TEACHER_STUDENT_HISTORY` route `/teacher/student/:studentId/history`). No saved-result shell (`ResultSlidePanel`, `ResultDetailModal`, `LegacyResultDetailView`), `TeacherStudentHistoryPage`, `ResultDetailPage` dispatch, `AcademicRecordPage`, result route, or `test_results/{resultId}` data path changes.
+
 ## 2026-11-26 Book PDF Unified Multi-Unit Authoring & Incremental Publication
 
 PR #336 registers Book PDF authoring and reconciliation observability actions in `src/config/featureRegistry.ts` alongside the unified multi-unit Book PDF authoring workspace, textbook-native outline import, and incremental unit publication flow. No saved-result shell (`ResultSlidePanel`, `ResultDetailModal`, `LegacyResultDetailView`), `ResultDetailPage` dispatch, `AcademicRecordPage`, result route, or `test_results/{resultId}` data path changes.

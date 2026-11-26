@@ -1,5 +1,9 @@
 # Result View FR Closure Matrix
 
+## 2026-11-27 Teacher Lobby Students Roster & Student Card Fixes
+
+PR #344 registers `FEATURE_IDS.teacherStudents` (`/teacher/students`) actions in `src/config/featureRegistry.ts`. No PRD-0040/PRD-0041 FR closure status changes; all verified rows below remain verified. Coverage anchors for the Teacher Students roster and card fixes include `TeacherStudentsPage.test.tsx`, `assignmentManager.test.ts`, `assignmentManager.release.test.ts`, `ReleaseStudentModal.test.tsx`, `TeacherRequestModal.test.tsx`, `AdminUserManagementPage.test.tsx`, and `AdminUserManagementPage.decisions.test.tsx`; result-view surface tests are N/A because no result surface or visibility policy changes.
+
 ## 2026-11-26 Book PDF Unified Multi-Unit Authoring & Incremental Publication
 
 PR #336 registers Book PDF authoring and reconciliation actions in `src/config/featureRegistry.ts`. No PRD-0040/PRD-0041 FR closure status changes; all verified rows below remain verified. Coverage anchors for the Book PDF redesign include `BookPdfFlowWorkspace.test.tsx`, `BookAssemblyWorkspace.test.tsx`, `BookMode2EditorShell.test.tsx`, `bookStructureImport.service.test.ts`, `fullPdfPublication.adapter.test.ts`, `BookRuntimeShell.test.tsx`, `cloudflare/test/book-assembly-worker.test.ts`, and `cloudflare/test/book-assembly-production-composition.test.ts`; result-specific tests are N/A because no result surface or policy changes.
