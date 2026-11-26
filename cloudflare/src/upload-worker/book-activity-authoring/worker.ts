@@ -48,6 +48,7 @@ interface AssemblyDraftSeal {
   readonly candidateId: string;
   readonly candidateRevision: number;
   readonly manifestFingerprint: string;
+  readonly sourceSetFingerprint?: string;
 }
 interface AssemblyDraftActivityContext {
   readonly seal: AssemblyDraftSeal;
@@ -418,12 +419,17 @@ const asCandidate = (value: unknown, expectedCandidateId?: string): CandidateRec
     ? [] : evidenceRefs(record.answerEvidenceRefs);
   if (!sourceEvidenceRefs || !answerEvidenceRefs) return undefined;
   const seal = record.assemblyDraft === undefined ? undefined : plainRecord(record.assemblyDraft);
+  const sealKeys = seal ? Object.keys(seal).sort().join(',') : '';
+  const validSealKeys = sealKeys === 'activityKey,bookId,candidateId,candidateRevision,manifestFingerprint,unitKey'
+    || sealKeys === 'activityKey,bookId,candidateId,candidateRevision,manifestFingerprint,sourceSetFingerprint,unitKey';
   if (record.lifecycle !== 'rejected' && record.assemblyDraft !== undefined && (!seal
-    || Object.keys(seal).sort().join(',') !== 'activityKey,bookId,candidateId,candidateRevision,manifestFingerprint,unitKey'
+    || !validSealKeys
     || !validIdValue(seal.bookId) || !ASSEMBLY_ID.test(String(seal.unitKey)) || !validIdValue(seal.activityKey)
     || !ASSEMBLY_ID.test(String(seal.candidateId)) || !validRevisionValue(seal.candidateRevision)
     || seal.candidateRevision < 1 || seal.bookId !== record.bookId
-    || typeof seal.manifestFingerprint !== 'string' || !/^(?:fnv1a64:[a-f0-9]{16}|[a-f0-9]{64})$/iu.test(seal.manifestFingerprint))) return undefined;
+    || typeof seal.manifestFingerprint !== 'string' || !/^(?:fnv1a64:[a-f0-9]{16}|[a-f0-9]{64})$/iu.test(seal.manifestFingerprint)
+    || (seal.sourceSetFingerprint !== undefined
+      && (typeof seal.sourceSetFingerprint !== 'string' || !/^(?:fnv1a64:[a-f0-9]{16}|[a-f0-9]{64})$/iu.test(seal.sourceSetFingerprint))))) return undefined;
   return {
     candidateId: record.candidateId,
     targetActivityId: record.targetActivityId,

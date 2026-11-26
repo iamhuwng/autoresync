@@ -83,16 +83,49 @@ describe('analyzeBookAssemblyReconciliation', () => {
     expect(result.issues.map((entry) => entry.repair)).toEqual(['exact', 'exact']);
   });
 
-  it('requires teacher choice for gaps and overlapping Page Groups', () => {
+  it('treats shared pages and activity page gaps as non-blocking advisory warnings, and ignores reference_only page jumps', () => {
     const input = manifest();
     const unit = input.units[0];
     const altered: BookAssemblyManifestCandidate = {
       ...input,
       units: [{
         ...unit,
+        activitySlots: [
+          ...unit.activitySlots,
+          { activityKey: 'activity-2', order: 2, contextRequirement: 'optional', pageGroupKeys: ['pages-2'] },
+        ],
         pageGroups: [
-          { ...unit.pageGroups[0], pages: [1, 3] },
-          { ...unit.pageGroups[0], pageGroupKey: 'pages-2', pages: [3], activityKeys: [] },
+          { ...unit.pageGroups[0], pages: [1, 3], defaultPhysicalPageNumber: 1 },
+          { ...unit.pageGroups[0], pageGroupKey: 'pages-2', pages: [3], activityKeys: ['activity-2'], defaultPhysicalPageNumber: 3 },
+          { pageGroupKey: 'pages-transcript', sourceKey: 'source', pages: [9, 10], activityKeys: [], mode: 'reference_only', defaultPhysicalPageNumber: 9 },
+        ],
+      }],
+    };
+
+    const result = analyzeBookAssemblyReconciliation({ manifest: altered, sourceVersionAuthority: authority() });
+
+    expect(result.releaseBlocking).toBe(false);
+    expect(result.requiresTeacherChoice).toBe(false);
+    expect(result.repairedManifest).toBeNull();
+    expect(result.issues.map((entry) => ({ code: entry.code, severity: entry.severity, repair: entry.repair }))).toEqual([
+      { code: 'page-gap', severity: 'warning', repair: 'none' },
+      { code: 'page-overlap', severity: 'warning', repair: 'none' },
+    ]);
+    // reference_only jump from 3 -> 9 must NOT produce a page-gap issue
+    expect(result.issues.filter((entry) => entry.code === 'page-gap')).toHaveLength(1);
+    expect(result.issues.find((entry) => entry.code === 'page-gap')?.message).toContain('1 and 3');
+  });
+
+  it('still requires teacher choice for unmapped activity slots', () => {
+    const input = manifest();
+    const unit = input.units[0];
+    const altered: BookAssemblyManifestCandidate = {
+      ...input,
+      units: [{
+        ...unit,
+        activitySlots: [
+          ...unit.activitySlots,
+          { activityKey: 'activity-unmapped', order: 2, contextRequirement: 'optional', pageGroupKeys: [] },
         ],
       }],
     };
@@ -101,8 +134,7 @@ describe('analyzeBookAssemblyReconciliation', () => {
 
     expect(result.releaseBlocking).toBe(true);
     expect(result.requiresTeacherChoice).toBe(true);
-    expect(result.repairedManifest).toBeNull();
-    expect(result.issues.map((entry) => entry.code)).toEqual(expect.arrayContaining(['page-gap', 'page-overlap']));
+    expect(result.issues.map((entry) => entry.code)).toContain('extra-activity-slot');
   });
 
   it('blocks unknown sources, local-range faults, and stale revisions without a write candidate', () => {

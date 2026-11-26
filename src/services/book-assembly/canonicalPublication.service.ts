@@ -39,30 +39,42 @@ const invalid = (): BookAssemblyPublicationResult => ({
   failureCode: 'invalid-publication-plan',
 });
 
-const matchesInitialPublication = (
+const matchesPublicationRecord = (
   record: CanonicalPublishedActivityVersionRecord,
   metadata: BookAssemblyActivityVersionRecord,
   input: CanonicalPublishBookAssemblyInput,
 ): boolean => {
-  const provenance = record.provenance;
-  return provenance.kind === 'initial-book-publication'
-    && record.activityId === metadata.activityId
+  const baseMatches = record.activityId === metadata.activityId
     && record.activityVersionId === metadata.activityVersionId
     && record.activityVersion === metadata.activityVersion
     && record.ownerId === metadata.ownerId
     && record.payloadFingerprint === metadata.canonicalPayloadFingerprint
-    && record.createdByOperationId === metadata.createdByCommandId
-    && provenance.bookId === metadata.bookId
-    && provenance.bookId === input.plan.bookId
-    && provenance.manifestVersionId === metadata.manifestVersionId
-    && provenance.manifestVersionId === input.manifestVersionId
-    && provenance.publicationId === metadata.publicationId
-    && provenance.publicationId === input.publicationId
-    && provenance.publicationRevision === metadata.publicationRevision
-    && provenance.publicationRevision === input.publicationRevision
-    && provenance.unitKey === metadata.unitKey
-    && provenance.activityKey === metadata.activityKey
-    && stable(provenance.sourcePages) === stable(metadata.sourcePages);
+    && record.createdByOperationId === metadata.createdByCommandId;
+  if (!baseMatches) return false;
+  const provenance = record.provenance;
+  if (provenance.kind === 'initial-book-publication') {
+    return provenance.bookId === metadata.bookId
+      && provenance.bookId === input.plan.bookId
+      && provenance.manifestVersionId === metadata.manifestVersionId
+      && provenance.manifestVersionId === input.manifestVersionId
+      && provenance.publicationId === metadata.publicationId
+      && provenance.publicationId === input.publicationId
+      && provenance.publicationRevision === metadata.publicationRevision
+      && provenance.publicationRevision === input.publicationRevision
+      && provenance.unitKey === metadata.unitKey
+      && provenance.activityKey === metadata.activityKey
+      && stable(provenance.sourcePages) === stable(metadata.sourcePages);
+  }
+  if (provenance.kind === 'activity-revision') {
+    return record.activityVersion > 1
+      && typeof record.predecessorActivityVersionId === 'string'
+      && record.predecessorActivityVersionId.length > 0
+      && metadata.bookId === input.plan.bookId
+      && metadata.manifestVersionId === input.manifestVersionId
+      && metadata.publicationId === input.publicationId
+      && metadata.publicationRevision === input.publicationRevision;
+  }
+  return false;
 };
 
 const validateCanonicalWriteSet = (
@@ -87,7 +99,7 @@ const validateCanonicalWriteSet = (
 
   if (metadata.some((entry) => {
     const record = byId.get(entry.activityVersionId);
-    return !record || !matchesInitialPublication(record, entry, input);
+    return !record || !matchesPublicationRecord(record, entry, input);
   })) return null;
 
   return [...byId.values()];

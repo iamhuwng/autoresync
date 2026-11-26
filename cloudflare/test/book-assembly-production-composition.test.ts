@@ -125,4 +125,137 @@ describe('production source publication boundary', () => {
     const options = createProductionBookAssemblyRouteOptions();
     await expect(options.assemblyPublication!.componentPdf!.sourceIsPreviewReady({} as never)).resolves.toBe(false);
   });
+
+  it('verifies saved Full-PDF draft activities against sourceSetFingerprint even after other units change, and rejects stale source versions', async () => {
+    const fullManifest = {
+      bookId: 'book-1',
+      sourceSet: {
+        sourceStrategy: 'full_pdf',
+        sources: [{ sourceKey: 'full', sourceVersionId: 'source-full-v1', sourceOrder: 1 }],
+      },
+      nodes: [],
+      units: [{
+        unitKey: 'unit-02',
+        activitySlots: [{ activityKey: 'u02-ex1', order: 1, contextRequirement: 'required', pageGroupKeys: ['u02-p9'] }],
+        pageGroups: [{ pageGroupKey: 'u02-p9', sourceKey: 'full', pages: [9], activityKeys: ['u02-ex1'], mode: 'activity' }],
+      }],
+    };
+    const assembly = {
+      ownerId: 'teacher-1',
+      bookId: 'book-1',
+      unitKey: 'unit-02',
+      candidateId: 'assembly-full-2',
+      revision: 1,
+      lifecycle: 'validated',
+      manifest: fullManifest,
+    };
+    const editable = {
+      schemaVersion: 1,
+      title: 'Unit 2 Exercise 1',
+      taskProfile: null,
+      presentationMode: 'source-assisted',
+      contextRequirement: { mode: 'required', acceptedKinds: ['book-pages'] },
+      instructions: [{ text: 'Listen and choose.' }],
+      interaction: { family: 'choice', variant: 'single-choice' },
+      answerRule: { defaultPoints: 1, normalization: 'exact', requiredSelectionCount: 1 },
+      stimulus: null,
+      assetRefs: [],
+      interactions: [{
+        prompt: 'Pick one',
+        options: ['A', 'B'],
+        acceptedOptionIndexes: [0],
+        sourceAssisted: {
+          questionLabel: 'Question 1',
+          accessiblePrompt: 'Choose one.',
+          responseShape: 'single-choice',
+          sourceExerciseLabel: 'Exercise 1',
+        },
+      }],
+      scoring: { mode: 'auto-where-possible' },
+    };
+    const binding = {
+      schemaVersion: 1,
+      ownerId: 'teacher-1',
+      bookId: 'book-1',
+      unitKey: 'unit-02',
+      activityKey: 'u02-ex1',
+      activityId: 'activity-full-2',
+      candidateId: 'activity-candidate-full-2',
+      candidateRevision: 2,
+      candidateLifecycle: 'saved',
+    };
+    const saved = {
+      candidateId: binding.candidateId,
+      targetActivityId: binding.activityId,
+      targetRevision: 0,
+      ownerId: binding.ownerId,
+      bookId: binding.bookId,
+      revision: 2,
+      lifecycle: 'saved',
+      validation: { valid: true },
+      content: editable,
+      assemblyDraft: {
+        bookId: 'book-1',
+        unitKey: 'unit-02',
+        activityKey: 'u02-ex1',
+        candidateId: 'assembly-full-old',
+        candidateRevision: 1,
+        manifestFingerprint: 'stale-other-unit-fingerprint',
+        sourceSetFingerprint: fingerprintComponentPdfActivationValue(fullManifest.sourceSet),
+      },
+      evidenceRefs: ['source:full:page:9'],
+    };
+    const activity = {
+      ownerId: binding.ownerId,
+      activityId: binding.activityId,
+      lifecycle: 'draft',
+      revision: 1,
+      editableDraft: editable,
+      draft: normalizeActivity(editable, undefined, undefined, { mappedBookPageRefs: ['source:full:page:9'] }),
+    };
+
+    const verified = await readVerifiedDraftActivityKeys(
+      assembly as never,
+      { read: async () => binding as never },
+      { readOwnerRoot: async () => ({ candidates: { [binding.candidateId]: saved }, activities: { [binding.activityId]: activity } }) },
+    );
+    expect(verified).toEqual(['u02-ex1']);
+
+    // Replacing the PDF source version MUST invalidate activities authored against source-full-v1
+    const replacedSourceAssembly = {
+      ...assembly,
+      manifest: {
+        ...fullManifest,
+        sourceSet: {
+          sourceStrategy: 'full_pdf',
+          sources: [{ sourceKey: 'full', sourceVersionId: 'source-full-v2', sourceOrder: 1 }],
+        },
+      },
+    };
+    const rejected = await readVerifiedDraftActivityKeys(
+      replacedSourceAssembly as never,
+      { read: async () => binding as never },
+      { readOwnerRoot: async () => ({ candidates: { [binding.candidateId]: saved }, activities: { [binding.activityId]: activity } }) },
+    );
+    expect(rejected).toEqual([]);
+
+    // Omitting sourceSetFingerprint MUST fail closed for Full-PDF even if manifestFingerprint matches
+    const legacySavedWithoutSourceSetSeal = {
+      ...saved,
+      assemblyDraft: {
+        bookId: 'book-1',
+        unitKey: 'unit-02',
+        activityKey: 'u02-ex1',
+        candidateId: 'assembly-full-2',
+        candidateRevision: 1,
+        manifestFingerprint: fingerprintComponentPdfActivationValue(fullManifest),
+      },
+    };
+    const rejectedWithoutSourceSetSeal = await readVerifiedDraftActivityKeys(
+      assembly as never,
+      { read: async () => binding as never },
+      { readOwnerRoot: async () => ({ candidates: { [binding.candidateId]: legacySavedWithoutSourceSetSeal }, activities: { [binding.activityId]: activity } }) },
+    );
+    expect(rejectedWithoutSourceSetSeal).toEqual([]);
+  });
 });

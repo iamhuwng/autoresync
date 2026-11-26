@@ -4,15 +4,21 @@ import type {
 } from './unitAssembly.types';
 import type {
   BookAssemblyManifestCandidate,
+  BookAssemblyActivityVersionReference,
   BookAssemblyActivityVersionRecord,
   BookAssemblyActivitySafeProjectionRecord,
+  BookAssemblyDeliveryPublicationPlan,
+  BookAssemblyImmutableManifestVersion,
   BookAssemblyPlacementRecord,
   BookAssemblyPreviewApprovalReference,
   BookAssemblyPublicationAdapterPlan,
   BookAssemblyPublicationAtomicWriteSet,
+  BookAssemblyPublishedUnitProjectionRecord,
   BookSourceVersionAuthority,
+  BookUnitCandidate,
   SourceQualifiedPageIdentity,
 } from '../../types/bookAssembly.types';
+import type { BookAssemblyPublicationScope } from './publicationRepository';
 import type { NormalizedActivity } from '../../types/bookActivity.types';
 import { projectStudentActivity } from '../book-activity/activityProjection.service';
 import {
@@ -39,6 +45,15 @@ export interface FullPdfActivityPublicationIds {
   readonly placementId: string;
 }
 
+export interface FullPdfCarriedUnitIds {
+  readonly unitProjectionId: string;
+  readonly deliveryPlanId: string;
+  readonly activitiesByKey: Readonly<Record<string, {
+    readonly projectionId: string;
+    readonly placementId: string;
+  }>>;
+}
+
 export interface FullPdfPublicationIds {
   readonly planId: string;
   readonly manifestVersionId: string;
@@ -47,6 +62,7 @@ export interface FullPdfPublicationIds {
   readonly unitProjectionId: string;
   readonly deliveryPlanId: string;
   readonly activitiesByKey: Readonly<Record<string, FullPdfActivityPublicationIds>>;
+  readonly carriedUnitsByKey?: Readonly<Record<string, FullPdfCarriedUnitIds>>;
 }
 
 export interface FullPdfActivityLineage {
@@ -82,6 +98,9 @@ export interface CreateFullPdfPublicationAdapterPlanInput {
   readonly previewApproval: BookAssemblyPreviewApprovalReference;
   readonly activitiesByKey: Readonly<Record<string, FullPdfValidatedActivityPayload>>;
   readonly existingLineageByActivityKey?: Readonly<Record<string, FullPdfActivityLineage>>;
+  /** Optional current publication for incremental multi-unit Full-PDF publishing. */
+  readonly predecessorScope?: BookAssemblyPublicationScope<unknown> | null;
+  readonly predecessor?: BookAssemblyImmutableManifestVersion | null;
 }
 
 export interface FullPdfPublicationCommandInput extends Omit<CreateFullPdfPublicationAdapterPlanInput, 'ids'> {
@@ -207,9 +226,101 @@ const pagesForActivity = (
     left.sourceKey.localeCompare(right.sourceKey) || left.physicalPageNumber - right.physicalPageNumber);
 };
 
+const resolveCarriedForwardUnits = (
+  manifest: BookAssemblyManifestCandidate,
+  unitKey: string,
+  predecessor: BookAssemblyImmutableManifestVersion | null | undefined,
+): readonly BookUnitCandidate[] => {
+  if (!predecessor || predecessor.strategy !== 'full_pdf') {
+    return [];
+  }
+  const otherPredecessorUnits = predecessor.studentSafeProjection.units.filter((entry) => entry.unitKey !== unitKey);
+  if (otherPredecessorUnits.length === 0) {
+    return [];
+  }
+  if (stable(predecessor.manifest.sourceSet) !== stable(manifest.sourceSet)) {
+    throw new FullPdfPublicationAdapterError('full_pdf_source_set_changed_with_other_published_units');
+  }
+  const manifestUnitNodeKeys = new Set(
+    manifest.nodes
+      .filter((node) => node.nodeType === 'unit')
+      .map((node) => node.nodeKey),
+  );
+  const manifestUnitByKey = new Map(manifest.units.map((entry) => [entry.unitKey, entry]));
+  const carried: BookUnitCandidate[] = [];
+  for (const prevUnit of otherPredecessorUnits) {
+    const incomingUnit = manifestUnitByKey.get(prevUnit.unitKey);
+    if (!incomingUnit || !manifestUnitNodeKeys.has(prevUnit.unitKey)) {
+      // Unit was explicitly removed from the Book outline; do not carry orphaned placements.
+      continue;
+    }
+    if (stable(incomingUnit.activitySlots) !== stable(prevUnit.activitySlots)
+      || stable(incomingUnit.pageGroups) !== stable(prevUnit.pageGroups)) {
+      throw new FullPdfPublicationAdapterError('full_pdf_predecessor_unit_topology_changed');
+    }
+    carried.push(prevUnit);
+  }
+  return carried;
+};
+
+const orderPublishedUnits = (
+  manifest: BookAssemblyManifestCandidate,
+  targetUnit: BookUnitCandidate,
+  carriedUnits: readonly BookUnitCandidate[],
+): readonly BookUnitCandidate[] => {
+  if (carriedUnits.length === 0) return [targetUnit];
+  const byKey = new Map<string, BookUnitCandidate>([
+    ...carriedUnits.map((entry) => [entry.unitKey, entry] as const),
+    [targetUnit.unitKey, targetUnit],
+  ]);
+  const ordered: BookUnitCandidate[] = [];
+  for (const entry of manifest.units) {
+    const match = byKey.get(entry.unitKey);
+    if (match) {
+      ordered.push(match);
+      byKey.delete(entry.unitKey);
+    }
+  }
+  for (const remaining of byKey.values()) ordered.push(remaining);
+  return ordered;
+};
+
+const predecessorActivityVersion = (
+  scope: BookAssemblyPublicationScope<unknown>,
+  predecessor: BookAssemblyImmutableManifestVersion,
+  unitKey: string,
+  activityKey: string,
+): BookAssemblyActivityVersionRecord | undefined => Object.values(scope.activityVersions ?? {})
+  .filter((record) => record.manifestVersionId === predecessor.manifestVersionId
+    && record.unitKey === unitKey
+    && record.activityKey === activityKey)
+  .sort((left, right) => right.activityVersion - left.activityVersion)[0];
+
+const referencePagesForUnit = (
+  manifest: BookAssemblyManifestCandidate,
+  unit: BookUnitCandidate,
+  sourceVersionAuthority: BookSourceVersionAuthority,
+): SourceQualifiedPageIdentity[] => {
+  const pages = new Map<string, SourceQualifiedPageIdentity>();
+  for (const group of unit.pageGroups) {
+    if (group.mode !== 'reference_only') continue;
+    for (const physicalPageNumber of group.pages) {
+      const page = resolveSourceQualifiedPage(
+        manifest.sourceSet,
+        { bookId: manifest.bookId, sourceVersionAuthority },
+        { sourceKey: group.sourceKey, physicalPageNumber },
+        `units.${unit.unitKey}.${group.pageGroupKey}`,
+      );
+      pages.set(`${page.sourceKey}:${page.physicalPageNumber}`, page);
+    }
+  }
+  return [...pages.values()];
+};
+
 const createPublicationRecords = (
   input: CreateFullPdfPublicationAdapterPlanInput,
   manifest: BookAssemblyManifestCandidate,
+  carriedUnits: readonly BookUnitCandidate[],
 ): {
   readonly atomicWrites: BookAssemblyPublicationAtomicWriteSet;
   readonly canonicalActivityVersions: readonly CanonicalPublishedActivityVersionRecord[];
@@ -223,8 +334,11 @@ const createPublicationRecords = (
   const placementIds: string[] = [];
   const allPages = new Map<string, SourceQualifiedPageIdentity>();
   const activityVersions: BookAssemblyActivityVersionRecord[] = [];
+  const activityVersionRefs: BookAssemblyActivityVersionReference[] = [];
   const activitySafeProjections: BookAssemblyActivitySafeProjectionRecord[] = [];
   const placements: BookAssemblyPlacementRecord[] = [];
+  const unitProjections: BookAssemblyPublishedUnitProjectionRecord[] = [];
+  const deliveryPlans: BookAssemblyDeliveryPublicationPlan[] = [];
   const canonicalActivityVersions: CanonicalPublishedActivityVersionRecord[] = [];
   for (const slot of unit.activitySlots) {
     const ids = input.ids.activitiesByKey[slot.activityKey];
@@ -252,6 +366,14 @@ const createPublicationRecords = (
     placementIds.push(ids.placementId);
     let canonical: CanonicalPublishedActivityVersionRecord;
     try {
+      const prevActivity = input.predecessor && input.predecessorScope
+        ? predecessorActivityVersion(input.predecessorScope, input.predecessor, unit.unitKey, slot.activityKey)
+        : undefined;
+      const predecessorActivityVersionId = lineage?.lastActivityVersionId ?? prevActivity?.activityVersionId;
+      const isRevision = Boolean(input.predecessor)
+        && ids.activityVersion > 1
+        && predecessorActivityVersionId !== undefined;
+      const sourceContextFingerprint = fingerprint(sourcePages);
       const canonicalWithoutFingerprint: CanonicalPublishedActivityVersionRecordWithoutPayloadFingerprint = {
         schemaVersion: 1,
         lifecycle: 'published',
@@ -261,24 +383,32 @@ const createPublicationRecords = (
         ownerId: input.ownerId,
         activity: payload.activity,
         projection: projectStudentActivity(payload.activity),
-        ...(lineage?.lastActivityVersionId === undefined
-          ? {}
-          : { predecessorActivityVersionId: lineage.lastActivityVersionId }),
+        ...(isRevision
+          ? { predecessorActivityVersionId }
+          : {}),
         placementIds: [ids.placementId],
         evidenceRefs: [],
-        sourceContextFingerprint: fingerprint(sourcePages),
+        sourceContextFingerprint,
         createdByOperationId: input.operationId,
         publishedAt: input.now,
-        provenance: {
-          kind: 'initial-book-publication',
-          bookId: input.authority.bookId,
-          manifestVersionId: input.ids.manifestVersionId,
-          publicationId: input.ids.publicationId,
-          publicationRevision: input.ids.publicationRevision,
-          unitKey: unit.unitKey,
-          activityKey: slot.activityKey,
-          sourcePages,
-        },
+        provenance: isRevision
+          ? {
+            kind: 'activity-revision',
+            candidateId: input.candidate.candidateId,
+            candidateRevision: input.candidate.revision,
+            evidenceRefs: [],
+            sourceContext: { fingerprint: sourceContextFingerprint },
+          }
+          : {
+            kind: 'initial-book-publication',
+            bookId: input.authority.bookId,
+            manifestVersionId: input.ids.manifestVersionId,
+            publicationId: input.ids.publicationId,
+            publicationRevision: input.ids.publicationRevision,
+            unitKey: unit.unitKey,
+            activityKey: slot.activityKey,
+            sourcePages,
+          },
       };
       canonical = assertCanonicalPublishedActivityVersion({
         ...canonicalWithoutFingerprint,
@@ -350,31 +480,131 @@ const createPublicationRecords = (
       sourcePages,
     });
   }
+  for (const page of referencePagesForUnit(manifest, unit, input.authority.sourceVersionAuthority)) {
+    allPages.set(`${page.sourceKey}:${page.physicalPageNumber}`, page);
+  }
   const sourcePages = [...allPages.values()].sort((left, right) =>
     left.sourceKey.localeCompare(right.sourceKey) || left.physicalPageNumber - right.physicalPageNumber);
-  return {
-    canonicalActivityVersions,
-    atomicWrites: {
-      activityVersions,
-      activitySafeProjections,
-      placements,
-      unitProjections: [{
+  unitProjections.push({
+    schemaVersion: 1,
+    unitProjectionId: input.ids.unitProjectionId,
+    ownerId: input.ownerId,
+    bookId: input.authority.bookId,
+    manifestVersionId: input.ids.manifestVersionId,
+    publicationId: input.ids.publicationId,
+    publicationRevision: input.ids.publicationRevision,
+    unitKey: unit.unitKey,
+    placementIds,
+    sourcePages,
+    createdByCommandId: input.operationId,
+    createdAt: input.now,
+  });
+  deliveryPlans.push({
+    schemaVersion: 1,
+    deliveryPlanId: input.ids.deliveryPlanId,
+    ownerId: input.ownerId,
+    bookId: input.authority.bookId,
+    manifestVersionId: input.ids.manifestVersionId,
+    publicationId: input.ids.publicationId,
+    publicationRevision: input.ids.publicationRevision,
+    sourceStrategy: 'full_pdf',
+    sourceSet: manifest.sourceSet,
+    placementIds,
+    unitProjectionIds: [input.ids.unitProjectionId],
+    createdByCommandId: input.operationId,
+    createdAt: input.now,
+  });
+
+  if (carriedUnits.length > 0 && input.predecessor && input.predecessorScope) {
+    for (const carriedUnit of carriedUnits) {
+      const carriedIds = input.ids.carriedUnitsByKey?.[carriedUnit.unitKey];
+      if (!carriedIds) throw new FullPdfPublicationAdapterError('full_pdf_trusted_ids_missing');
+      const carriedPlacementIds: string[] = [];
+      const carriedPages = new Map<string, SourceQualifiedPageIdentity>();
+      for (const slot of carriedUnit.activitySlots) {
+        const slotIds = carriedIds.activitiesByKey[slot.activityKey];
+        if (!slotIds) throw new FullPdfPublicationAdapterError('full_pdf_trusted_ids_missing');
+        const prev = predecessorActivityVersion(
+          input.predecessorScope,
+          input.predecessor,
+          carriedUnit.unitKey,
+          slot.activityKey,
+        );
+        if (!prev || !prev.canonicalPayloadFingerprint) {
+          throw new FullPdfPublicationAdapterError('full_pdf_activity_payload_missing');
+        }
+        const slotPages = pagesForActivity(
+          manifest,
+          carriedUnit,
+          slot.activityKey,
+          input.authority.sourceVersionAuthority,
+        );
+        for (const page of slotPages) carriedPages.set(`${page.sourceKey}:${page.physicalPageNumber}`, page);
+        activityVersionRefs.push({
+          activityVersionId: prev.activityVersionId,
+          activityId: prev.activityId,
+          activityVersion: prev.activityVersion,
+          canonicalPayloadFingerprint: prev.canonicalPayloadFingerprint,
+        });
+        carriedPlacementIds.push(slotIds.placementId);
+        activitySafeProjections.push({
+          schemaVersion: 1,
+          projectionId: slotIds.projectionId,
+          activityId: prev.activityId,
+          activityVersionId: prev.activityVersionId,
+          ownerId: input.ownerId,
+          bookId: input.authority.bookId,
+          manifestVersionId: input.ids.manifestVersionId,
+          publicationId: input.ids.publicationId,
+          publicationRevision: input.ids.publicationRevision,
+          placementIds: [slotIds.placementId],
+          sourcePages: slotPages,
+          payloadFingerprint: fingerprint({
+            activityVersionId: prev.activityVersionId,
+            contextRequirement: slot.contextRequirement,
+            sourcePages: slotPages,
+          }),
+        });
+        placements.push({
+          schemaVersion: 1,
+          placementId: slotIds.placementId,
+          ownerId: input.ownerId,
+          bookId: input.authority.bookId,
+          manifestVersionId: input.ids.manifestVersionId,
+          publicationId: input.ids.publicationId,
+          publicationRevision: input.ids.publicationRevision,
+          unitKey: carriedUnit.unitKey,
+          nodeKey: carriedUnit.unitKey,
+          activityKey: slot.activityKey,
+          activityId: prev.activityId,
+          activityVersionId: prev.activityVersionId,
+          order: slot.order,
+          pageGroupKeys: slot.pageGroupKeys,
+          sourcePages: slotPages,
+        });
+      }
+      for (const page of referencePagesForUnit(manifest, carriedUnit, input.authority.sourceVersionAuthority)) {
+        carriedPages.set(`${page.sourceKey}:${page.physicalPageNumber}`, page);
+      }
+      const carriedUnitSourcePages = [...carriedPages.values()].sort((left, right) =>
+        left.sourceKey.localeCompare(right.sourceKey) || left.physicalPageNumber - right.physicalPageNumber);
+      unitProjections.push({
         schemaVersion: 1,
-        unitProjectionId: input.ids.unitProjectionId,
+        unitProjectionId: carriedIds.unitProjectionId,
         ownerId: input.ownerId,
         bookId: input.authority.bookId,
         manifestVersionId: input.ids.manifestVersionId,
         publicationId: input.ids.publicationId,
         publicationRevision: input.ids.publicationRevision,
-        unitKey: unit.unitKey,
-        placementIds,
-        sourcePages,
+        unitKey: carriedUnit.unitKey,
+        placementIds: carriedPlacementIds,
+        sourcePages: carriedUnitSourcePages,
         createdByCommandId: input.operationId,
         createdAt: input.now,
-      }],
-      deliveryPlans: [{
+      });
+      deliveryPlans.push({
         schemaVersion: 1,
-        deliveryPlanId: input.ids.deliveryPlanId,
+        deliveryPlanId: carriedIds.deliveryPlanId,
         ownerId: input.ownerId,
         bookId: input.authority.bookId,
         manifestVersionId: input.ids.manifestVersionId,
@@ -382,11 +612,23 @@ const createPublicationRecords = (
         publicationRevision: input.ids.publicationRevision,
         sourceStrategy: 'full_pdf',
         sourceSet: manifest.sourceSet,
-        placementIds,
-        unitProjectionIds: [input.ids.unitProjectionId],
+        placementIds: carriedPlacementIds,
+        unitProjectionIds: [carriedIds.unitProjectionId],
         createdByCommandId: input.operationId,
         createdAt: input.now,
-      }],
+      });
+    }
+  }
+
+  return {
+    canonicalActivityVersions,
+    atomicWrites: {
+      activityVersions,
+      ...(activityVersionRefs.length > 0 ? { activityVersionRefs } : {}),
+      activitySafeProjections,
+      placements,
+      unitProjections,
+      deliveryPlans,
     },
   };
 };
@@ -399,11 +641,13 @@ export const createFullPdfPublicationAdapter = (
   assertPreviewApproval(input.previewApproval, input.now);
   const unit = manifest.units.find((candidate) => candidate.unitKey === input.unitKey);
   if (!unit) throw new FullPdfPublicationAdapterError('full_pdf_unit_missing');
+  const carriedUnits = resolveCarriedForwardUnits(manifest, input.unitKey, input.predecessor);
+  const publishedUnits = orderPublishedUnits(manifest, unit, carriedUnits);
   const selectedManifest: BookAssemblyManifestCandidate = {
     ...manifest,
-    units: [unit],
+    units: publishedUnits,
   };
-  const records = createPublicationRecords(input, manifest);
+  const records = createPublicationRecords(input, manifest, carriedUnits);
   return {
     canonicalActivityVersions: records.canonicalActivityVersions,
     plan: {
@@ -425,7 +669,7 @@ export const createFullPdfPublicationAdapter = (
         publicationRevision: input.ids.publicationRevision,
         sourceStrategy: 'full_pdf',
         sourceSet: manifest.sourceSet,
-        units: [unit],
+        units: publishedUnits,
       },
       atomicWrites: records.atomicWrites,
       previewApproval: input.previewApproval,
@@ -444,8 +688,9 @@ export const createFullPdfPublicationCommandOutput = (
   if (manifest === null) throw new FullPdfPublicationAdapterError('full_pdf_candidate_not_validated');
   const unit = manifest.units.find((candidate) => candidate.unitKey === input.unitKey);
   if (!unit) throw new FullPdfPublicationAdapterError('full_pdf_unit_missing');
+  const carriedUnits = resolveCarriedForwardUnits(manifest, input.unitKey, input.predecessor);
   const publicationId = input.allocateId('publication', input.candidate.candidateId);
-  const publicationRevision = 1;
+  const publicationRevision = (input.predecessor?.publicationRevision ?? 0) + 1;
   return createFullPdfPublicationAdapter({
     ...input,
     ids: {
@@ -457,15 +702,35 @@ export const createFullPdfPublicationCommandOutput = (
       deliveryPlanId: input.allocateId('delivery-plan', input.unitKey),
       activitiesByKey: Object.fromEntries(unit.activitySlots.map((slot) => {
         const lineage = input.existingLineageByActivityKey?.[slot.activityKey];
-        const activityId = lineage?.activityId ?? input.allocateId('activity', slot.activityKey);
+        const prev = input.predecessor && input.predecessorScope
+          ? predecessorActivityVersion(input.predecessorScope, input.predecessor, input.unitKey, slot.activityKey)
+          : undefined;
+        const activityId = lineage?.activityId ?? prev?.activityId ?? input.allocateId('activity', slot.activityKey);
+        const lastVersion = lineage?.lastActivityVersion ?? prev?.activityVersion ?? 0;
         return [slot.activityKey, {
           activityId,
           activityVersionId: input.allocateId('activity-version', slot.activityKey),
-          activityVersion: (lineage?.lastActivityVersion ?? 0) + 1,
+          activityVersion: lastVersion + 1,
           projectionId: input.allocateId('activity-projection', slot.activityKey),
           placementId: input.allocateId('placement', slot.activityKey),
         }];
       })),
+      ...(carriedUnits.length > 0 ? {
+        carriedUnitsByKey: Object.fromEntries(carriedUnits.map((carriedUnit) => [
+          carriedUnit.unitKey,
+          {
+            unitProjectionId: input.allocateId('unit-projection', carriedUnit.unitKey),
+            deliveryPlanId: input.allocateId('delivery-plan', carriedUnit.unitKey),
+            activitiesByKey: Object.fromEntries(carriedUnit.activitySlots.map((slot) => [
+              slot.activityKey,
+              {
+                projectionId: input.allocateId('activity-projection', `${carriedUnit.unitKey}:${slot.activityKey}`),
+                placementId: input.allocateId('placement', `${carriedUnit.unitKey}:${slot.activityKey}`),
+              },
+            ])),
+          },
+        ])),
+      } : {}),
     },
   });
 };

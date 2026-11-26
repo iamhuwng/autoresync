@@ -2366,10 +2366,11 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'PDF Assembly Book' });
     expect(dialog).toHaveAttribute('data-editor-intent', 'create');
+    expect(within(dialog).getByRole('tablist', { name: 'PDF Book edit sections' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('tab', { name: 'PDF files' })).toHaveAttribute('aria-selected', 'true');
     expect(await within(dialog).findByRole('heading', { name: 'How will this Book use PDFs?' })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: /One complete PDF/ })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: /Several component PDFs/ })).toBeInTheDocument();
-    expect(within(dialog).queryByRole('tab')).not.toBeInTheDocument();
   });
 
   it('keeps Book private/public scope inside the Book tab', async () => {
@@ -2597,19 +2598,21 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     expect(dialog).toHaveAttribute('data-editor-intent', 'edit');
     expect(within(dialog).getByRole('tablist', { name: 'PDF Book edit sections' })).toBeInTheDocument();
     expect(within(dialog).getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
-      'Metadata',
       'PDF files',
-      'Content tree',
-      'Activity JSON',
+      'Book outline',
+      'Unit activities',
       'Page mapping',
-      'Preview',
+      'Preview & publish',
+      'Metadata',
       'Settings',
     ]);
-    expect(within(dialog).getByRole('tab', { name: 'Metadata' })).toHaveAttribute('aria-selected', 'true');
-    expect(within(dialog).getByRole('button', { name: 'Save metadata' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('tab', { name: 'Book outline' })).toHaveAttribute('aria-selected', 'true');
     await waitFor(() => {
       expect(mocks.listBookNodes).toHaveBeenCalledWith('book-pdf');
     });
+    await user.click(within(dialog).getByRole('tab', { name: 'Metadata' }));
+    expect(within(dialog).getByRole('tab', { name: 'Metadata' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(dialog).getByRole('button', { name: 'Save metadata' })).toBeInTheDocument();
   });
 
   it('archives selected Books from the bulk toolbar', async () => {

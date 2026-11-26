@@ -29,6 +29,10 @@ vi.mock('../../hooks/useFeatureTracking', () => ({
   useFeatureTracking: () => ({ trackAction: vi.fn() }),
 }));
 
+vi.mock('../homework/HomeworkCreateModal', () => ({
+  HomeworkCreateModal: () => null,
+}));
+
 const book: MaterialBookMetadata = {
   bookId: materialCatalogIds.bookId('pdf-book'),
   bookMode: 'pdf',
@@ -263,7 +267,7 @@ describe('BookMode2EditorShell', () => {
       expect(loadCurrent).toHaveBeenCalledWith('pdf-book', 'unit-a');
       expect(loadCurrent).toHaveBeenCalledWith('pdf-book', 'unit-b');
     });
-    expect(await screen.findByText('No unsaved changes', {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(await screen.findByText('Up to date', {}, { timeout: 10_000 })).toBeInTheDocument();
     await saveThroughEditor();
     await waitFor(() => expect(activateComponentPdf).toHaveBeenCalledTimes(2));
 
@@ -681,5 +685,95 @@ describe('BookMode2EditorShell', () => {
 
     await waitFor(() => expect(preview).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mockFirebaseGetIdToken).toHaveBeenCalledWith(false));
+  });
+
+  it('discovers and rehydrates multi-unit Full-PDF drafts across units on reopen', async () => {
+    const fullManifest: BookAssemblyManifestCandidate = {
+      bookId: 'pdf-book',
+      sourceSet: {
+        sourceStrategy: 'full_pdf',
+        sources: [{ sourceKey: 'full', sourceVersionId: 'source-full-1', sourceOrder: 1 }],
+      },
+      nodes: [
+        { nodeKey: 'section-1', parentNodeKey: null, nodeType: 'section', order: 1 },
+        { nodeKey: 'unit-01', parentNodeKey: 'section-1', nodeType: 'unit', order: 1 },
+        { nodeKey: 'unit-02', parentNodeKey: 'section-1', nodeType: 'unit', order: 2 },
+      ],
+      units: [
+        {
+          unitKey: 'unit-01',
+          activitySlots: [{ activityKey: 'u01-ex1', order: 1, contextRequirement: 'required', pageGroupKeys: ['u01-p9'] }],
+          pageGroups: [{ pageGroupKey: 'u01-p9', sourceKey: 'full', pages: [9], activityKeys: ['u01-ex1'], mode: 'activity', defaultPhysicalPageNumber: 9 }],
+        },
+        {
+          unitKey: 'unit-02',
+          activitySlots: [{ activityKey: 'u02-ex1', order: 1, contextRequirement: 'required', pageGroupKeys: ['u02-p13'] }],
+          pageGroups: [{ pageGroupKey: 'u02-p13', sourceKey: 'full', pages: [13], activityKeys: ['u02-ex1'], mode: 'activity', defaultPhysicalPageNumber: 13 }],
+        },
+      ],
+    };
+    const unit1Draft: BookAssemblyCandidateRecord = {
+      candidateId: 'candidate-u01',
+      ownerId: 'teacher-1',
+      bookId: 'pdf-book',
+      bookRevision: 2,
+      sourceSetRevision: 1,
+      unitKey: 'unit-01',
+      revision: 1,
+      lifecycle: 'validated',
+      manifest: fullManifest,
+      validation: { valid: true, errors: [] },
+      updatedAt: '2026-11-26T00:00:00.000Z',
+    };
+    const unit2Draft: BookAssemblyCandidateRecord = {
+      ...unit1Draft,
+      candidateId: 'candidate-u02',
+      unitKey: 'unit-02',
+    };
+    const discoverDrafts = vi.fn().mockResolvedValue([
+      { candidate: unit1Draft, savedActivityKeysByUnit: { 'unit-01': ['u01-ex1'] } },
+      { candidate: unit2Draft, savedActivityKeysByUnit: { 'unit-02': ['u02-ex1'] } },
+    ]);
+    const repository = {
+      discoverDrafts,
+      loadCurrent: vi.fn(),
+      create: vi.fn(),
+      replace: vi.fn(),
+      validate: vi.fn(),
+      discard: vi.fn(),
+      load: vi.fn(),
+    } as unknown as UnitAssemblyRepository;
+
+    render(
+      <BookMode2EditorShell
+        access="owner"
+        book={{
+          ...book,
+          bookRevision: 2,
+          sourceSetRevision: 1,
+          sourceSet: fullManifest.sourceSet,
+        }}
+        presentation="modal"
+        experience="focused-editing"
+        editingSection="content-tree"
+        assemblyRepository={repository}
+        assemblyPreviewClient={null}
+        uploadWorkflow={null}
+        assemblySourceVersions={[{
+          sourceKey: 'full',
+          sourceVersionId: 'source-full-1',
+          bookId: 'pdf-book',
+          physicalPageCount: 128,
+          verifiedUsable: true,
+          checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
+          purpose: 'book-source',
+          studentSafeStatus: 'unreviewed',
+        }]}
+      />,
+    );
+
+    await waitFor(() => expect(discoverDrafts).toHaveBeenCalledWith('pdf-book'));
+    expect(await screen.findByText(/unit-01 · 1 activity/)).toBeInTheDocument();
+    expect(screen.getByText(/unit-02 · 1 activity/)).toBeInTheDocument();
   });
 });

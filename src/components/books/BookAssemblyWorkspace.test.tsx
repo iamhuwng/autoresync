@@ -456,7 +456,7 @@ describe('BookAssemblyWorkspace', () => {
         sourceSet: expect.objectContaining({ sourceStrategy: 'full_pdf' }),
       }),
     }));
-    expect(mocks.success).toHaveBeenCalledWith('Assembly draft saved.');
+    expect(mocks.success).toHaveBeenCalledWith('Book draft saved.');
   });
 
   it('starts an existing candidate clean and returns clean after conflict reload', async () => {
@@ -712,7 +712,7 @@ describe('BookAssemblyWorkspace', () => {
       expect(repo.replace).not.toHaveBeenCalled();
     }
     expect(repo.validate).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(mocks.success).toHaveBeenCalledWith('Assembly draft saved.'));
+    await waitFor(() => expect(mocks.success).toHaveBeenCalledWith('Book draft saved.'));
   });
 
   it('blocks setup and duplicate persistence while current draft discovery is pending', async () => {
@@ -762,7 +762,7 @@ describe('BookAssemblyWorkspace', () => {
 
     await waitFor(() => expect(repo.validate).toHaveBeenCalledWith(expect.objectContaining({ unitKey: 'unit-b' })));
     expect(repo.replace).not.toHaveBeenCalled();
-    expect(mocks.success).not.toHaveBeenCalledWith('Assembly draft saved.');
+    expect(mocks.success).not.toHaveBeenCalledWith('Book draft saved.');
   });
 
   it('rejects invalid persisted Source Versions before 13A mutation', async () => {
@@ -775,7 +775,7 @@ describe('BookAssemblyWorkspace', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('sourceSet.sources[0].sourceVersionId');
     expect(repo.replace).not.toHaveBeenCalled();
-    expect(mocks.error).toHaveBeenCalledWith('Assembly changes need correction before saving.');
+    expect(mocks.error).toHaveBeenCalledWith('Please fix the highlighted Book outline issues before saving.');
   });
 
   it('shows readable permission loss when the trusted route rejects save', async () => {
@@ -1236,7 +1236,7 @@ describe('BookAssemblyWorkspace', () => {
     expect(authoring.stage).not.toHaveBeenCalled();
     expect(authoring.discard).not.toHaveBeenCalled();
     expect(repo.replace).toHaveBeenCalled();
-    expect(await screen.findByText('Assembly changed elsewhere. Reload or retry before importing Activities.')).toBeVisible();
+    expect(await screen.findByText('This Book changed elsewhere. Reload or retry before importing Activities.')).toBeVisible();
   });
 
   it('rejects malformed import atomically before 12C or 13A writes', async () => {
@@ -1300,7 +1300,7 @@ describe('BookAssemblyWorkspace', () => {
     );
   });
 
-  it('does not write uncertain reconciliation and records teacher choice', async () => {
+  it('treats non-contiguous textbook pages as advisory notes and allows saving without a dead choice button', async () => {
     const user = userEvent.setup();
     const repo = repository();
     const existing = candidate();
@@ -1312,14 +1312,84 @@ describe('BookAssemblyWorkspace', () => {
     renderWorkspace({ repository: repo, initialCandidate: { ...existing, manifest: { ...existing.manifest, units: [unit] } } });
 
     expect(screen.queryByRole('button', { name: 'Apply exact repairs' })).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Record teacher choice needed' }));
+    expect(screen.queryByRole('button', { name: 'Record teacher choice needed' })).toBeNull();
+    expect(screen.getByText(/1 page note \(does not block saving\)/)).toBeVisible();
 
-    expect(repo.replace).not.toHaveBeenCalled();
-    expect(mocks.info).toHaveBeenCalledWith('Choose the intended source and Activity mapping before saving.');
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(repo.replace).toHaveBeenCalledTimes(1));
+    expect(mocks.success).toHaveBeenCalledWith('Book draft saved.');
+  });
+
+  it('imports a real multi-unit textbook Book outline with shared pages and transcripts, saves any unit, and supports manual activity/reference edits', async () => {
+    const user = userEvent.setup();
+    const repo = repository();
+    renderWorkspace({
+      repository: repo,
+      guided: true,
+      guidedUiVariant: 'mockup',
+      editingPanel: 'content-tree',
+      sourceVersions: [
+        { ...sourceVersions[0], physicalPageCount: 128 },
+      ],
+    });
+
+    const collinsOutlineJson = JSON.stringify({
+      sourceKey: 'full',
+      nodes: [
+        { nodeKey: 'section-1', parentNodeKey: null, nodeType: 'section', title: 'Part 1: Meeting people', order: 1 },
+        { nodeKey: 'unit-01', parentNodeKey: 'section-1', nodeType: 'unit', title: 'Unit 1: Making a good impression', order: 1 },
+        { nodeKey: 'unit-02', parentNodeKey: 'section-1', nodeType: 'unit', title: 'Unit 2: Small talk', order: 2 },
+      ],
+      units: [
+        {
+          unitKey: 'unit-01',
+          activitySlots: [
+            { activityKey: 'u01-ex1', order: 1, contextRequirement: 'required', pageGroupKeys: ['u01-p9-a'] },
+            { activityKey: 'u01-ex2', order: 2, contextRequirement: 'required', pageGroupKeys: ['u01-p9-b'] },
+          ],
+          pageGroups: [
+            { pageGroupKey: 'u01-p9-a', sourceKey: 'full', pages: [9], defaultPhysicalPageNumber: 9, activityKeys: ['u01-ex1'], mode: 'activity' },
+            { pageGroupKey: 'u01-p9-b', sourceKey: 'full', pages: [9], defaultPhysicalPageNumber: 9, activityKeys: ['u01-ex2'], mode: 'activity' },
+            { pageGroupKey: 'u01-transcript', sourceKey: 'full', pages: [103, 104], defaultPhysicalPageNumber: 103, activityKeys: [], mode: 'reference_only' },
+          ],
+        },
+        {
+          unitKey: 'unit-02',
+          activitySlots: [
+            { activityKey: 'u02-ex1', order: 1, contextRequirement: 'required', pageGroupKeys: ['u02-p13'] },
+          ],
+          pageGroups: [
+            { pageGroupKey: 'u02-p13', sourceKey: 'full', pages: [13], defaultPhysicalPageNumber: 13, activityKeys: ['u02-ex1'], mode: 'activity' },
+          ],
+        },
+      ],
+    });
+
+    fireEvent.change(screen.getByLabelText('Paste Book structure JSON'), {
+      target: { value: `\`\`\`json\n${collinsOutlineJson}\n\`\`\`` },
+    });
+    await user.click(screen.getByRole('button', { name: 'Apply pasted JSON' }));
+
+    expect(mocks.success).toHaveBeenCalledWith(expect.stringContaining('Imported 2 units (3 activities)'));
     expect(mocks.trackAction).toHaveBeenCalledWith(
-      'teacher_materials_book_assembly_reconciliation_teacher_choice_recorded',
-      expect.objectContaining({ issueCount: 1 }),
+      'teacher_materials_book_assembly_structure_imported',
+      expect.objectContaining({ unitCount: 2, activityCount: 3 }),
     );
+
+    // Add a manual activity slot to Unit 1
+    await user.click(screen.getByRole('button', { name: 'Add activity' }));
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'teacher_materials_book_assembly_activity_slot_added',
+      expect.objectContaining({ unitKey: 'unit-01' }),
+    );
+
+    // Save Unit 1 directly (must use actual unitKey 'unit-01', not hardcoded 'unit-1')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({
+      bookId: 'book-1',
+      unitKey: 'unit-01',
+    })));
+    expect(mocks.success).toHaveBeenCalledWith('Book draft saved.');
   });
 
   it('keeps row choices local and advances the baseline only after persistence succeeds', async () => {
@@ -1362,7 +1432,7 @@ describe('BookAssemblyWorkspace', () => {
 
     await user.click(screen.getByRole('button', { name: 'Use proposed' }));
     expect(screen.getAllByRole('button', { name: 'Save draft' })[0]).toBeEnabled();
-    expect(screen.getByRole('region', { name: 'Candidate reconciliation' })).toHaveTextContent('0 unresolved');
+    expect(screen.getByRole('region', { name: 'Review changes before saving' })).toHaveTextContent('0 to confirm');
     vi.mocked(repo.replace)
       .mockResolvedValueOnce({ status: 'conflict', conflict: { expectedRevision: 1, currentRevision: 2 } })
       .mockResolvedValueOnce({ status: 'replaced', candidate: { ...current, revision: 2 } });
@@ -1401,9 +1471,9 @@ describe('BookAssemblyWorkspace', () => {
     await user.type(screen.getByLabelText('Default physical page'), '2');
     await user.click(screen.getByRole('button', { name: 'Add mapping' }));
 
-    await waitFor(() => expect(screen.getByRole('region', { name: 'Candidate reconciliation' })).toHaveTextContent('1 unresolved'));
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Review changes before saving' })).toHaveTextContent('1 to confirm'));
     await user.click(screen.getByRole('button', { name: 'Use proposed' }));
-    await waitFor(() => expect(screen.getByRole('region', { name: 'Candidate reconciliation' })).toHaveTextContent('0 unresolved'));
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Review changes before saving' })).toHaveTextContent('0 to confirm'));
 
     await user.clear(screen.getByLabelText('Activity key'));
     await user.type(screen.getByLabelText('Activity key'), 'activity-1');
@@ -1413,7 +1483,7 @@ describe('BookAssemblyWorkspace', () => {
     await user.type(screen.getByLabelText('Default physical page'), '3');
     await user.click(screen.getByRole('button', { name: 'Add mapping' }));
 
-    await waitFor(() => expect(screen.getByRole('region', { name: 'Candidate reconciliation' })).toHaveTextContent('1 unresolved'));
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Review changes before saving' })).toHaveTextContent('1 to confirm'));
     await user.click(screen.getAllByRole('button', { name: 'Save draft' })[0]);
     expect(repo.replace).not.toHaveBeenCalled();
   });

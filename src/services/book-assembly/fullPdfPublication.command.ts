@@ -5,6 +5,7 @@ import type {
 import {
   type BookAssemblyPublicationResult,
 } from './publicationTransaction.service';
+import type { BookAssemblyPublicationScope } from './publicationRepository';
 import type { CanonicalPublishBookAssemblyInput } from './canonicalPublication.service';
 import type {
   BookAssemblyPreviewApprovalReference,
@@ -77,6 +78,9 @@ export interface FullPdfPublicationPorts {
   readonly sourceIsPreviewReady: (
     input: { readonly bookId: string; readonly sourceVersionId: string; readonly authority?: BookAssemblyBookAuthority },
   ) => Promise<boolean>;
+  readonly readCurrentPublicationScope?: (
+    bookId: string,
+  ) => Promise<BookAssemblyPublicationScope<unknown> | null>;
   readonly publish: (input: CanonicalPublishBookAssemblyInput) => Promise<BookAssemblyPublicationResult>;
   readonly allocateOperationId: () => string;
   readonly allocateId: (kind: string, key: string) => string;
@@ -238,6 +242,12 @@ export const createFullPdfPublicationCommand = (
     activitiesByKey,
     now,
   });
+  const predecessorScope = request.expectedCurrentPublicationId !== null && ports.readCurrentPublicationScope
+    ? await ports.readCurrentPublicationScope(request.bookId)
+    : null;
+  const predecessor = predecessorScope?.current?.publicationId === request.expectedCurrentPublicationId
+    ? predecessorScope.versions?.[predecessorScope.current.manifestVersionId] ?? null
+    : null;
   const operationId = ports.allocateOperationId();
   if (!UUID.test(operationId)) {
     throw new FullPdfPublicationCommandError('trusted_operation_id_failed', 503);
@@ -256,6 +266,8 @@ export const createFullPdfPublicationCommand = (
       previewApproval,
       activitiesByKey,
       existingLineageByActivityKey: lineage,
+      predecessorScope,
+      predecessor,
       allocateId: ports.allocateId,
     });
     const { plan, canonicalActivityVersions } = output;

@@ -238,7 +238,9 @@ const assertManifestBoundary = (input: CreateMappingRevisionPlanInput): string[]
     expectedSourceSetRevision: authority.sourceSetRevision,
     sourceSetRevision: authority.sourceSetRevision,
   });
-  if (report.releaseBlocking || report.requiresTeacherChoice || report.issues.length > 0) {
+  if (report.releaseBlocking
+    || report.requiresTeacherChoice
+    || report.issues.some((entry) => entry.severity === 'blocker' || entry.repair === 'exact')) {
     throw new MappingRevisionError('reconciliation-blocked', report.issues[0]?.path ?? '$');
   }
   return changed;

@@ -8,7 +8,6 @@ import type {
 } from '../../types/materialCatalog.types';
 import { TeacherHeader } from '../navigation';
 import BookEditorWorkspace from './BookEditorWorkspace';
-import BookMode2EditorShell from './BookMode2EditorShell';
 import BookPdfEditWorkspace from './BookPdfEditWorkspace';
 import { useBookEditorModeResolution } from './useBookEditorModeResolution';
 import './BookEditorPage.css';
@@ -57,16 +56,6 @@ const BookEditorPage = ({
     }
 
     if (resolution.book.bookMode === 'pdf') {
-      if (!resolution.book.sourceSet && resolution.access !== 'public-readonly') {
-        return (
-          <BookMode2EditorShell
-            access={resolution.access}
-            book={resolution.book}
-            presentation="page-compat"
-            experience="guided-creation"
-          />
-        );
-      }
       return (
         <BookPdfEditWorkspace
           access={resolution.access}

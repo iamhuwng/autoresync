@@ -484,4 +484,97 @@ describe('BookRuntimeShell', () => {
     fireEvent.change(screen.getAllByRole('textbox', { name: 'Choose an answer.' })[0], { target: { value: 'answer' } });
     expect(onResponseChange).toHaveBeenCalledWith('interaction-1', 'answer');
   });
+
+  it('isolates colliding cross-unit pageGroupKeys even when explicit delivery pageGroups are present', async () => {
+    const user = userEvent.setup();
+    const seenViewerInputs: BookRuntimeViewerRenderInput[] = [];
+    const base = delivery(true);
+    const collidingFullPdf: BookRuntimeDeliveryProjection = {
+      ...base,
+      sourceSet: {
+        strategy: 'full_pdf',
+        sources: [{ sourceKey: 'full', sourceVersionId: 'source-v1', lifecycle: 'verified-usable', localPageScope: { kind: 'all', pages: [] } }],
+      },
+      documentRequests: [{ sourceKey: 'full', sourceVersionId: 'source-v1', opaqueRouteKey: 'route-full', localPageScope: { kind: 'all', pages: [] } }],
+      pageGroups: [{ pageGroupKey: 'page-1', combinedPhysicalPages: [8, 9, 12, 13] }],
+      activities: [
+        {
+          placementId: 'p-u1',
+          activityId: 'activity-1',
+          activityVersionId: 'activity-1-v1',
+          activityVersion: 1,
+          nodeKey: 'unit-1',
+          order: 1,
+          contextMode: 'required',
+          sourceContext: { available: true, description: 'Unit 1 pages', pageGroupKeys: ['page-1'], sourcePageScopes: [{ sourceKey: 'full', pages: [8, 9] }] },
+        },
+        {
+          placementId: 'p-u2',
+          activityId: 'activity-2',
+          activityVersionId: 'activity-2-v1',
+          activityVersion: 1,
+          nodeKey: 'unit-2',
+          order: 2,
+          contextMode: 'required',
+          sourceContext: { available: true, description: 'Unit 2 pages', pageGroupKeys: ['page-1'], sourcePageScopes: [{ sourceKey: 'full', pages: [12, 13] }] },
+        },
+      ],
+    };
+
+    render(
+      <BookRuntimeShell
+        {...shellProps({
+          deliveryProjection: collidingFullPdf,
+          activities: [
+            { activityId: 'activity-1', activityVersionId: 'activity-1-v1', projection: projection(true), label: 'Unit 1 Task' },
+            { activityId: 'activity-2', activityVersionId: 'activity-2-v1', projection: projection(true), label: 'Unit 2 Task' },
+          ],
+          registry: registry(true),
+          viewer: {
+            title: 'PDF reference',
+            status: { state: 'ready' as const, message: 'Ready.' },
+            render: (input: BookRuntimeViewerRenderInput) => {
+              seenViewerInputs.push(input);
+              return <div data-testid="viewer-pages">{input.pageGroupKey}@{input.combinedPhysicalPage}</div>;
+            },
+          },
+        })}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /Page Group 1 · 8, 9/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Page Group 2 · 12, 13/i })).toBeInTheDocument();
+    expect(screen.getByTestId('viewer-pages')).toHaveTextContent('unit-1::page-1@8');
+    expect(screen.getByText('Unit 1 Task')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: /Page Group 2 · 12, 13/i }));
+    await waitFor(() => {
+      expect(screen.getByTestId('viewer-pages')).toHaveTextContent('unit-2::page-1@12');
+    });
+    expect(screen.getByText('Unit 2 Task')).toBeVisible();
+    expect(seenViewerInputs.some((entry) => entry.pageGroupKey === 'unit-1::page-1' && entry.combinedPhysicalPage === 8)).toBe(true);
+    expect(seenViewerInputs.some((entry) => entry.pageGroupKey === 'unit-2::page-1' && entry.combinedPhysicalPage === 12)).toBe(true);
+  });
+
+  it('fails closed when explicit cross-unit pageGroupKeys collide without sourcePageScopes to isolate them', () => {
+    const base = delivery(false);
+    const unisolatableCollision: BookRuntimeDeliveryProjection = {
+      ...base,
+      pageGroups: [{ pageGroupKey: 'group-1', combinedPhysicalPages: [2, 3, 7] }],
+      activities: [
+        { ...base.activities[0], placementId: 'p-u1', nodeKey: 'unit-1', sourceContext: { available: false, description: '', pageGroupKeys: ['group-1'], sourcePageScopes: [] } },
+        { ...base.activities[1], placementId: 'p-u2', nodeKey: 'unit-2', sourceContext: { available: false, description: '', pageGroupKeys: ['group-1'], sourcePageScopes: [] } },
+      ],
+    };
+
+    render(
+      <BookRuntimeShell
+        {...shellProps({
+          deliveryProjection: unisolatableCollision,
+          activities: shellProps().activities.slice(0, 2),
+        })}
+      />,
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Book page groups collide across units and cannot be isolated.');
+  });
 });

@@ -537,7 +537,7 @@ describe('BookPdfFlowWorkspace student preview', () => {
 
     expect(screen.getByText(/Publishing is locked until this finishes/i)).toBeInTheDocument();
     expect(screen.queryByText('Nothing is published yet')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Publish Unit 1', exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Publish Unit 2', exact: true })).not.toBeInTheDocument();
     expect(client.publishFull).not.toHaveBeenCalled();
   });
 
@@ -583,11 +583,11 @@ describe('BookPdfFlowWorkspace student preview', () => {
     await user.click(screen.getByRole('button', { name: 'Preview as a student' }));
     await user.click(screen.getByRole('button', { name: 'Approve this preview' }));
     await user.click(screen.getByRole('button', { name: /Publish$/i }));
-    await user.click(screen.getByRole('button', { name: 'Publish Unit 1', exact: true }));
-    await user.click(screen.getAllByRole('button', { name: 'Publish Unit 1', exact: true }).at(-1)!);
+    await user.click(screen.getByRole('button', { name: 'Publish Unit 2', exact: true }));
+    await user.click(screen.getAllByRole('button', { name: 'Publish Unit 2', exact: true }).at(-1)!);
 
     expect(client.publishFull).toHaveBeenCalledWith(expect.objectContaining({ expectedCurrentPublicationId: null }));
-    expect(screen.getAllByRole('heading', { name: 'Unit 1 is published' })).toHaveLength(2);
+    expect(screen.getAllByRole('heading', { name: 'Unit 2 is published' })).toHaveLength(1);
   });
 
   it('decides the full PDF immediately before publishing through the existing confirmation', async () => {
@@ -608,8 +608,8 @@ describe('BookPdfFlowWorkspace student preview', () => {
     await user.click(screen.getByRole('button', { name: 'Preview as a student' }));
     await user.click(screen.getByRole('button', { name: 'Approve this preview' }));
     await user.click(screen.getByRole('button', { name: /Publish$/i }));
-    await user.click(screen.getByRole('button', { name: 'Publish Unit 1', exact: true }));
-    await user.click(screen.getAllByRole('button', { name: 'Publish Unit 1', exact: true }).at(-1)!);
+    await user.click(screen.getByRole('button', { name: 'Publish Unit 2', exact: true }));
+    await user.click(screen.getAllByRole('button', { name: 'Publish Unit 2', exact: true }).at(-1)!);
 
     await waitFor(() => expect(decideStudentSafeSource).toHaveBeenCalledWith('book-1'));
     expect(client.publishFull).toHaveBeenCalledTimes(1);
@@ -634,8 +634,8 @@ describe('BookPdfFlowWorkspace student preview', () => {
     await user.click(screen.getByRole('button', { name: 'Preview as a student' }));
     await user.click(screen.getByRole('button', { name: 'Approve this preview' }));
     await user.click(screen.getByRole('button', { name: /Publish$/i }));
-    await user.click(screen.getByRole('button', { name: 'Publish Unit 1', exact: true }));
-    await user.click(screen.getAllByRole('button', { name: 'Publish Unit 1', exact: true }).at(-1)!);
+    await user.click(screen.getByRole('button', { name: 'Publish Unit 2', exact: true }));
+    await user.click(screen.getAllByRole('button', { name: 'Publish Unit 2', exact: true }).at(-1)!);
 
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('The Book service is unavailable. Retry.'));
@@ -661,8 +661,8 @@ describe('BookPdfFlowWorkspace student preview', () => {
     await user.click(screen.getByRole('button', { name: 'Preview as a student' }));
     await user.click(screen.getByRole('button', { name: 'Approve this preview' }));
     await user.click(screen.getByRole('button', { name: /Publish$/i }));
-    await user.click(screen.getByRole('button', { name: 'Publish Unit 1', exact: true }));
-    await user.click(screen.getAllByRole('button', { name: 'Publish Unit 1', exact: true }).at(-1)!);
+    await user.click(screen.getByRole('button', { name: 'Publish Unit 2', exact: true }));
+    await user.click(screen.getAllByRole('button', { name: 'Publish Unit 2', exact: true }).at(-1)!);
 
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('You no longer have access to this Book. Reopen it and retry.'));
@@ -688,10 +688,10 @@ describe('BookPdfFlowWorkspace student preview', () => {
     await user.click(screen.getByRole('button', { name: 'Preview as a student' }));
     await user.click(screen.getByRole('button', { name: 'Approve this preview' }));
     await user.click(screen.getByRole('button', { name: /Publish$/i }));
-    await user.click(screen.getByRole('button', { name: 'Publish Unit 1', exact: true }));
-    await user.click(screen.getAllByRole('button', { name: 'Publish Unit 1', exact: true }).at(-1)!);
+    await user.click(screen.getByRole('button', { name: 'Publish Unit 2', exact: true }));
+    await user.click(screen.getAllByRole('button', { name: 'Publish Unit 2', exact: true }).at(-1)!);
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('The Book service is unavailable. Retry.'));
-    await user.click(screen.getAllByRole('button', { name: 'Publish Unit 1', exact: true }).at(-1)!);
+    await user.click(screen.getAllByRole('button', { name: 'Publish Unit 2', exact: true }).at(-1)!);
 
     await waitFor(() => expect(decideStudentSafeSource).toHaveBeenCalledTimes(2));
     expect(client.publishFull).toHaveBeenCalledTimes(1);
@@ -717,11 +717,11 @@ describe('BookPdfFlowWorkspace student preview', () => {
     await user.click(screen.getByRole('button', { name: 'Preview as a student' }));
     await user.click(screen.getByRole('button', { name: 'Approve this preview' }));
     await user.click(screen.getByRole('button', { name: /Publish$/i }));
-    await user.click(screen.getAllByRole('button', { name: 'Publish Unit 1', exact: true }).at(-1)!);
-    await user.click(screen.getAllByRole('button', { name: 'Publish Unit 1', exact: true }).at(-1)!);
+    await user.click(screen.getAllByRole('button', { name: 'Publish Unit 2', exact: true }).at(-1)!);
+    await user.click(screen.getAllByRole('button', { name: 'Publish Unit 2', exact: true }).at(-1)!);
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('The Book service is unavailable. Retry.'));
 
-    await user.click(screen.getAllByRole('button', { name: 'Publish Unit 1', exact: true }).at(-1)!);
+    await user.click(screen.getAllByRole('button', { name: 'Publish Unit 2', exact: true }).at(-1)!);
 
     await waitFor(() => expect(client.publishFull).toHaveBeenCalledTimes(2));
     expect(decideStudentSafeSource).toHaveBeenCalledTimes(2);
@@ -774,13 +774,13 @@ describe('BookPdfFlowWorkspace student preview', () => {
     await user.click(screen.getByRole('button', { name: 'Preview as a student' }));
     await user.click(screen.getByRole('button', { name: 'Approve this preview' }));
     await user.click(screen.getByRole('button', { name: /Publish$/i }));
-    await user.click(screen.getByRole('button', { name: 'Publish Unit 1', exact: true }));
-    await user.click(screen.getAllByRole('button', { name: 'Publish Unit 1', exact: true }).at(-1)!);
+    await user.click(screen.getByRole('button', { name: 'Publish Unit 2', exact: true }));
+    await user.click(screen.getAllByRole('button', { name: 'Publish Unit 2', exact: true }).at(-1)!);
 
     expect(client.publishFull).toHaveBeenCalledTimes(1);
-    expect(await screen.findAllByRole('heading', { name: 'Unit 1 is published' })).toHaveLength(2);
+    expect(await screen.findAllByRole('heading', { name: 'Unit 2 is published' })).toHaveLength(1);
     expect(await screen.findByRole('button', { name: 'Refresh publication status' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Publish Unit 1', exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Publish Unit 2', exact: true })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Refresh publication status' }));
     await waitFor(() => expect(client.readCurrentPublication).toHaveBeenCalledTimes(2));
@@ -807,7 +807,7 @@ describe('BookPdfFlowWorkspace student preview', () => {
     await user.click(screen.getByRole('button', { name: 'Approve this preview' }));
     await user.click(screen.getByRole('button', { name: /Publish$/i }));
 
-    expect(screen.getAllByRole('heading', { name: 'Unit 1 is published' })).toHaveLength(2);
+    expect(screen.getAllByRole('heading', { name: 'Unit 2 is published' })).toHaveLength(1);
     expect(screen.queryByText('Nothing is published yet')).not.toBeInTheDocument();
   });
 
@@ -1091,20 +1091,20 @@ describe('BookPdfFlowWorkspace student preview', () => {
     const view = render(<BookPdfFlowWorkspace {...commonProps} editingSection="content-tree" />);
 
     expect(screen.queryByRole('navigation', { name: 'PDF Book progress' })).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Edit the content tree' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Book outline' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Book content tree editor' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Book hierarchy' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Unit 1 content' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeInTheDocument();
 
     view.rerender(<BookPdfFlowWorkspace {...commonProps} editingSection="activity-json" />);
-    expect(screen.getByRole('heading', { name: 'Edit Activity JSON' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Unit activities' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Activity JSON editor' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Activity JSON for Unit 1' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Activities for Unit 2' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Book hierarchy' })).not.toBeInTheDocument();
 
     view.rerender(<BookPdfFlowWorkspace {...commonProps} editingSection="page-mapping" />);
-    expect(screen.getByRole('heading', { name: 'Edit page mapping' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Page mapping' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Continue' })).not.toBeInTheDocument();
   });
 });

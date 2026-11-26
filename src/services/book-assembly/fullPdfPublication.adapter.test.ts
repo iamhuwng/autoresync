@@ -16,6 +16,7 @@ import { InMemoryBookAssemblyPublicationRepository } from './publicationReposito
 import {
   createFullPdfPublicationAdapter,
   createFullPdfPublicationAdapterPlan,
+  createFullPdfPublicationCommandOutput,
   createFullPdfPublicationCommandPlan,
   FullPdfPublicationAdapterError,
   type FullPdfPublicationIds,
@@ -333,5 +334,192 @@ describe('full-PDF publication adapter', () => {
       candidate: candidate(body),
       authority: authority(body, false),
     }))).toThrow('full_pdf_manifest_invalid');
+  });
+
+  it('publishes Unit 2 incrementally while carrying forward Unit 1 via activityVersionRefs', async () => {
+    const twoUnitManifest: BookAssemblyManifestCandidate = {
+      ...manifest(),
+      units: [
+        manifest().units[0]!,
+        {
+          unitKey: 'unit-2',
+          activitySlots: [{
+            activityKey: 'slot-b',
+            order: 1,
+            contextRequirement: 'required',
+            pageGroupKeys: ['pages-b'],
+          }],
+          pageGroups: [{
+            pageGroupKey: 'pages-b',
+            sourceKey: 'full',
+            pages: [4, 5],
+            activityKeys: ['slot-b'],
+            mode: 'activity',
+          }, {
+            pageGroupKey: 'pages-b-transcript',
+            sourceKey: 'full',
+            pages: [10],
+            activityKeys: [],
+            mode: 'reference_only',
+            defaultPhysicalPageNumber: 10,
+          }],
+        },
+      ],
+    };
+    const repository = new InMemoryBookAssemblyPublicationRepository();
+    const canonicalWriter = new InMemoryCanonicalActivityVersionRepository();
+    const service = createCanonicalBookAssemblyPublicationService(repository, canonicalWriter);
+
+    // 1. Publish Unit 1
+    const op1 = '11111111-1111-4111-8111-111111111111';
+    const first = createFullPdfPublicationCommandOutput({
+      ...adapterInput({
+        operationId: op1,
+        candidate: candidate(twoUnitManifest),
+        authority: authority(twoUnitManifest),
+      }),
+      allocateId: (kind, key) => `pub1:${kind}:${key}`,
+    });
+    const pub1 = await service.publish({
+      operationId: op1,
+      expectedCurrentPublicationId: null,
+      manifestVersionId: first.plan.atomicWrites.deliveryPlans[0]!.manifestVersionId,
+      publicationId: first.plan.studentSafeProjection.publicationId,
+      publicationRevision: first.plan.studentSafeProjection.publicationRevision,
+      plan: first.plan,
+      canonicalActivityVersions: first.canonicalActivityVersions,
+      now,
+    });
+    expect(pub1.status).toBe('published');
+    expect(pub1.version?.studentSafeProjection.units.map((u) => u.unitKey)).toEqual(['unit-1']);
+
+    // 2. Publish Unit 2 incrementally on top of Unit 1
+    const op2 = '22222222-2222-4222-8222-222222222222';
+    const scopeAfterFirst = await repository.readScope('book-1');
+    const unit2Candidate: BookAssemblyCandidateRecord = {
+      ...candidate(twoUnitManifest),
+      candidateId: 'candidate-2',
+      unitKey: 'unit-2',
+      revision: 1,
+    };
+    const second = createFullPdfPublicationCommandOutput({
+      ...adapterInput({
+        operationId: op2,
+        unitKey: 'unit-2',
+        candidate: unit2Candidate,
+        authority: authority(twoUnitManifest),
+        expectedCandidateRevision: 1,
+        activitiesByKey: {
+          'slot-b': {
+            activityKey: 'slot-b',
+            ownerId: 'teacher-1',
+            revision: 1,
+            lifecycle: 'draft',
+            activity: adapterInput().activitiesByKey['slot-a']!.activity,
+          },
+        },
+      }),
+      predecessorScope: scopeAfterFirst,
+      predecessor: pub1.version!,
+      allocateId: (kind, key) => `pub2:${kind}:${key}`,
+    });
+    expect(second.plan.studentSafeProjection.publicationRevision).toBe(2);
+    expect(second.plan.studentSafeProjection.units.map((u) => u.unitKey)).toEqual(['unit-1', 'unit-2']);
+    expect(second.plan.atomicWrites.activityVersionRefs).toHaveLength(1);
+    expect(second.plan.atomicWrites.activityVersions).toHaveLength(1);
+    expect(second.plan.atomicWrites.unitProjections.find((u) => u.unitKey === 'unit-2')?.sourcePages.map((p) => p.physicalPageNumber))
+      .toEqual([4, 5, 10]);
+
+    const pub2 = await service.publish({
+      operationId: op2,
+      expectedCurrentPublicationId: pub1.pointer!.publicationId,
+      manifestVersionId: second.plan.atomicWrites.deliveryPlans[0]!.manifestVersionId,
+      publicationId: second.plan.studentSafeProjection.publicationId,
+      publicationRevision: second.plan.studentSafeProjection.publicationRevision,
+      plan: second.plan,
+      canonicalActivityVersions: second.canonicalActivityVersions,
+      now,
+    });
+    expect(pub2.status).toBe('published');
+    expect(pub2.version?.studentSafeProjection.units.map((u) => u.unitKey)).toEqual(['unit-1', 'unit-2']);
+
+    // 3. Republishing an updated Unit 1 increments activityVersion to 2 with activity-revision provenance and carries Unit 2
+    const op3 = '33333333-3333-4333-8333-333333333333';
+    const scopeAfterSecond = await repository.readScope('book-1');
+    const third = createFullPdfPublicationCommandOutput({
+      ...adapterInput({
+        operationId: op3,
+        unitKey: 'unit-1',
+        candidate: candidate(twoUnitManifest),
+        authority: authority(twoUnitManifest),
+      }),
+      predecessor: pub2.version!,
+      predecessorScope: scopeAfterSecond,
+      allocateId: (kind, key) => `pub3:${kind}:${key}`,
+    });
+    expect(third.canonicalActivityVersions[0]?.activityVersion).toBe(2);
+    expect(third.canonicalActivityVersions[0]?.provenance.kind).toBe('activity-revision');
+    expect(third.canonicalActivityVersions[0]?.predecessorActivityVersionId).toBe('pub1:activity-version:slot-a');
+    const pub3 = await service.publish({
+      operationId: op3,
+      expectedCurrentPublicationId: pub2.pointer!.publicationId,
+      manifestVersionId: third.plan.atomicWrites.deliveryPlans[0]!.manifestVersionId,
+      publicationId: third.plan.studentSafeProjection.publicationId,
+      publicationRevision: third.plan.studentSafeProjection.publicationRevision,
+      plan: third.plan,
+      canonicalActivityVersions: third.canonicalActivityVersions,
+      now,
+    });
+    expect(pub3.status).toBe('published');
+    expect(pub3.version?.studentSafeProjection.units.map((u) => u.unitKey)).toEqual(['unit-1', 'unit-2']);
+
+    // 4. Rejects source-set replacement while other published units exist
+    const replacedSourceManifest: BookAssemblyManifestCandidate = {
+      ...twoUnitManifest,
+      sourceSet: {
+        sourceStrategy: 'full_pdf',
+        sources: [{ sourceKey: 'full', sourceVersionId: 'source-full-v2', sourceOrder: 1 }],
+      },
+    };
+    const scopeAfterThird = await repository.readScope('book-1');
+    expect(() => createFullPdfPublicationCommandOutput({
+      ...adapterInput({
+        operationId: '44444444-4444-4444-8444-444444444444',
+        unitKey: 'unit-2',
+        candidate: { ...unit2Candidate, manifest: replacedSourceManifest },
+        authority: authority(replacedSourceManifest),
+        expectedCandidateRevision: 1,
+      }),
+      predecessor: pub3.version!,
+      predecessorScope: scopeAfterThird,
+      allocateId: (kind, key) => `pub4:${kind}:${key}`,
+    })).toThrow('full_pdf_source_set_changed_with_other_published_units');
+
+    // 5. Rejects modifying a carried-forward unit's topology without republishing it
+    const modifiedUnit1Manifest: BookAssemblyManifestCandidate = {
+      ...twoUnitManifest,
+      units: [
+        {
+          ...twoUnitManifest.units[0]!,
+          pageGroups: [{
+            ...twoUnitManifest.units[0]!.pageGroups[0]!,
+            pages: [1, 3],
+          }],
+        },
+        twoUnitManifest.units[1]!,
+      ],
+    };
+    expect(() => createFullPdfPublicationCommandOutput({
+      ...adapterInput({
+        operationId: '55555555-5555-4555-8555-555555555555',
+        unitKey: 'unit-2',
+        candidate: { ...unit2Candidate, manifest: modifiedUnit1Manifest },
+        authority: authority(modifiedUnit1Manifest),
+        expectedCandidateRevision: 1,
+      }),
+      predecessor: pub3.version!,
+      predecessorScope: scopeAfterThird,
+      allocateId: (kind, key) => `pub5:${kind}:${key}`,
+    })).toThrow('full_pdf_predecessor_unit_topology_changed');
   });
 });

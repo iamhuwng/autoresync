@@ -1,5 +1,9 @@
 # Result View Surface Map
 
+## 2026-11-26 Book PDF Unified Multi-Unit Authoring & Incremental Publication
+
+PR #336 registers Book PDF authoring and reconciliation observability actions in `src/config/featureRegistry.ts` alongside the unified multi-unit Book PDF authoring workspace, textbook-native outline import, and incremental unit publication flow. No saved-result shell (`ResultSlidePanel`, `ResultDetailModal`, `LegacyResultDetailView`), `ResultDetailPage` dispatch, `AcademicRecordPage`, result route, or `test_results/{resultId}` data path changes.
+
 ## 2026-11-25 Book PDF (PRD0062) V1 Academic Record & Homework Visibility
 
 PR #331 updates `AcademicRecordPage.tsx` (via `academicRecordBookResults.service.ts`) to list a student's own submitted Book activity results in a dedicated `BOOK ACTIVITY RESULTS` section and updates `StudentHomeworkListPage.tsx` to include Book homework summary projections in student homework tab counts, plus registers Book homework actions in `src/config/featureRegistry.ts`. The three canonical saved-result shells (`ResultSlidePanel`, `ResultDetailModal`, `LegacyResultDetailView`), `ResultDetailPage` routing to `BookResultAdapter`, and `test_results/{resultId}` canonical storage remain unchanged. No new saved-result shell, route, or ownership boundary is added.
