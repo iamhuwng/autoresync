@@ -13,6 +13,7 @@ import {
 } from 'firebase/auth';
 import { ref, get, set, serverTimestamp, onValue, remove } from 'firebase/database';
 import { auth, database, googleProvider, isLocalDevelopment } from '../services/firebaseCore';
+import { normalizeDisplayName, normalizeNamePart } from '../services/studentRegistrationValidation';
 
 const studentAuthWorkerUrl = () => String(import.meta.env.VITE_R2_UPLOAD_WORKER_URL || '').trim().replace(/\/$/u, '');
 
@@ -29,9 +30,10 @@ const studentAuthError = (code) => {
     email_or_password_invalid: ['auth/invalid-credential', 'The email or password is incorrect, or this account uses Google sign-in.'],
     student_id_unavailable: ['auth/student-id-unavailable', 'That student ID is already in use. Please choose another.'],
     student_id_already_assigned: ['auth/student-id-unavailable', 'This account already has a different student ID.'],
+    registration_in_progress: ['auth/registration-in-progress', 'This account is already being registered. Please wait a moment and try again.'],
     invalid_student_id: ['auth/invalid-argument', 'Use 3–32 letters, numbers, dots, underscores or hyphens for the student ID.'],
     invalid_email: ['auth/invalid-email', 'Enter a valid email address.'],
-    weak_password: ['auth/weak-password', 'Choose a password with at least 6 characters.'],
+    weak_password: ['auth/weak-password', 'Choose a password with 6–128 characters.'],
     invalid_display_name: ['auth/invalid-argument', 'Enter your name.'],
     account_unavailable: ['auth/user-disabled', 'This account is unavailable. Please contact an administrator.'],
     rate_limited: ['auth/too-many-requests', 'Too many attempts. Please wait a moment and try again.'],
@@ -473,7 +475,9 @@ export function AuthProvider({ children }) {
       await updatePassword(authUser, password);
     }
     await authUser.reload?.();
-    const displayName = `${firstName} ${familyName}`.trim();
+    const normalizedFirstName = normalizeNamePart(firstName);
+    const normalizedFamilyName = normalizeNamePart(familyName);
+    const displayName = normalizeDisplayName(`${normalizedFirstName} ${normalizedFamilyName}`);
     if (registerGoogle) await updateAuthProfile(authUser, { displayName });
     const idToken = await authUser.getIdToken();
     if (auth.currentUser !== authUser) throw studentAuthError('unauthorized');
@@ -481,8 +485,8 @@ export function AuthProvider({ children }) {
     setProfile((currentProfile) => currentProfile ? { ...currentProfile } : currentProfile);
     await callStudentAuthWorker('/auth/student/ensure-id', {
       studentId,
-      firstName,
-      familyName,
+      firstName: normalizedFirstName,
+      familyName: normalizedFamilyName,
       displayName,
       ...(registerGoogle ? { registerGoogle: true } : {}),
     }, idToken);

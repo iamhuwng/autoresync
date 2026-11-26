@@ -285,6 +285,41 @@ describe('LoginPage', () => {
     expect(mockToastError).toHaveBeenCalledWith('Registration failed: enter a valid email address.');
   });
 
+  it('announces Worker registration failures while retaining registration observability', async () => {
+    mockRegisterWithEmail.mockRejectedValueOnce({ code: 'auth/student-id-unavailable' });
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: /create a student account/i }));
+    await user.type(screen.getByLabelText(/first name/i), 'New');
+    await user.type(screen.getByLabelText(/last name/i), 'Student');
+    await user.type(screen.getByLabelText(/student id \/ username/i), 'taken-student-7');
+    await user.type(screen.getByLabelText(/email address/i), 'new.student@example.com');
+    await user.type(screen.getByLabelText(/^password$/i), 'password123');
+    await user.type(screen.getByLabelText(/confirm password/i), 'password123');
+    await user.click(screen.getByRole('button', { name: /create student account/i }));
+
+    await waitFor(() => expect(mockToastError).toHaveBeenCalledWith(
+      'Registration failed: That student ID is already in use. Please choose another.',
+    ));
+    expect(mockTrackAction).toHaveBeenCalledWith('register', { method: 'email_password', role: 'student' });
+  });
+
+  it('rejects a password outside the Worker-supported length before creating an account', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: /create a student account/i }));
+    await user.type(screen.getByLabelText(/first name/i), 'New');
+    await user.type(screen.getByLabelText(/last name/i), 'Student');
+    await user.type(screen.getByLabelText(/student id \/ username/i), 'short-password-7');
+    await user.type(screen.getByLabelText(/email address/i), 'new.student@example.com');
+    await user.type(screen.getByLabelText(/^password$/i), 'short');
+    await user.type(screen.getByLabelText(/confirm password/i), 'short');
+    await user.click(screen.getByRole('button', { name: /create student account/i }));
+
+    expect(mockRegisterWithEmail).not.toHaveBeenCalled();
+    expect(mockToastError).toHaveBeenCalledWith('Registration failed: choose a password with 6–128 characters.');
+  });
+
   it('sends password reset requests using the account email', async () => {
     const user = userEvent.setup();
     renderPage();

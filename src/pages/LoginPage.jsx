@@ -6,6 +6,13 @@ import { FEATURE_IDS } from '../config/featureRegistry';
 import { Card, CardBody, Button, toast } from '../components/modern';
 import { IconBrandGoogle } from '@tabler/icons-react';
 import { sessionStore } from '../core/platform/storage';
+import {
+  isValidRegistrationPassword,
+  normalizeDisplayName,
+  normalizeNamePart,
+  normalizeRegistrationEmail,
+  normalizeStudentId,
+} from '../services/studentRegistrationValidation';
 
 export const canUseDevQuickLogin = (
   mode = import.meta.env.MODE,
@@ -21,10 +28,6 @@ const DEV_LOGIN_CREDENTIALS = import.meta.env.MODE === 'production' ? {} : {
   teacher2: { email: 'teacher2@test.com', password: 'password123' },
   student: { id: 'student', email: 'student@test.com', password: 'student' },
 };
-
-const RESERVED_STUDENT_IDS = new Set([
-  'admin', 'administrator', 'root', 'system', 'support', 'teacher', 'student', 'superadmin',
-]);
 
 const inputStyle = {
   width: '100%',
@@ -173,8 +176,11 @@ const LoginPage = () => {
     if (errorCode === 'auth/student-id-unavailable') {
       return 'That student ID is already in use. Please choose another.';
     }
+    if (errorCode === 'auth/registration-in-progress') {
+      return 'This account is already being registered. Please wait a moment and try again.';
+    }
     if (errorCode === 'auth/weak-password') {
-      return 'Choose a password with at least 6 characters.';
+      return 'Choose a password with 6–128 characters.';
     }
     if (errorCode === 'auth/email-already-in-use') {
       return 'This email is already registered. Sign in instead, or use Google if that is how the account was created.';
@@ -262,19 +268,25 @@ const LoginPage = () => {
   const handleRegistrationSubmit = async (event) => {
     event.preventDefault();
     if (formPending) return;
-    const normalizedStudentId = studentId.trim().normalize('NFKC');
-    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{2,31}$/u.test(normalizedStudentId)
-      || RESERVED_STUDENT_IDS.has(normalizedStudentId.toLowerCase())) {
+    const normalizedStudentId = normalizeStudentId(studentId);
+    if (!normalizedStudentId) {
       toast.error('Registration failed: choose a student ID with 3–32 letters, numbers, dots, underscores or hyphens.');
       return;
     }
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(normalizedEmail)) {
+    const normalizedEmail = normalizeRegistrationEmail(email);
+    if (!normalizedEmail) {
       toast.error('Registration failed: enter a valid email address.');
       return;
     }
-    if (firstName.trim().length < 1 || familyName.trim().length < 1) {
+    const normalizedFirstName = normalizeNamePart(firstName);
+    const normalizedFamilyName = normalizeNamePart(familyName);
+    if (!normalizedFirstName || !normalizedFamilyName) {
       toast.error('Registration failed: enter your first and last name.');
+      return;
+    }
+    const normalizedDisplayName = normalizeDisplayName(`${normalizedFirstName} ${normalizedFamilyName}`);
+    if (!isValidRegistrationPassword(password)) {
+      toast.error('Registration failed: choose a password with 6–128 characters.');
       return;
     }
     if (password !== confirmPassword) {
@@ -286,12 +298,12 @@ const LoginPage = () => {
     trackAction('register', { method: googleRegistration ? 'google_password' : 'email_password', role: 'student' });
     try {
       if (googleRegistration) {
-        await completeGoogleRegistration({ studentId: normalizedStudentId, password, firstName: firstName.trim(), familyName: familyName.trim() });
+        await completeGoogleRegistration({ studentId: normalizedStudentId.display, password, firstName: normalizedFirstName, familyName: normalizedFamilyName });
         await sessionStore.remove(`google-registration-draft:${user.uid}`);
       } else {
-        await registerWithEmail(normalizedEmail, password, `${firstName.trim()} ${familyName.trim()}`, normalizedStudentId);
+        await registerWithEmail(normalizedEmail, password, normalizedDisplayName, normalizedStudentId.display);
       }
-      toast.success(`Student account created. Your student ID is ${normalizedStudentId}. You can use it or your email to sign in.`);
+      toast.success(`Student account created. Your student ID is ${normalizedStudentId.display}. You can use it or your email to sign in.`);
     } catch (error) {
       console.error('Student registration error:', error);
       if (error?.code === 'auth/email-not-verified') {

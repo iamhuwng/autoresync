@@ -25,9 +25,6 @@ const createMemoryDatabase = (seed: Record<string, unknown> = {}) => {
       writeValue(path, value);
       return true;
     }),
-    patchAdminMultiLocation: vi.fn(async (updates: Readonly<Record<string, unknown>>) => {
-      Object.entries(updates).forEach(([path, value]) => writeValue(path, value));
-    }),
   };
 };
 
@@ -63,6 +60,26 @@ const makeGoogleRegistration = (studentId: string) => makeRequest('/auth/student
 const googleIdentity = {
   valid: true, uid: 'google-new', email: 'google@example.com', emailVerified: true, hasGoogleIdentity: true,
 };
+
+const makeEmailRegistration = (studentId: string) => makeRequest('/auth/student/register', {
+  email: 'student@example.com', password: 'password123', displayName: 'Email Student', studentId,
+});
+
+const makeEmailWorker = (database: ReturnType<typeof createMemoryDatabase>, now?: () => number) => (
+  createStudentAuthWorkerHandlers({
+    databaseFactory: () => database,
+    identityToolkit: async () => ({
+      ok: true, status: 200, data: { localId: 'email-student', idToken: 'firebase-id-token' },
+    }),
+    createCustomToken: async () => 'signed-custom-token',
+    rateLimit: async () => true,
+    now,
+  })
+);
+
+const loginIndexPaths = (database: ReturnType<typeof createMemoryDatabase>) => (
+  [...database.values.keys()].filter((path) => path.startsWith('student_login_ids/'))
+);
 
 describe('student authentication Worker', () => {
   it('creates student-only profiles and a private hashed ID index', async () => {
@@ -115,6 +132,82 @@ describe('student authentication Worker', () => {
     expect(payload).not.toHaveProperty('email');
   });
 
+  it('returns success when the profile is saved before the write response is lost', async () => {
+    const database = createMemoryDatabase();
+    const writeIfMatch = database.writeIfMatch.getMockImplementation()!;
+    database.writeIfMatch.mockImplementation(async (path, value, etag) => {
+      const saved = await writeIfMatch(path, value, etag);
+      if (path === 'users/email-student') throw new Error('profile_response_lost');
+      return saved;
+    });
+
+    const response = await makeEmailWorker(database).fetch(makeEmailRegistration('committed-7'), makeEnv());
+
+    expect(response.status).toBe(200);
+    expect(database.values.get('users/email-student')).toMatchObject({ role: 'student', status: 'active' });
+    expect(database.values.get('student_identifiers/email-student')).toMatchObject({ studentId: 'committed-7' });
+  });
+
+  it('resumes registration from a confirmed ID after profile creation fails', async () => {
+    const database = createMemoryDatabase();
+    const writeIfMatch = database.writeIfMatch.getMockImplementation()!;
+    database.writeIfMatch.mockImplementation(async (path, value, etag) => {
+      if (path === 'users/email-student') throw new Error('profile_write_failed');
+      return writeIfMatch(path, value, etag);
+    });
+    const worker = makeEmailWorker(database);
+
+    const failed = await worker.fetch(makeEmailRegistration('resume-7'), makeEnv());
+    expect(failed.status).toBe(503);
+    expect(database.values.has('users/email-student')).toBe(false);
+    expect(database.values.get('student_identifiers/email-student')).toMatchObject({ studentId: 'resume-7' });
+
+    database.writeIfMatch.mockImplementation(writeIfMatch);
+    const different = await worker.fetch(makeEmailRegistration('different-7'), makeEnv());
+    expect(await readJson(different)).toEqual({ code: 'student_id_already_assigned' });
+    const retry = await worker.fetch(makeEmailRegistration('RESUME-7'), makeEnv());
+    expect(retry.status).toBe(200);
+    expect(await readJson(retry)).toMatchObject({ studentId: 'resume-7' });
+    expect(database.values.get('users/email-student')).toMatchObject({ role: 'student', status: 'active' });
+    expect(loginIndexPaths(database)).toHaveLength(1);
+  });
+
+  it.each([false, true])('preserves the assigned ID across competing requests (expired claim: %s)', async (expired) => {
+    const database = createMemoryDatabase();
+    const writeIfMatch = database.writeIfMatch.getMockImplementation()!;
+    const started = Promise.withResolvers<void>();
+    const resume = Promise.withResolvers<void>();
+    let time = 1_800_000_000_000;
+    database.writeIfMatch.mockImplementation(async (path, value, etag) => {
+      if (path === 'student_identifiers/email-student' && !database.values.has(path) && time === 1_800_000_000_000) {
+        started.resolve();
+        await resume.promise;
+      }
+      return writeIfMatch(path, value, etag);
+    });
+    const worker = makeEmailWorker(database, () => time);
+    const first = worker.fetch(makeEmailRegistration('first-7'), makeEnv());
+    await started.promise;
+    if (expired) time += 5 * 60 * 1000 + 1;
+
+    const second = await worker.fetch(makeEmailRegistration('second-7'), makeEnv());
+    resume.resolve();
+    const firstResponse = await first;
+
+    const winner = expired ? 'second-7' : 'first-7';
+    expect((expired ? second : firstResponse).status).toBe(200);
+    const loser = expired ? firstResponse : second;
+    expect(loser.status).toBe(409);
+    expect(await readJson(loser)).toEqual({
+      code: expired ? 'student_id_already_assigned' : 'registration_in_progress',
+    });
+    expect(database.values.get('users/email-student')).toMatchObject({ uid: 'email-student', role: 'student' });
+    expect(database.values.get('student_identifiers/email-student')).toMatchObject({ studentId: winner });
+    expect(loginIndexPaths(database)).toHaveLength(1);
+    const later = await worker.fetch(makeEmailRegistration(expired ? 'first-7' : 'second-7'), makeEnv());
+    expect(await readJson(later)).toEqual({ code: 'student_id_already_assigned' });
+  });
+
   it('authenticates student IDs without returning the linked email address', async () => {
     const database = createMemoryDatabase();
     const identityToolkit = vi.fn(async (operation: string, body: Record<string, unknown>) => ({
@@ -164,14 +257,9 @@ describe('student authentication Worker', () => {
   it('does not allow a second account to claim an existing student ID', async () => {
     const database = createMemoryDatabase();
     let nextUid = 0;
-    const deletedAccounts: string[] = [];
     const identityToolkit = vi.fn(async (operation: string, body: Record<string, unknown>) => {
       if (operation === 'accounts:signInWithPassword') {
         return { ok: false, status: 400, data: { error: { message: 'EMAIL_NOT_FOUND' } } };
-      }
-      if (operation === 'accounts:delete') {
-        deletedAccounts.push(String(body.idToken));
-        return { ok: true, status: 200, data: {} };
       }
       nextUid += 1;
       return { ok: true, status: 200, data: { localId: `student-${nextUid}`, idToken: `id-token-${nextUid}`, email: body.email } };
@@ -193,7 +281,7 @@ describe('student authentication Worker', () => {
     expect(first.status).toBe(201);
     expect(second.status).toBe(409);
     expect(await readJson(second)).toEqual({ code: 'student_id_unavailable' });
-    expect(deletedAccounts).toContain('id-token-2');
+    expect(nextUid).toBe(1);
     expect(database.values.has('users/student-2')).toBe(false);
   });
 
@@ -343,7 +431,6 @@ describe('student authentication Worker', () => {
     expect(response.status).toBe(403);
     expect(await readJson(response)).toEqual({ code: 'account_unavailable' });
     expect(database.writeIfMatch).not.toHaveBeenCalled();
-    expect(database.patchAdminMultiLocation).not.toHaveBeenCalled();
   });
 
   it('rejects changing an assigned student ID without mutating the profile or identifier', async () => {

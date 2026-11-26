@@ -5,13 +5,16 @@ import {
 import { FirebaseRtdbRestClient } from '../listening-authoring/rtdb.ts';
 // @ts-ignore JavaScript module has no declaration file.
 import { parseSpareAllowedLocalhostOrigins } from '../cors-policy.js';
+import {
+  isValidRegistrationPassword,
+  normalizeDisplayName,
+  normalizeNamePart,
+  normalizeRegistrationEmail,
+  normalizeStudentId,
+} from '../../../../src/services/studentRegistrationValidation.ts';
 
 const MAX_BODY_BYTES = 8 * 1024;
 const FIREBASE_CUSTOM_TOKEN_AUDIENCE = 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit';
-const STUDENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{2,31}$/u;
-const RESERVED_STUDENT_IDS = new Set([
-  'admin', 'administrator', 'root', 'system', 'support', 'teacher', 'student', 'superadmin',
-]);
 const STUDENT_ID_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 interface StudentAuthWorkerEnv extends Record<string, unknown> {
@@ -57,8 +60,16 @@ interface StudentAuthDatabase {
   readValue(path: string): Promise<unknown>;
   readWithEtag<T = unknown>(path: string): Promise<{ data: T | null; etag: string }>;
   writeIfMatch(path: string, value: unknown, etag: string): Promise<boolean>;
-  patchAdminMultiLocation(updates: Readonly<Record<string, unknown>>): Promise<void>;
 }
+
+interface RegistrationClaim {
+  readonly path: string;
+  readonly uid: string;
+  readonly operationId: string;
+  readonly startedAt: number;
+}
+
+const REGISTRATION_CLAIM_TTL_MS = 5 * 60 * 1000;
 
 interface StudentAuthWorkerOptions {
   readonly firebaseVerifier?: FirebaseVerifier;
@@ -69,7 +80,7 @@ interface StudentAuthWorkerOptions {
     fetchImpl: typeof fetch,
   ) => Promise<StudentAuthDatabase> | StudentAuthDatabase;
   readonly identityToolkit?: (
-    operation: 'accounts:signUp' | 'accounts:signInWithPassword' | 'accounts:delete',
+    operation: 'accounts:signUp' | 'accounts:signInWithPassword',
     body: Record<string, unknown>,
     origin: string,
     env: StudentAuthWorkerEnv,
@@ -104,13 +115,6 @@ const isLocalEmulator = (env: StudentAuthWorkerEnv): boolean => {
   } catch {
     return false;
   }
-};
-
-const normalizeStudentId = (value: unknown): { display: string; normalized: string } | null => {
-  if (typeof value !== 'string') return null;
-  const display = value.trim().normalize('NFKC');
-  if (!STUDENT_ID_PATTERN.test(display) || RESERVED_STUDENT_IDS.has(display.toLowerCase())) return null;
-  return { display, normalized: display.toLowerCase() };
 };
 
 const hashStudentId = async (normalized: string): Promise<string> => {
@@ -182,15 +186,6 @@ const createLocalDatabase = (
       if (!response.ok) throw new Error(`database_write_failed:${response.status}`);
       return true;
     },
-    async patchAdminMultiLocation(updates) {
-      if (Object.keys(updates).length < 2) throw new Error('database_patch_invalid');
-      const response = await request('', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      });
-      if (!response.ok) throw new Error(`database_patch_failed:${response.status}`);
-    },
   };
 };
 
@@ -238,7 +233,7 @@ const createProductionDatabase = (
 };
 
 const identityToolkitRequest = async (
-  operation: 'accounts:signUp' | 'accounts:signInWithPassword' | 'accounts:delete',
+  operation: 'accounts:signUp' | 'accounts:signInWithPassword',
   body: Record<string, unknown>,
   origin: string,
   env: StudentAuthWorkerEnv,
@@ -351,7 +346,7 @@ const reserveStudentId = async (
   uid: string,
   studentId: { display: string; normalized: string },
   now: number,
-): Promise<{ hash: string; createdAt: number } | null> => {
+): Promise<{ hash: string; createdAt: number; created: boolean } | null> => {
   const hash = await hashStudentId(studentId.normalized);
   const path = `student_login_ids/${hash}`;
   const current = await database.readWithEtag<Record<string, unknown>>(path);
@@ -360,10 +355,11 @@ const reserveStudentId = async (
     return {
       hash,
       createdAt: typeof current.data.createdAt === 'number' ? current.data.createdAt : now,
+      created: false,
     };
   }
   if (!await database.writeIfMatch(path, { uid, createdAt: now }, current.etag)) return null;
-  return { hash, createdAt: now };
+  return { hash, createdAt: now, created: true };
 };
 
 const releaseStudentIdReservation = async (
@@ -377,6 +373,39 @@ const releaseStudentIdReservation = async (
     if (current.data?.uid === uid) await database.writeIfMatch(path, null, current.etag);
   } catch {
     // A stale mapping cannot authenticate without a matching active profile.
+  }
+};
+
+const acquireRegistrationClaim = async (
+  database: StudentAuthDatabase,
+  uid: string,
+  now: number,
+): Promise<RegistrationClaim | null> => {
+  const path = `student_registration_claims/${uid}`;
+  const current = await database.readWithEtag<Record<string, unknown>>(path);
+  const startedAt = typeof current.data?.startedAt === 'number' ? current.data.startedAt : 0;
+  if (current.data?.uid === uid
+    && typeof current.data.operationId === 'string'
+    && now - startedAt < REGISTRATION_CLAIM_TTL_MS) {
+    return null;
+  }
+  const operationId = crypto.randomUUID();
+  const claim = { uid, operationId, startedAt: now };
+  if (!await database.writeIfMatch(path, claim, current.etag)) return null;
+  return { path, ...claim };
+};
+
+const releaseRegistrationClaim = async (
+  database: StudentAuthDatabase,
+  claim: RegistrationClaim,
+): Promise<void> => {
+  try {
+    const current = await database.readWithEtag<Record<string, unknown>>(claim.path);
+    if (current.data?.uid === claim.uid && current.data.operationId === claim.operationId) {
+      await database.writeIfMatch(claim.path, null, current.etag);
+    }
+  } catch {
+    // A retry can replace an expired claim.
   }
 };
 
@@ -437,134 +466,102 @@ export const createStudentAuthWorkerHandlers = (options: StudentAuthWorkerOption
   ): Promise<{ body: Record<string, unknown>; status: number }> => {
     const studentId = normalizeStudentId(body.studentId);
     if (!studentId) return workerError('invalid_student_id', 400);
-    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+    const email = normalizeRegistrationEmail(body.email) ?? '';
     const password = typeof body.password === 'string' ? body.password : '';
-    const displayName = typeof body.displayName === 'string' ? body.displayName.trim().slice(0, 80) : '';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email) || email.length > 254) {
+    const displayName = normalizeDisplayName(body.displayName);
+    if (!email) {
       return workerError('invalid_email', 400);
     }
-    if (password.length < 6 || password.length > 128) return workerError('weak_password', 400);
+    if (!isValidRegistrationPassword(password)) return workerError('weak_password', 400);
     if (displayName.length < 2) return workerError('invalid_display_name', 400);
 
-    const signIn = await callIdentityToolkit('accounts:signInWithPassword', {
-      email,
-      password,
-      returnSecureToken: true,
-    }, origin, env);
-    let authResult: Record<string, unknown>;
-    let createdAccount = false;
-    if (signIn.ok) {
-      authResult = signIn.data;
-    } else {
-      const signUp = await callIdentityToolkit('accounts:signUp', {
-        email,
-        password,
-        returnSecureToken: true,
-      }, origin, env);
-      if (!signUp.ok) {
-        const code = identityErrorCode(signUp);
-        if (code === 'WEAK_PASSWORD : Password should be at least 6 characters'
-          || code.startsWith('WEAK_PASSWORD')) return workerError('weak_password', 400);
-        if (code === 'EMAIL_EXISTS') return workerError('email_or_password_invalid', 409);
-        return workerError('registration_unavailable', 400);
+    try {
+      const database = await resolveDatabase(env, fetchImpl);
+      const credentials = { email, password, returnSecureToken: true };
+      let result = await callIdentityToolkit('accounts:signInWithPassword', credentials, origin, env);
+      const createdAccount = !result.ok;
+      if (createdAccount) {
+        const hash = await hashStudentId(studentId.normalized);
+        if (await database.readValue(`student_login_ids/${hash}`)) {
+          return workerError('student_id_unavailable', 409);
+        }
+        result = await callIdentityToolkit('accounts:signUp', credentials, origin, env);
+        if (!result.ok) {
+          const code = identityErrorCode(result);
+          if (code.startsWith('WEAK_PASSWORD')) return workerError('weak_password', 400);
+          if (code === 'EMAIL_EXISTS') return workerError('email_or_password_invalid', 409);
+          return workerError('registration_unavailable', 400);
+        }
       }
-      authResult = signUp.data;
-      createdAccount = true;
-    }
 
-    const uid = typeof authResult.localId === 'string' ? authResult.localId : '';
-    const idToken = typeof authResult.idToken === 'string' ? authResult.idToken : '';
-    const resolvedEmail = typeof authResult.email === 'string' ? authResult.email : email;
-    if (!uid || !idToken || !/^[A-Za-z0-9_-]{1,128}$/u.test(uid)) {
-      return workerError('registration_unavailable', 503);
-    }
-
-    let database: StudentAuthDatabase;
-    try {
-      database = await resolveDatabase(env, fetchImpl);
-    } catch {
-      if (createdAccount) await callIdentityToolkit('accounts:delete', { idToken }, origin, env).catch(() => undefined);
-      return workerError('student_auth_unavailable', 503);
-    }
-
-    let profile: Record<string, unknown> | null;
-    try {
-      profile = asRecord(await database.readValue(`users/${uid}`));
-    } catch {
-      if (createdAccount) await callIdentityToolkit('accounts:delete', { idToken }, origin, env).catch(() => undefined);
-      return workerError('student_auth_unavailable', 503);
-    }
-    if (profile && !accountAvailable(profile)) {
-      if (createdAccount) await callIdentityToolkit('accounts:delete', { idToken }, origin, env).catch(() => undefined);
-      return workerError('account_unavailable', 403);
-    }
-    let existingIdentifier: Record<string, unknown> | null;
-    try {
-      existingIdentifier = asRecord(await database.readValue(`student_identifiers/${uid}`));
-    } catch {
-      if (createdAccount) await callIdentityToolkit('accounts:delete', { idToken }, origin, env).catch(() => undefined);
-      return workerError('student_auth_unavailable', 503);
-    }
-    const existingStudentId = normalizeStudentId(existingIdentifier?.studentId);
-    if (existingStudentId && existingStudentId.normalized !== studentId.normalized) {
-      if (createdAccount) await callIdentityToolkit('accounts:delete', { idToken }, origin, env).catch(() => undefined);
-      return workerError('student_id_already_assigned', 409);
-    }
-
-    let reservation: { hash: string; createdAt: number } | null = null;
-    let profileCommitted = false;
-    try {
-      reservation = await reserveStudentId(database, uid, studentId, now());
-      if (!reservation) {
-        if (createdAccount) await callIdentityToolkit('accounts:delete', { idToken }, origin, env).catch(() => undefined);
-        return workerError('student_id_unavailable', 409);
+      const uid = result.data.localId;
+      if (typeof uid !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/u.test(uid)
+        || typeof result.data.idToken !== 'string' || !result.data.idToken) {
+        return workerError('registration_unavailable', 503);
       }
-      const nextProfile = profile
-        ? { ...profile, lastLoginAt: now() }
-        : createStudentProfile({
-          uid,
-          email: resolvedEmail,
-          displayName,
-          now: now(),
-        });
-      if (!profile) {
-        nextProfile.displayName = displayName;
-      }
-      const local = isLocalEmulator(env);
-      const token = local ? null : await signCustomToken(uid, env);
+      const resolvedEmail = typeof result.data.email === 'string' ? result.data.email : email;
+      const claim = await acquireRegistrationClaim(database, uid, now());
+      if (!claim) return workerError('registration_in_progress', 409);
+
       try {
-        await database.patchAdminMultiLocation({
-          [`users/${uid}`]: nextProfile,
-          [`student_identifiers/${uid}`]: {
+        const profilePath = `users/${uid}`;
+        const identifierPath = `student_identifiers/${uid}`;
+        const [profile, identifier] = await Promise.all([
+          database.readWithEtag<Record<string, unknown>>(profilePath),
+          database.readWithEtag<Record<string, unknown>>(identifierPath),
+        ]);
+        if (profile.data !== null && !accountAvailable(asRecord(profile.data))) {
+          return workerError('account_unavailable', 403);
+        }
+        let assignedId = normalizeStudentId(identifier.data?.studentId);
+        if (assignedId && assignedId.normalized !== studentId.normalized) {
+          return workerError('student_id_already_assigned', 409);
+        }
+
+        const local = isLocalEmulator(env);
+        const token = local ? null : await signCustomToken(uid, env);
+        const reservation = await reserveStudentId(database, uid, assignedId ?? studentId, now());
+        if (!reservation) return workerError('student_id_unavailable', 409);
+
+        if (!assignedId) {
+          // The identifier's conditional write decides the winner even after a claim expires.
+          const saved = await database.writeIfMatch(identifierPath, {
             uid,
             studentId: studentId.display,
             normalizedStudentId: studentId.normalized,
-            createdAt: typeof existingIdentifier?.createdAt === 'number' ? existingIdentifier.createdAt : reservation.createdAt,
+            createdAt: reservation.createdAt,
+          }, identifier.etag).catch(() => false);
+          const stored = saved ? studentId : normalizeStudentId(asRecord(await database.readValue(identifierPath))?.studentId);
+          if (!stored) return workerError('student_auth_unavailable', 503);
+          if (stored.normalized !== studentId.normalized) {
+            if (reservation.created) await releaseStudentIdReservation(database, reservation.hash, uid);
+            return workerError('student_id_already_assigned', 409);
+          }
+          assignedId = stored;
+        }
+
+        if (profile.data === null) {
+          const nextProfile = createStudentProfile({ uid, email: resolvedEmail, displayName, now: now() });
+          const saved = await database.writeIfMatch(profilePath, nextProfile, profile.etag).catch(() => false);
+          if (!saved) {
+            const stored = await database.readValue(profilePath);
+            if (stored === null) return workerError('student_auth_unavailable', 503);
+            if (!accountAvailable(asRecord(stored))) return workerError('account_unavailable', 403);
+          }
+        }
+
+        return {
+          body: {
+            studentId: assignedId.display,
+            ...(local ? { email: resolvedEmail } : { customToken: token }),
           },
-          [`student_login_ids/${reservation.hash}`]: { uid, createdAt: reservation.createdAt },
-        });
-      } catch {
-        const [storedIdentifier, storedIndex] = await Promise.all([
-          database.readValue(`student_identifiers/${uid}`).then(asRecord).catch(() => null),
-          database.readValue(`student_login_ids/${reservation!.hash}`).then(asRecord).catch(() => null),
-        ]);
-        const committed = normalizeStudentId(storedIdentifier?.studentId)?.normalized === studentId.normalized
-          && storedIndex?.uid === uid;
-        if (!committed) throw new Error('student_profile_write_failed');
+          status: createdAccount ? 201 : 200,
+        };
+      } finally {
+        await releaseRegistrationClaim(database, claim);
       }
-      profileCommitted = true;
-      return {
-        body: {
-          studentId: studentId.display,
-          ...(local ? { email: resolvedEmail } : { customToken: token }),
-        },
-        status: createdAccount ? 201 : 200,
-      };
     } catch {
-      if (!profileCommitted) {
-        if (reservation) await releaseStudentIdReservation(database, reservation.hash, uid);
-        if (createdAccount) await callIdentityToolkit('accounts:delete', { idToken }, origin, env).catch(() => undefined);
-      }
+      // Auth and confirmed ID records can be resumed by a retry with the same credentials.
       return workerError('student_auth_unavailable', 503);
     }
   };
@@ -640,9 +637,9 @@ export const createStudentAuthWorkerHandlers = (options: StudentAuthWorkerOption
       const suppliedStudentId = Object.prototype.hasOwnProperty.call(body, 'studentId');
       const requestedId = normalizeStudentId(body.studentId);
       if ((suppliedStudentId || registerGoogle) && !requestedId) return workerError('invalid_student_id', 400);
-      const displayName = typeof body.displayName === 'string' ? body.displayName.trim().slice(0, 80) : '';
-      const firstName = typeof body.firstName === 'string' ? body.firstName.trim().slice(0, 50) : '';
-      const familyName = typeof body.familyName === 'string' ? body.familyName.trim().slice(0, 50) : '';
+      const displayName = normalizeDisplayName(body.displayName);
+      const firstName = normalizeNamePart(body.firstName);
+      const familyName = normalizeNamePart(body.familyName);
       if (registerGoogle && (!firstName || !familyName || !displayName)) return workerError('invalid_display_name', 400);
 
       const identifierPath = `student_identifiers/${uid}`;
