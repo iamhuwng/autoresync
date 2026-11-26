@@ -19,6 +19,7 @@ import {
   type ComponentPdfActivationCommandInput,
 } from '../../../../src/services/book-assembly/componentPdfActivation.service.ts';
 import { canonicalActivityPayloadFingerprint } from '../../../../src/services/book-assembly/unitPreview.service.ts';
+import { allowedActivitySlotEvidenceRefs } from '../../../../src/services/book-assembly/unitPrompt.service.ts';
 import { FirebaseRestBookAssemblyPreviewApprovalRepository } from './preview-approval-repository.ts';
 import { FirebaseRestUnitActivityBindingRepository } from './unit-activity-binding-repository.ts';
 import { createBookResultReadProductionHandlers } from '../book-results/production-composition.ts';
@@ -105,16 +106,13 @@ const savedActivityMatchesFinalManifest = (
   if (!unit || !slot || !sealValid
     || !activityMatchesAssemblyContract(content, { activityKey, contextRequirement: slot.contextRequirement })) return false;
   const groups = new Map(unit.pageGroups.map((group) => [group.pageGroupKey, group]));
-  const allowedRefs = new Set<string>([`import:${activityKey}`]);
+  const allowedRefs = new Set<string>(allowedActivitySlotEvidenceRefs(unit, activityKey));
   const mappedBookPageRefs: string[] = [];
   for (const pageGroupKey of slot.pageGroupKeys) {
     const group = groups.get(pageGroupKey);
     if (!group) return false;
-    allowedRefs.add(`pageGroup:${pageGroupKey}`);
     for (const page of group.pages) {
-      const ref = `source:${group.sourceKey}:page:${page}`;
-      allowedRefs.add(ref);
-      mappedBookPageRefs.push(ref);
+      mappedBookPageRefs.push(`source:${group.sourceKey}:page:${page}`);
     }
   }
   if (!mappedBookPageRefs.length || !validateEditableActivity(record(saved)?.content, { mappedBookPageRefs }).valid) return false;

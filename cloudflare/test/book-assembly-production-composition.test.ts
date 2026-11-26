@@ -257,5 +257,28 @@ describe('production source publication boundary', () => {
       { readOwnerRoot: async () => ({ candidates: { [binding.candidateId]: legacySavedWithoutSourceSetSeal }, activities: { [binding.activityId]: activity } }) },
     );
     expect(rejectedWithoutSourceSetSeal).toEqual([]);
+
+    // Unit-scoped reference_only page groups (e.g. transcripts/answer keys) MUST be accepted in evidence refs
+    const manifestWithTranscript = {
+      ...fullManifest,
+      units: [{
+        ...fullManifest.units[0]!,
+        pageGroups: [
+          ...fullManifest.units[0]!.pageGroups,
+          { pageGroupKey: 'pages-unit-02-transcript', sourceKey: 'full', pages: [88, 89], activityKeys: [], mode: 'reference_only' },
+        ],
+      }],
+    };
+    const savedWithTranscriptEvidence = {
+      ...saved,
+      sourceEvidenceRefs: ['source:full:page:9', 'pageGroup:pages-unit-02-transcript'],
+      answerEvidenceRefs: ['source:full:page:88'],
+    };
+    const verifiedWithTranscript = await readVerifiedDraftActivityKeys(
+      { ...assembly, manifest: manifestWithTranscript } as never,
+      { read: async () => binding as never },
+      { readOwnerRoot: async () => ({ candidates: { [binding.candidateId]: savedWithTranscriptEvidence }, activities: { [binding.activityId]: activity } }) },
+    );
+    expect(verifiedWithTranscript).toEqual(['u02-ex1']);
   });
 });

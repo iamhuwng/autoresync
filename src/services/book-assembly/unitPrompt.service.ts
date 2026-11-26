@@ -59,20 +59,32 @@ const sourcePageRefs = (unit: BookUnitCandidate): string[] => {
   return [...refs].sort();
 };
 
-const slotSourcePageRefs = (
+export const allowedActivitySlotEvidenceRefs = (
   unit: BookUnitCandidate,
-  slot: BookUnitCandidate['activitySlots'][number],
+  activityKey: string,
 ): string[] => {
+  const slot = unit.activitySlots.find((entry) => entry.activityKey === activityKey);
+  const refs = new Set<string>([`import:${activityKey}`]);
+  if (!slot) return [...refs];
   const groups = new Map(unit.pageGroups.map((group) => [group.pageGroupKey, group]));
-  const refs = new Set<string>([`import:${slot.activityKey}`]);
-  for (const pageGroupKey of slot.pageGroupKeys) {
-    const group = groups.get(pageGroupKey);
-    if (!group) continue;
+  const addGroup = (group: BookUnitCandidate['pageGroups'][number] | undefined) => {
+    if (!group) return;
     refs.add(`pageGroup:${group.pageGroupKey}`);
     for (const page of group.pages) refs.add(`source:${group.sourceKey}:page:${page}`);
+  };
+  for (const pageGroupKey of slot.pageGroupKeys) {
+    addGroup(groups.get(pageGroupKey));
+  }
+  for (const group of unit.pageGroups) {
+    if (group.mode === 'reference_only') addGroup(group);
   }
   return [...refs].sort();
 };
+
+const slotSourcePageRefs = (
+  unit: BookUnitCandidate,
+  slot: BookUnitCandidate['activitySlots'][number],
+): string[] => allowedActivitySlotEvidenceRefs(unit, slot.activityKey);
 
 const supportedActivityContract = {
   families: [
@@ -163,8 +175,8 @@ export const buildUnitActivityImportPrompt = ({
           scoring: { mode: 'auto-where-possible' },
         },
         evidenceRefs: [`import:${slot.activityKey}`],
-        sourceEvidenceRefs: sourcePageRefs(unit).slice(0, 1),
-        answerEvidenceRefs: sourcePageRefs(unit).slice(0, 1),
+        sourceEvidenceRefs: slotSourcePageRefs(unit, slot).filter((ref) => !ref.startsWith('import:')).slice(0, 1),
+        answerEvidenceRefs: slotSourcePageRefs(unit, slot).filter((ref) => !ref.startsWith('import:')).slice(0, 1),
       })),
     },
   };
