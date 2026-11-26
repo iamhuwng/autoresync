@@ -3,6 +3,7 @@ import type { ActivityStageResult } from '../book-activity/activityAuthoring.rep
 import { ActivityAuthoringHttpError } from '../book-activity/activityStorage.service';
 import type { BookAssemblyManifestCandidate, BookUnitCandidate } from '../../types/bookAssembly.types';
 import {
+  allowedActivitySlotEvidenceRefs,
   BULK_UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
   BULK_UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION,
   UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
@@ -123,19 +124,9 @@ const assertNoForbidden = (value: unknown, path = '$'): void => {
     assertNoForbidden(entry, `${path}.${key}`);
   }
 };
-const allowedEvidenceRefsForSlot = (unit: BookUnitCandidate, activityKey: string): Set<string> => {
-  const slot = unit.activitySlots.find((entry) => entry.activityKey === activityKey);
-  const refs = new Set<string>([`import:${activityKey}`]);
-  if (!slot) return refs;
-  const groups = new Map(unit.pageGroups.map((group) => [group.pageGroupKey, group]));
-  for (const groupKey of slot.pageGroupKeys) {
-    const group = groups.get(groupKey);
-    if (!group) continue;
-    refs.add(`pageGroup:${group.pageGroupKey}`);
-    for (const page of group.pages) refs.add(`source:${group.sourceKey}:page:${page}`);
-  }
-  return refs;
-};
+const allowedEvidenceRefsForSlot = (unit: BookUnitCandidate, activityKey: string): Set<string> => (
+  new Set(allowedActivitySlotEvidenceRefs(unit, activityKey))
+);
 const clientMappedBookPageRefsForSlot = (unit: BookUnitCandidate, activityKey: string): string[] => {
   const slot = unit.activitySlots.find((entry) => entry.activityKey === activityKey);
   if (!slot) return [];
@@ -175,7 +166,7 @@ const stageOrSurfaceRevisionConflict = async (
 const assertSourceRefs = (refs: readonly string[], allowed: Set<string>, label: string): void => {
   for (const ref of refs) {
     if (!allowed.has(ref)) {
-      throw new UnitActivityImportError('cross-source-evidence', `${label} references ${ref}, which is outside the selected Unit.`);
+      throw new UnitActivityImportError('cross-source-evidence', `${label} references ${ref}, which is not mapped to this activity or Unit reference pages.`);
     }
   }
 };

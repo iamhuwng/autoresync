@@ -476,5 +476,74 @@ describe('unit Activity JSON import', () => {
         units: [{ unitKey: 'unit-1', activitySlots: [], pageGroups: [] }],
       }), twoUnitManifest)).toThrowError(expect.objectContaining({ code: 'wrong-import-surface' }));
     });
+
+    it('accepts reference_only page groups (such as transcripts and answer keys) belonging to the same Unit in sourceEvidenceRefs and answerEvidenceRefs while still rejecting other units', () => {
+      const listeningManifest: BookAssemblyManifestCandidate = {
+        ...twoUnitManifest,
+        units: [
+          {
+            ...twoUnitManifest.units[0]!,
+            pageGroups: [
+              ...twoUnitManifest.units[0]!.pageGroups,
+              {
+                pageGroupKey: 'pages-unit-1-transcript',
+                sourceKey: 'full',
+                pages: [88, 89],
+                defaultPhysicalPageNumber: 88,
+                activityKeys: [],
+                mode: 'reference_only',
+              },
+            ],
+          },
+          {
+            ...twoUnitManifest.units[1]!,
+            pageGroups: [
+              ...twoUnitManifest.units[1]!.pageGroups,
+              {
+                pageGroupKey: 'pages-unit-2-transcript',
+                sourceKey: 'full',
+                pages: [90],
+                defaultPhysicalPageNumber: 90,
+                activityKeys: [],
+                mode: 'reference_only',
+              },
+            ],
+          },
+        ],
+      };
+
+      const parsed = parseUnitActivityImportBundle(bundle({
+        slots: [
+          {
+            activityKey: 'activity-a',
+            content: activity('A'),
+            evidenceRefs: ['import:activity-a'],
+            sourceEvidenceRefs: ['source:full:page:2', 'pageGroup:pages-unit-1-transcript'],
+            answerEvidenceRefs: ['source:full:page:88'],
+          },
+          {
+            activityKey: 'activity-b',
+            content: activity('B'),
+            evidenceRefs: ['import:activity-b'],
+            sourceEvidenceRefs: ['source:full:page:3'],
+            answerEvidenceRefs: ['pageGroup:pages-unit-1-transcript'],
+          },
+        ],
+      }), listeningManifest, 'unit-1');
+      expect(parsed.slots[0]?.sourceEvidenceRefs).toContain('pageGroup:pages-unit-1-transcript');
+      expect(parsed.slots[0]?.answerEvidenceRefs).toContain('source:full:page:88');
+
+      // Reference page group belonging to Unit 2 MUST still fail closed when cited in Unit 1
+      expect(() => parseUnitActivityImportBundle(bundle({
+        slots: [
+          {
+            activityKey: 'activity-a',
+            content: activity('A'),
+            sourceEvidenceRefs: ['pageGroup:pages-unit-2-transcript'],
+          },
+          { activityKey: 'activity-b', content: activity('B') },
+        ],
+      }), listeningManifest, 'unit-1')).toThrowError(expect.objectContaining({ code: 'cross-source-evidence' }));
+    });
   });
 });
