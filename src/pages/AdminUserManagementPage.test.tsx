@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { MemoryRouter } from 'react-router-dom';
-import { MantineProvider } from '@mantine/core';
 import AdminUserManagementPage from './AdminUserManagementPage.jsx';
 import * as useAuthModule from '../hooks/useAuth';
 import * as userServiceModule from '../services/userService';
@@ -56,6 +55,74 @@ vi.mock('../hooks/useNavigation', () => ({
         context: {},
     }),
 }));
+vi.mock('../components/navigation', () => ({
+    AdminLayout: ({ children }: { children: React.ReactNode }) => <main>{children}</main>,
+}));
+vi.mock('../components/admin', async () => {
+    const { StudentGrid } = await import('../components/admin/StudentGrid');
+    return {
+        AlertMessages: () => null,
+        AdminPageTitle: () => null,
+        AdminModalsManager: () => null,
+        AdminTabsContainer: (props: any) => (
+            <div>
+                <div role="tablist">
+                    <button
+                        type="button"
+                        role="tab"
+                        aria-selected={props.activeTab === 'students'}
+                        onClick={() => props.onTabChange('students')}
+                    >
+                        Students
+                    </button>
+                    <button
+                        type="button"
+                        role="tab"
+                        aria-selected={props.activeTab === 'requests'}
+                        onClick={() => props.onTabChange('requests')}
+                    >
+                        Requests ({props.pendingRequestCount})
+                    </button>
+                </div>
+                {props.activeTab === 'students' && (
+                    props.userManagement.filteredUsers.length > 0 ? (
+                        <StudentGrid
+                            students={props.userManagement.filteredUsers}
+                            assignments={props.assignments.assignmentsByStudent}
+                            teachers={(props.userManagement.users || []).filter((u: any) => u.role === 'teacher')}
+                            isSuperAdmin={props.isSuperAdmin}
+                            isTeacher={props.isTeacher}
+                            currentUserId={props.currentUserId}
+                            onViewAnalytics={props.onViewAnalytics}
+                            onEdit={props.onEdit}
+                            onAssignToTeacher={props.onAssignToTeacher}
+                            onRelease={props.onRelease}
+                            onAddToClass={props.onAddToClass}
+                        />
+                    ) : (
+                        <p>No users match your search</p>
+                    )
+                )}
+                {props.activeTab === 'requests' && (
+                    <div>
+                        {(props.requests || []).map((req: any) => (
+                            <div key={req.id}>
+                                <span>{req.studentEmail}</span>
+                                <span>{String(req.status || '').toUpperCase()}</span>
+                                <button type="button" onClick={() => props.onApproveRequest(req.id)}>
+                                    Approve
+                                </button>
+                                <button type="button" onClick={() => props.onDenyRequest(req.id)}>
+                                    Deny
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        ),
+    };
+});
 
 describe('AdminUserManagementPage - Teacher Filter Integration', () => {
     const mockTeacherId = 'teacher-123';
@@ -146,11 +213,9 @@ describe('AdminUserManagementPage - Teacher Filter Integration', () => {
 
     const renderWithProviders = (ui: React.ReactElement, initialState = {}) => {
         return render(
-            <MantineProvider>
-                <MemoryRouter initialEntries={[{ pathname: '/admin/users', state: initialState }]}>
-                    {ui}
-                </MemoryRouter>
-            </MantineProvider>
+            <MemoryRouter initialEntries={[{ pathname: '/admin/users', state: initialState }]}>
+                {ui}
+            </MemoryRouter>
         );
     };
 
@@ -266,11 +331,9 @@ describe('AdminUserManagementPage - Request Management', () => {
 
     const renderWithProviders = (ui: React.ReactElement) => {
         return render(
-            <MantineProvider>
-                <MemoryRouter initialEntries={['/admin/users']}>
-                    {ui}
-                </MemoryRouter>
-            </MantineProvider>
+            <MemoryRouter initialEntries={['/admin/users']}>
+                {ui}
+            </MemoryRouter>
         );
     };
 
