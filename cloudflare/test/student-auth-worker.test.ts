@@ -115,6 +115,97 @@ describe('student authentication Worker', () => {
     expect(payload).not.toHaveProperty('email');
   });
 
+  it('returns success when the registration patch commits before its response is lost', async () => {
+    const database = createMemoryDatabase();
+    const patch = database.patchAdminMultiLocation.getMockImplementation()!;
+    database.patchAdminMultiLocation.mockImplementation(async (updates) => {
+      await patch(updates);
+      throw new Error('network_lost_after_commit');
+    });
+    const identityToolkit = vi.fn(async (operation: string, body: Record<string, unknown>) => (
+      operation === 'accounts:signInWithPassword'
+        ? { ok: false, status: 400, data: { error: { message: 'EMAIL_NOT_FOUND' } } }
+        : { ok: true, status: 200, data: { localId: 'committed-uid', idToken: 'committed-token', email: body.email } }
+    ));
+    const worker = createStudentAuthWorkerHandlers({
+      databaseFactory: () => database,
+      identityToolkit: identityToolkit as never,
+      createCustomToken: async () => 'committed-token',
+      rateLimit: async () => true,
+    });
+
+    const response = await worker.fetch(makeRequest('/auth/student/register', {
+      email: 'committed@example.com', password: 'password123', displayName: 'Committed Student', studentId: 'committed-7',
+    }), makeEnv());
+
+    expect(response.status).toBe(201);
+    expect(database.values.get('users/committed-uid')).toMatchObject({ role: 'student', status: 'active' });
+    expect(database.values.get('student_identifiers/committed-uid')).toMatchObject({ studentId: 'committed-7' });
+  });
+
+  it('cleans up every registration artifact when a profile write is only partially committed', async () => {
+    const database = createMemoryDatabase();
+    const patch = database.patchAdminMultiLocation.getMockImplementation()!;
+    database.patchAdminMultiLocation.mockImplementation(async (updates) => {
+      await patch({ [`users/partial-profile`]: updates['users/partial-profile'] });
+      throw new Error('network_lost_after_profile_write');
+    });
+    const deletedAccounts: string[] = [];
+    const identityToolkit = vi.fn(async (operation: string, body: Record<string, unknown>) => {
+      if (operation === 'accounts:delete') {
+        deletedAccounts.push(String(body.idToken));
+        return { ok: true, status: 200, data: {} };
+      }
+      if (operation === 'accounts:signInWithPassword') {
+        return { ok: false, status: 400, data: { error: { message: 'EMAIL_NOT_FOUND' } } };
+      }
+      return { ok: true, status: 200, data: { localId: 'partial-profile', idToken: 'partial-token', email: body.email } };
+    });
+    const worker = createStudentAuthWorkerHandlers({
+      databaseFactory: () => database,
+      identityToolkit: identityToolkit as never,
+      rateLimit: async () => true,
+    });
+
+    const response = await worker.fetch(makeRequest('/auth/student/register', {
+      email: 'partial@example.com', password: 'password123', displayName: 'Partial Student', studentId: 'partial-7',
+    }), makeEnv());
+
+    expect(response.status).toBe(503);
+    expect(await readJson(response)).toEqual({ code: 'student_auth_unavailable' });
+    expect(database.values.has('users/partial-profile')).toBe(false);
+    expect(database.values.has('student_identifiers/partial-profile')).toBe(false);
+    expect([...database.values.keys()].some((path) => path.startsWith('student_login_ids/'))).toBe(false);
+    expect(deletedAccounts).toEqual(['partial-token']);
+  });
+
+  it('does not report success when IDs commit but the registration profile does not', async () => {
+    const database = createMemoryDatabase();
+    const patch = database.patchAdminMultiLocation.getMockImplementation()!;
+    database.patchAdminMultiLocation.mockImplementation(async (updates) => {
+      await patch(Object.fromEntries(Object.entries(updates).filter(([path]) => !path.startsWith('users/'))));
+      throw new Error('network_lost_before_profile_write');
+    });
+    const identityToolkit = vi.fn(async (operation: string, body: Record<string, unknown>) => (
+      operation === 'accounts:signInWithPassword'
+        ? { ok: false, status: 400, data: { error: { message: 'EMAIL_NOT_FOUND' } } }
+        : { ok: true, status: 200, data: { localId: 'ids-only', idToken: 'ids-only-token', email: body.email } }
+    ));
+    const worker = createStudentAuthWorkerHandlers({
+      databaseFactory: () => database,
+      identityToolkit: identityToolkit as never,
+      rateLimit: async () => true,
+    });
+
+    const response = await worker.fetch(makeRequest('/auth/student/register', {
+      email: 'ids-only@example.com', password: 'password123', displayName: 'IDs Only', studentId: 'ids-only-7',
+    }), makeEnv());
+
+    expect(response.status).toBe(503);
+    expect(database.values.has('users/ids-only')).toBe(false);
+    expect(database.values.has('student_identifiers/ids-only')).toBe(false);
+  });
+
   it('authenticates student IDs without returning the linked email address', async () => {
     const database = createMemoryDatabase();
     const identityToolkit = vi.fn(async (operation: string, body: Record<string, unknown>) => ({

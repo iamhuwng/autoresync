@@ -5,13 +5,16 @@ import {
 import { FirebaseRtdbRestClient } from '../listening-authoring/rtdb.ts';
 // @ts-ignore JavaScript module has no declaration file.
 import { parseSpareAllowedLocalhostOrigins } from '../cors-policy.js';
+import {
+  isValidRegistrationPassword,
+  normalizeDisplayName,
+  normalizeNamePart,
+  normalizeRegistrationEmail,
+  normalizeStudentId,
+} from '../../../../src/services/studentRegistrationValidation.ts';
 
 const MAX_BODY_BYTES = 8 * 1024;
 const FIREBASE_CUSTOM_TOKEN_AUDIENCE = 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit';
-const STUDENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{2,31}$/u;
-const RESERVED_STUDENT_IDS = new Set([
-  'admin', 'administrator', 'root', 'system', 'support', 'teacher', 'student', 'superadmin',
-]);
 const STUDENT_ID_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 interface StudentAuthWorkerEnv extends Record<string, unknown> {
@@ -104,13 +107,6 @@ const isLocalEmulator = (env: StudentAuthWorkerEnv): boolean => {
   } catch {
     return false;
   }
-};
-
-const normalizeStudentId = (value: unknown): { display: string; normalized: string } | null => {
-  if (typeof value !== 'string') return null;
-  const display = value.trim().normalize('NFKC');
-  if (!STUDENT_ID_PATTERN.test(display) || RESERVED_STUDENT_IDS.has(display.toLowerCase())) return null;
-  return { display, normalized: display.toLowerCase() };
 };
 
 const hashStudentId = async (normalized: string): Promise<string> => {
@@ -351,7 +347,7 @@ const reserveStudentId = async (
   uid: string,
   studentId: { display: string; normalized: string },
   now: number,
-): Promise<{ hash: string; createdAt: number } | null> => {
+): Promise<{ hash: string; createdAt: number; created: boolean } | null> => {
   const hash = await hashStudentId(studentId.normalized);
   const path = `student_login_ids/${hash}`;
   const current = await database.readWithEtag<Record<string, unknown>>(path);
@@ -360,10 +356,11 @@ const reserveStudentId = async (
     return {
       hash,
       createdAt: typeof current.data.createdAt === 'number' ? current.data.createdAt : now,
+      created: false,
     };
   }
   if (!await database.writeIfMatch(path, { uid, createdAt: now }, current.etag)) return null;
-  return { hash, createdAt: now };
+  return { hash, createdAt: now, created: true };
 };
 
 const releaseStudentIdReservation = async (
@@ -377,6 +374,67 @@ const releaseStudentIdReservation = async (
     if (current.data?.uid === uid) await database.writeIfMatch(path, null, current.etag);
   } catch {
     // A stale mapping cannot authenticate without a matching active profile.
+  }
+};
+
+const registrationStateMatches = (input: {
+  readonly uid: string;
+  readonly normalizedStudentId: string;
+  readonly profile: Record<string, unknown> | null;
+  readonly identifier: Record<string, unknown> | null;
+  readonly index: Record<string, unknown> | null;
+  readonly expectedProfile: Record<string, unknown>;
+  readonly profileWasCreated: boolean;
+}): boolean => {
+  const profileMatches = input.profile
+    && input.profile.uid === input.uid
+    && (!input.profileWasCreated || (
+      input.profile.role === input.expectedProfile.role
+      && input.profile.status === input.expectedProfile.status
+      && input.profile.email === input.expectedProfile.email
+      && input.profile.displayName === input.expectedProfile.displayName
+    ));
+  return Boolean(
+    profileMatches
+    && input.identifier?.uid === input.uid
+    && normalizeStudentId(input.identifier.studentId)?.normalized === input.normalizedStudentId
+    && input.index?.uid === input.uid,
+  );
+};
+
+const cleanupRegistrationArtifacts = async (input: {
+  readonly database: StudentAuthDatabase;
+  readonly uid: string;
+  readonly normalizedStudentId: string;
+  readonly reservationHash: string;
+  readonly profileWasCreated: boolean;
+  readonly identifierWasCreated: boolean;
+}): Promise<void> => {
+  const removeIfOwned = async (
+    path: string,
+    owns: (value: Record<string, unknown> | null) => boolean,
+  ): Promise<void> => {
+    try {
+      const current = await input.database.readWithEtag<Record<string, unknown>>(path);
+      if (owns(asRecord(current.data))) await input.database.writeIfMatch(path, null, current.etag);
+    } catch {
+      // Cleanup is best effort. The next registration attempt reconciles the records.
+    }
+  };
+
+  await removeIfOwned(`student_login_ids/${input.reservationHash}`, (value) => value?.uid === input.uid);
+  if (input.identifierWasCreated) {
+    await removeIfOwned(`student_identifiers/${input.uid}`, (value) => (
+      value?.uid === input.uid
+      && normalizeStudentId(value.studentId)?.normalized === input.normalizedStudentId
+    ));
+  }
+  if (input.profileWasCreated) {
+    await removeIfOwned(`users/${input.uid}`, (value) => (
+      value?.uid === input.uid
+      && value.role === 'student'
+      && value.status === 'active'
+    ));
   }
 };
 
@@ -437,13 +495,13 @@ export const createStudentAuthWorkerHandlers = (options: StudentAuthWorkerOption
   ): Promise<{ body: Record<string, unknown>; status: number }> => {
     const studentId = normalizeStudentId(body.studentId);
     if (!studentId) return workerError('invalid_student_id', 400);
-    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+    const email = normalizeRegistrationEmail(body.email) ?? '';
     const password = typeof body.password === 'string' ? body.password : '';
-    const displayName = typeof body.displayName === 'string' ? body.displayName.trim().slice(0, 80) : '';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email) || email.length > 254) {
+    const displayName = normalizeDisplayName(body.displayName);
+    if (!email) {
       return workerError('invalid_email', 400);
     }
-    if (password.length < 6 || password.length > 128) return workerError('weak_password', 400);
+    if (!isValidRegistrationPassword(password)) return workerError('weak_password', 400);
     if (displayName.length < 2) return workerError('invalid_display_name', 400);
 
     const signIn = await callIdentityToolkit('accounts:signInWithPassword', {
@@ -512,7 +570,9 @@ export const createStudentAuthWorkerHandlers = (options: StudentAuthWorkerOption
     }
 
     let reservation: { hash: string; createdAt: number } | null = null;
-    let profileCommitted = false;
+    const profileWasCreated = !profile;
+    const identifierWasCreated = !existingIdentifier;
+    let registrationCommitted = false;
     try {
       reservation = await reserveStudentId(database, uid, studentId, now());
       if (!reservation) {
@@ -532,27 +592,32 @@ export const createStudentAuthWorkerHandlers = (options: StudentAuthWorkerOption
       }
       const local = isLocalEmulator(env);
       const token = local ? null : await signCustomToken(uid, env);
-      try {
-        await database.patchAdminMultiLocation({
-          [`users/${uid}`]: nextProfile,
-          [`student_identifiers/${uid}`]: {
-            uid,
-            studentId: studentId.display,
-            normalizedStudentId: studentId.normalized,
-            createdAt: typeof existingIdentifier?.createdAt === 'number' ? existingIdentifier.createdAt : reservation.createdAt,
-          },
-          [`student_login_ids/${reservation.hash}`]: { uid, createdAt: reservation.createdAt },
-        });
-      } catch {
-        const [storedIdentifier, storedIndex] = await Promise.all([
-          database.readValue(`student_identifiers/${uid}`).then(asRecord).catch(() => null),
-          database.readValue(`student_login_ids/${reservation!.hash}`).then(asRecord).catch(() => null),
-        ]);
-        const committed = normalizeStudentId(storedIdentifier?.studentId)?.normalized === studentId.normalized
-          && storedIndex?.uid === uid;
-        if (!committed) throw new Error('student_profile_write_failed');
-      }
-      profileCommitted = true;
+      await database.patchAdminMultiLocation({
+        [`users/${uid}`]: nextProfile,
+        [`student_identifiers/${uid}`]: {
+          uid,
+          studentId: studentId.display,
+          normalizedStudentId: studentId.normalized,
+          createdAt: typeof existingIdentifier?.createdAt === 'number' ? existingIdentifier.createdAt : reservation.createdAt,
+        },
+        [`student_login_ids/${reservation.hash}`]: { uid, createdAt: reservation.createdAt },
+      }).catch(() => undefined);
+
+      const [storedProfile, storedIdentifier, storedIndex] = await Promise.all([
+        database.readValue(`users/${uid}`).then(asRecord).catch(() => null),
+        database.readValue(`student_identifiers/${uid}`).then(asRecord).catch(() => null),
+        database.readValue(`student_login_ids/${reservation.hash}`).then(asRecord).catch(() => null),
+      ]);
+      registrationCommitted = registrationStateMatches({
+        uid,
+        normalizedStudentId: studentId.normalized,
+        profile: storedProfile,
+        identifier: storedIdentifier,
+        index: storedIndex,
+        expectedProfile: nextProfile,
+        profileWasCreated,
+      });
+      if (!registrationCommitted) throw new Error('student_profile_write_failed');
       return {
         body: {
           studentId: studentId.display,
@@ -561,8 +626,15 @@ export const createStudentAuthWorkerHandlers = (options: StudentAuthWorkerOption
         status: createdAccount ? 201 : 200,
       };
     } catch {
-      if (!profileCommitted) {
-        if (reservation) await releaseStudentIdReservation(database, reservation.hash, uid);
+      if (!registrationCommitted && reservation) {
+        await cleanupRegistrationArtifacts({
+          database,
+          uid,
+          normalizedStudentId: studentId.normalized,
+          reservationHash: reservation.hash,
+          profileWasCreated,
+          identifierWasCreated,
+        });
         if (createdAccount) await callIdentityToolkit('accounts:delete', { idToken }, origin, env).catch(() => undefined);
       }
       return workerError('student_auth_unavailable', 503);
@@ -640,9 +712,9 @@ export const createStudentAuthWorkerHandlers = (options: StudentAuthWorkerOption
       const suppliedStudentId = Object.prototype.hasOwnProperty.call(body, 'studentId');
       const requestedId = normalizeStudentId(body.studentId);
       if ((suppliedStudentId || registerGoogle) && !requestedId) return workerError('invalid_student_id', 400);
-      const displayName = typeof body.displayName === 'string' ? body.displayName.trim().slice(0, 80) : '';
-      const firstName = typeof body.firstName === 'string' ? body.firstName.trim().slice(0, 50) : '';
-      const familyName = typeof body.familyName === 'string' ? body.familyName.trim().slice(0, 50) : '';
+      const displayName = normalizeDisplayName(body.displayName);
+      const firstName = normalizeNamePart(body.firstName);
+      const familyName = normalizeNamePart(body.familyName);
       if (registerGoogle && (!firstName || !familyName || !displayName)) return workerError('invalid_display_name', 400);
 
       const identifierPath = `student_identifiers/${uid}`;

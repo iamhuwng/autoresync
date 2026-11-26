@@ -69,6 +69,13 @@ describeEmulator('student login identifier RTDB security rules', () => {
 
   it('does not allow a public registration to assign its own private student identifier', async () => {
     const newStudentDb = environment.authenticatedContext('new-student').database();
+    await assertFails(newStudentDb.ref('users/new-student').set({
+      uid: 'new-student',
+      email: 'new@student.example',
+      role: 'student',
+      status: 'active',
+      roles: ['teacher', 'super_admin'],
+    }));
     await assertSucceeds(newStudentDb.ref('users/new-student').set({
       uid: 'new-student',
       email: 'new@student.example',
@@ -79,5 +86,25 @@ describeEmulator('student login identifier RTDB security rules', () => {
       uid: 'new-student',
       studentId: 'forged-student-id',
     }));
+  });
+
+  it('does not allow a student to grant themselves a privileged primary or secondary role', async () => {
+    const studentDb = environment.authenticatedContext(studentUid).database();
+
+    await assertFails(studentDb.ref(`users/${studentUid}/role`).set('teacher'));
+    await assertFails(studentDb.ref(`users/${studentUid}/role`).set('super_admin'));
+    await assertFails(studentDb.ref(`users/${studentUid}/roles`).set(['teacher']));
+    await assertFails(studentDb.ref(`users/${studentUid}/roles`).set(['super_admin']));
+    await assertFails(studentDb.ref(`users/${studentUid}`).update({
+      role: 'teacher',
+      roles: ['teacher', 'super_admin'],
+    }));
+
+    await assertSucceeds(studentDb.ref(`users/${studentUid}/displayName`).set('Updated Student'));
+    expect((await studentDb.ref(`users/${studentUid}`).get()).val()).toMatchObject({
+      uid: studentUid,
+      role: 'student',
+      status: 'active',
+    });
   });
 });
