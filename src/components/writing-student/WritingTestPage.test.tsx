@@ -494,4 +494,201 @@ describe('WritingTestPage', () => {
         expect(await screen.findByText('160 words (min 250)')).toBeInTheDocument();
         expect(screen.getByText(/below the recommended minimum word count/i)).toBeInTheDocument();
     });
+
+    it('keeps the timer frozen on a second or later pause even when historical resumedAt exists', async () => {
+        render(<WritingTestPage testData={testData} sessionCode="SESSION-1" />);
+
+        const now = Date.now();
+        emitSnapshot('game_sessions/SESSION-1', {
+            status: 'in-progress',
+            isPaused: true,
+            startTime: now - 10 * 60_000,   // started 10m ago
+            pausedDuration: 2 * 60_000,     // 2m from first pause
+            resumedAt: now - 5 * 60_000,    // historical resumedAt from first resume
+            pausedAt: now - 3 * 60_000,     // second pause started 3m ago
+        });
+
+        // 60m - (10m total - 2m prior pause - 3m active pause) = 55:00
+        expect(screen.getByText('55:00')).toBeInTheDocument();
+        await waitFor(() => {
+            expect(mockSet).toHaveBeenCalledWith(
+                'game_sessions/SESSION-1/students/student-1/writing/pasteAttemptCount',
+                0,
+            );
+        });
+    });
+
+    it('backs off timer-expiry failures and enters terminal manual-retry state after 3 attempts', async () => {
+        vi.useFakeTimers();
+        const now = Date.now();
+        mockAutoSubmitFromRTDB.mockRejectedValue(new Error('transient outage'));
+
+        render(<WritingTestPage testData={testData} sessionCode="SESSION-1" />);
+
+        emitSnapshot('game_sessions/SESSION-1', {
+            status: 'in-progress',
+            isPaused: false,
+            startTime: now - 61 * 60_000,
+            pausedDuration: 0,
+        });
+
+        // Attempt 1 fires immediately on expiry
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(100);
+        });
+        expect(mockAutoSubmitFromRTDB).toHaveBeenCalledTimes(1);
+
+        // Next 2 seconds must NOT retry every tick (4s backoff)
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(2000);
+        });
+        expect(mockAutoSubmitFromRTDB).toHaveBeenCalledTimes(1);
+
+        // After 4s backoff, attempt 2 runs
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(3000);
+        });
+        expect(mockAutoSubmitFromRTDB).toHaveBeenCalledTimes(2);
+
+        // After 8s backoff, attempt 3 runs and exhausts auto-retries
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(9000);
+        });
+        expect(mockAutoSubmitFromRTDB).toHaveBeenCalledTimes(3);
+
+        // Even 30 seconds later, no further automatic retries fire
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(30_000);
+        });
+        expect(mockAutoSubmitFromRTDB).toHaveBeenCalledTimes(3);
+        expect(screen.getByRole('button', { name: /retry submit/i })).toBeInTheDocument();
+
+        // Manual retry succeeds and tracks retryWritingSubmission
+        mockAutoSubmitFromRTDB.mockResolvedValueOnce(undefined);
+        fireEvent.click(screen.getByRole('button', { name: /retry submit/i }));
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(100);
+        });
+        expect(mockTrackAction).toHaveBeenCalledWith(
+            'retryWritingSubmission',
+            expect.objectContaining({
+                testSkill: 'Writing',
+                sessionCode: 'SESSION-1',
+            }),
+        );
+        expect(mockNavigate).toHaveBeenCalledWith('/submission-complete', expect.anything());
+        vi.useRealTimers();
+    });
+
+    it('enters manual-retry state immediately when teacher-ended waiting transition auto-submit fails', async () => {
+        mockAutoSubmitFromRTDB.mockRejectedValueOnce(new Error('transient error'));
+
+        render(<WritingTestPage testData={testData} sessionCode="SESSION-1" />);
+
+        emitSnapshot('game_sessions/SESSION-1', {
+            status: 'in-progress',
+            isPaused: false,
+            startTime: Date.now() - 60_000,
+            pausedDuration: 0,
+        });
+        emitSnapshot('game_sessions/SESSION-1', {
+            status: 'waiting',
+            isPaused: false,
+            startTime: Date.now() - 60_000,
+            pausedDuration: 0,
+        });
+
+        const retryButton = await screen.findByRole('button', { name: /retry submit/i });
+        expect(mockToastError).toHaveBeenCalledWith(
+            expect.stringMatching(/session ended/i),
+        );
+
+        mockAutoSubmitFromRTDB.mockResolvedValueOnce(undefined);
+        fireEvent.click(retryButton);
+        await waitFor(() => {
+            expect(mockTrackAction).toHaveBeenCalledWith(
+                'retryWritingSubmission',
+                expect.objectContaining({
+                    testSkill: 'Writing',
+                    sessionCode: 'SESSION-1',
+                }),
+            );
+            expect(mockNavigate).toHaveBeenCalledWith('/submission-complete', expect.anything());
+        });
+    });
+
+    it('does not expose Retry Submit after session status becomes completed and redirects when teacher finalizes', async () => {
+        render(<WritingTestPage testData={testData} sessionCode="SESSION-1" />);
+
+        emitSnapshot('game_sessions/SESSION-1', {
+            status: 'in-progress',
+            isPaused: false,
+            startTime: Date.now() - 60_000,
+            pausedDuration: 0,
+        });
+        emitSnapshot('game_sessions/SESSION-1', {
+            status: 'completed',
+            isPaused: false,
+            startTime: Date.now() - 60_000,
+            pausedDuration: 0,
+        });
+
+        expect(mockAutoSubmitFromRTDB).not.toHaveBeenCalled();
+        expect(screen.queryByRole('button', { name: /retry submit/i })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /submit test/i })).toBeDisabled();
+        expect(screen.getByText(/session has been closed by your teacher/i)).toBeInTheDocument();
+
+        emitSnapshot('game_sessions/SESSION-1/students/student-1/writing/submitted', true);
+
+        await waitFor(() => {
+            expect(mockNavigate).toHaveBeenCalledWith('/submission-complete', {
+                replace: true,
+                state: {
+                    sessionCode: 'SESSION-1',
+                    testId: 'test-1',
+                    studentName: 'Student One',
+                },
+            });
+        });
+    });
+
+    it('enters manual-retry state instead of orphaned backoff when an in-flight timer submit fails after session ends to waiting', async () => {
+        let rejectSubmit!: (err: Error) => void;
+        mockAutoSubmitFromRTDB.mockImplementationOnce(
+            () => new Promise<void>((_, reject) => {
+                rejectSubmit = reject;
+            }),
+        );
+
+        render(<WritingTestPage testData={testData} sessionCode="SESSION-1" />);
+
+        emitSnapshot('game_sessions/SESSION-1', {
+            status: 'in-progress',
+            isPaused: false,
+            startTime: Date.now() - 61 * 60_000,
+            pausedDuration: 0,
+        });
+
+        await waitFor(() => {
+            expect(mockAutoSubmitFromRTDB).toHaveBeenCalledTimes(1);
+        });
+
+        // Session ends to waiting while timer-expiry submit is still in flight
+        emitSnapshot('game_sessions/SESSION-1', {
+            status: 'waiting',
+            isPaused: false,
+            startTime: Date.now() - 61 * 60_000,
+            pausedDuration: 0,
+        });
+
+        // In-flight timer submit then fails — no active timer loop remains, so it must enter manual-retry state immediately
+        await act(async () => {
+            rejectSubmit(new Error('network blip'));
+        });
+
+        expect(await screen.findByRole('button', { name: /retry submit/i })).toBeInTheDocument();
+        expect(mockToastError).toHaveBeenCalledWith(
+            expect.stringMatching(/click Retry Submit/i),
+        );
+    });
 });
