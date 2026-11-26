@@ -280,5 +280,39 @@ describe('production source publication boundary', () => {
       { readOwnerRoot: async () => ({ candidates: { [binding.candidateId]: savedWithTranscriptEvidence }, activities: { [binding.activityId]: activity } }) },
     );
     expect(verifiedWithTranscript).toEqual(['u02-ex1']);
+
+    // Unit-scoped teacher_only page groups (e.g. answer keys) MUST be accepted in answerEvidenceRefs
+    // and strictly REJECTED in student-facing sourceEvidenceRefs
+    const manifestWithTeacherAnswerKey = {
+      ...manifestWithTranscript,
+      units: [{
+        ...manifestWithTranscript.units[0]!,
+        pageGroups: [
+          ...manifestWithTranscript.units[0]!.pageGroups,
+          { pageGroupKey: 'pages-unit-02-answer-key', sourceKey: 'full', pages: [120], activityKeys: [], mode: 'teacher_only' },
+        ],
+      }],
+    };
+    const savedWithTeacherAnswerEvidence = {
+      ...saved,
+      sourceEvidenceRefs: ['source:full:page:9', 'pageGroup:pages-unit-02-transcript'],
+      answerEvidenceRefs: ['pageGroup:pages-unit-02-answer-key', 'source:full:page:120'],
+    };
+    expect(await readVerifiedDraftActivityKeys(
+      { ...assembly, manifest: manifestWithTeacherAnswerKey } as never,
+      { read: async () => binding as never },
+      { readOwnerRoot: async () => ({ candidates: { [binding.candidateId]: savedWithTeacherAnswerEvidence }, activities: { [binding.activityId]: activity } }) },
+    )).toEqual(['u02-ex1']);
+
+    const savedWithTeacherSourceEvidence = {
+      ...saved,
+      sourceEvidenceRefs: ['pageGroup:pages-unit-02-answer-key'],
+      answerEvidenceRefs: ['source:full:page:120'],
+    };
+    expect(await readVerifiedDraftActivityKeys(
+      { ...assembly, manifest: manifestWithTeacherAnswerKey } as never,
+      { read: async () => binding as never },
+      { readOwnerRoot: async () => ({ candidates: { [binding.candidateId]: savedWithTeacherSourceEvidence }, activities: { [binding.activityId]: activity } }) },
+    )).toEqual([]);
   });
 });

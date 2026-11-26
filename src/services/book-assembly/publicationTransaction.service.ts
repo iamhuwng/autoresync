@@ -358,7 +358,9 @@ export const validateBookAssemblyPublicationInput = (
     || !sourceSetsEqual(plan.sourceSet, plan.studentSafeProjection.sourceSet)) {
     return invalid('invalid-publication-plan');
   }
-  if (hasSensitiveKey(plan) || hasSensitiveKey(plan.studentSafeProjection)) {
+  if (hasSensitiveKey(plan)
+    || hasSensitiveKey(plan.studentSafeProjection)
+    || plan.studentSafeProjection.units.some((unit) => unit.pageGroups.some((group) => group.mode === 'teacher_only'))) {
     return invalid('sensitive-payload');
   }
   return assertCommonPublicationWriteSet(input);

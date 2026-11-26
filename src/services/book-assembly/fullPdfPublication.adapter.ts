@@ -226,6 +226,13 @@ const pagesForActivity = (
     left.sourceKey.localeCompare(right.sourceKey) || left.physicalPageNumber - right.physicalPageNumber);
 };
 
+const stripTeacherOnlyPageGroups = (
+  units: readonly BookUnitCandidate[],
+): readonly BookUnitCandidate[] => units.map((entry) => ({
+  ...entry,
+  pageGroups: entry.pageGroups.filter((group) => group.mode !== 'teacher_only'),
+}));
+
 const resolveCarriedForwardUnits = (
   manifest: BookAssemblyManifestCandidate,
   unitKey: string,
@@ -234,7 +241,7 @@ const resolveCarriedForwardUnits = (
   if (!predecessor || predecessor.strategy !== 'full_pdf') {
     return [];
   }
-  const otherPredecessorUnits = predecessor.studentSafeProjection.units.filter((entry) => entry.unitKey !== unitKey);
+  const otherPredecessorUnits = predecessor.manifest.units.filter((entry) => entry.unitKey !== unitKey);
   if (otherPredecessorUnits.length === 0) {
     return [];
   }
@@ -669,7 +676,7 @@ export const createFullPdfPublicationAdapter = (
         publicationRevision: input.ids.publicationRevision,
         sourceStrategy: 'full_pdf',
         sourceSet: manifest.sourceSet,
-        units: publishedUnits,
+        units: stripTeacherOnlyPageGroups(publishedUnits),
       },
       atomicWrites: records.atomicWrites,
       previewApproval: input.previewApproval,

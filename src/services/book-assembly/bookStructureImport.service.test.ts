@@ -36,7 +36,8 @@ describe('bookStructureImport.service', () => {
     expect(prompt).toContain('book-structure-json-v1');
     expect(prompt).toContain('Collins Listening');
     expect(prompt).toContain('same physical page');
-    expect(prompt).toContain('Do NOT include Answer Key');
+    expect(prompt).toContain('teacher_only');
+    expect(prompt).toContain('Never put Answer Key');
     expect(prompt).toContain('"activity-unit-1-1"');
     expect(prompt).toContain('"activity-unit-1-2"');
   });
@@ -61,6 +62,7 @@ describe('bookStructureImport.service', () => {
               { pageGroupKey: 'pg-1', sourceKey: 'full', pages: [9], activityKeys: ['act-1'], mode: 'activity', defaultPhysicalPageNumber: 9 },
               { pageGroupKey: 'pg-2', sourceKey: 'full', pages: [9], activityKeys: ['act-2'], mode: 'activity', defaultPhysicalPageNumber: 9 },
               { pageGroupKey: 'pg-transcript', sourceKey: 'full', pages: [104, 103], activityKeys: [], mode: 'reference_only' },
+              { pageGroupKey: 'pg-answer-key', sourceKey: 'full', pages: [140], mode: 'teacher_only' },
             ],
           },
         ],
@@ -99,6 +101,14 @@ describe('bookStructureImport.service', () => {
         activityKeys: [],
         mode: 'reference_only',
         defaultPhysicalPageNumber: 103,
+      },
+      {
+        pageGroupKey: 'pg-answer-key',
+        sourceKey: 'full',
+        pages: [140],
+        activityKeys: [],
+        mode: 'teacher_only',
+        defaultPhysicalPageNumber: 140,
       },
     ]);
     expect(result.units[0]?.activitySlots.map((slot) => slot.pageGroupKeys)).toEqual([['pg-1'], ['pg-1']]);

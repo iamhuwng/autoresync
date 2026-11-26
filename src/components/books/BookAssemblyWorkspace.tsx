@@ -217,7 +217,7 @@ export const applyCurrentReconciliationChoiceToDraft = (
     activityKeys: currentKeys.has(group.pageGroupKey)
       ? [...new Set([...group.activityKeys.filter((key) => key !== target.activityKey), target.activityKey])]
       : group.activityKeys.filter((key) => key !== target.activityKey),
-  })).filter((group) => group.mode === 'reference_only' || group.activityKeys.length > 0);
+  })).filter((group) => group.mode !== 'activity' || group.activityKeys.length > 0);
   currentUnit.pageGroups.filter((group) => currentKeys.has(group.pageGroupKey)
     && !proposedGroups.some((entry) => entry.pageGroupKey === group.pageGroupKey))
     .forEach((group) => proposedGroups.push({ ...group, activityKeys: [...new Set([...group.activityKeys, target.activityKey])] }));
@@ -855,12 +855,18 @@ const BookAssemblyWorkspace = ({
 
   const removeReferencePageGroup = (pageGroupKey: string) => {
     if (!selectedUnitKey || persistenceBusyRef.current) return;
+    const removed = selectedUnit?.pageGroups.find((group) => group.pageGroupKey === pageGroupKey && group.mode !== 'activity');
+    if (!removed) return;
     setUnits((current) => current.map((unit) => unit.unitKey === selectedUnitKey
-      ? { ...unit, pageGroups: unit.pageGroups.filter((group) => !(group.pageGroupKey === pageGroupKey && group.mode === 'reference_only')) }
+      ? { ...unit, pageGroups: unit.pageGroups.filter((group) => !(group.pageGroupKey === pageGroupKey && group.mode !== 'activity')) }
       : unit));
     setValidationMessage(null);
-    toast.info('Reference pages removed. Save changes to keep this update.');
-    emit('teacher_materials_book_assembly_reference_group_removed', { unitKey: selectedUnitKey, pageGroupKey });
+    toast.info(
+      removed.mode === 'teacher_only'
+        ? 'Teacher-only pages removed. Save changes to keep this update.'
+        : 'Reference pages removed. Save changes to keep this update.',
+    );
+    emit('teacher_materials_book_assembly_reference_group_removed', { unitKey: selectedUnitKey, pageGroupKey, mode: removed.mode });
   };
 
   const addComponentStructure = (sourceVersionId: string) => {
@@ -1182,7 +1188,12 @@ const BookAssemblyWorkspace = ({
       setValidationMessage('Choose an activity from this Unit before connecting pages.');
       return;
     }
-    const pageGroupKey = `pages-${sourceKey}-${parsedPages.pages.join('-')}-${mappingMode === 'reference_only' ? 'reference' : 'activity'}`;
+    const modeSlug = mappingMode === 'teacher_only'
+      ? 'teacher-only'
+      : mappingMode === 'reference_only'
+        ? 'reference'
+        : 'activity';
+    const pageGroupKey = `pages-${sourceKey}-${parsedPages.pages.join('-')}-${modeSlug}`;
     setUnits((current) => {
       const currentUnit = current.find((unit) => unit.unitKey === selectedUnitKey);
       const nextUnit = upsertPageGroupMapping({
@@ -2164,6 +2175,7 @@ const BookAssemblyWorkspace = ({
     const groupFor = (slot: typeof rows[number]) => selectedUnit?.pageGroups.find((pageGroup) =>
       slot.pageGroupKeys.includes(pageGroup.pageGroupKey) && pageGroup.pages.length > 0);
     const referenceGroups = selectedUnit?.pageGroups.filter((pageGroup) => pageGroup.mode === 'reference_only') ?? [];
+    const teacherOnlyGroups = selectedUnit?.pageGroups.filter((pageGroup) => pageGroup.mode === 'teacher_only') ?? [];
     const missingMappings = rows.filter((slot) => !groupFor(slot)).map((slot) => slot.activityKey);
     const hasUnsavedChanges = currentSnapshot !== savedSnapshot;
     const selectedUnitProgress = unitProgressList.find((item) => item.unitKey === selectedUnitKey) ?? null;
@@ -2574,7 +2586,7 @@ const BookAssemblyWorkspace = ({
               ) : <p className="book-assembly-edit__empty">No activities in this Unit.</p>}
               {referenceGroups.length > 0 && (
                 <div style={{ marginTop: 14 }}>
-                  <h4>Reference pages</h4>
+                  <h4>Reference pages (student-visible)</h4>
                   <ul className="pbf-tree" style={{ marginTop: 8 }}>
                     {referenceGroups.map((group) => (
                       <li key={group.pageGroupKey} className="pbf-row">
@@ -2585,7 +2597,20 @@ const BookAssemblyWorkspace = ({
                   </ul>
                 </div>
               )}
-              <div className="pbf-actions book-assembly-edit__actions"><button type="button" className="pbf-button" onClick={() => { setMappingMode('reference_only'); setMappingActivityKey(''); setMappingPages(''); setMockupPageToolsOpen(true); }}>Add reference pages</button>{mockupPageToolsOpen && <button type="button" className="pbf-button pbf-button-primary" disabled={!mappingSourceKey || (mappingMode === 'activity' && !mappingActivityKey)} onClick={() => { addMapping(); setMockupPageToolsOpen(false); }}>Apply page change</button>}</div>
+              {teacherOnlyGroups.length > 0 && (
+                <div style={{ marginTop: 14 }}>
+                  <h4>Teacher-only pages (answer keys — hidden from students)</h4>
+                  <ul className="pbf-tree" style={{ marginTop: 8 }}>
+                    {teacherOnlyGroups.map((group) => (
+                      <li key={group.pageGroupKey} className="pbf-row">
+                        <span><strong translate="no">{group.pageGroupKey}</strong> · Pages {group.pages.join(', ')}</span>
+                        <button type="button" className="pbf-button" onClick={() => removeReferencePageGroup(group.pageGroupKey)}>Remove</button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <div className="pbf-actions book-assembly-edit__actions"><button type="button" className="pbf-button" onClick={() => { setMappingMode('reference_only'); setMappingActivityKey(''); setMappingPages(''); setMockupPageToolsOpen(true); }}>Add reference pages</button><button type="button" className="pbf-button" onClick={() => { setMappingMode('teacher_only'); setMappingActivityKey(''); setMappingPages(''); setMockupPageToolsOpen(true); }}>Add teacher-only pages</button>{mockupPageToolsOpen && <button type="button" className="pbf-button pbf-button-primary" disabled={!mappingSourceKey || (mappingMode === 'activity' && !mappingActivityKey)} onClick={() => { addMapping(); setMockupPageToolsOpen(false); }}>Apply page change</button>}</div>
               {mockupPageToolsOpen && <div className="book-assembly-edit__mapping-form"><label><span>PDF</span><select value={mappingSourceKey} onChange={(event) => setMappingSourceKey(event.target.value)}><option value="">Choose PDF</option>{availableMappingSources.map((source) => <option key={source.sourceKey} value={source.sourceKey}>{mockupSourceLabel(source.sourceKey)}</option>)}</select></label><label><span>Pages</span><input value={mappingPages} onChange={(event) => setMappingPages(event.target.value)} placeholder="1, 2" /></label><label><span>Starts on</span><input value={mappingDefaultPage} onChange={(event) => setMappingDefaultPage(event.target.value)} inputMode="numeric" /></label>{mappingMode === 'activity' && <div><span>Activity</span><strong translate="no">{mappingActivityKey}</strong></div>}</div>}
               {advisoryIssues.length > 0 && !needsReconciliationAttention && (
                 <details className="pbf-details" style={{ marginTop: 12 }}>
@@ -3218,6 +3243,7 @@ const BookAssemblyWorkspace = ({
                 <select value={mappingMode} onChange={(event) => setMappingMode(event.target.value as PageGroupMode)} aria-label="Page Group mode">
                   <option value="activity">Activity pages</option>
                   <option value="reference_only">Reference pages</option>
+                  <option value="teacher_only">Teacher only (answer key)</option>
                 </select>
               </label>
               {mappingMode === 'activity' && (
@@ -3614,6 +3640,7 @@ const BookAssemblyWorkspace = ({
             >
               <option value="activity">Activity</option>
               <option value="reference_only">Reference only</option>
+              <option value="teacher_only">Teacher only (answer key)</option>
             </select>
           </label>
           {mappingMode === 'activity' && (

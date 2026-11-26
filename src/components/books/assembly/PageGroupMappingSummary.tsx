@@ -24,7 +24,9 @@ const PageGroupMappingSummary = ({
           <span>
             {group.mode === 'reference_only'
               ? 'Reference only'
-              : `Activities ${group.activityKeys.join(', ')}`}
+              : group.mode === 'teacher_only'
+                ? 'Teacher only (hidden from students)'
+                : `Activities ${group.activityKeys.join(', ')}`}
           </span>
           {group.defaultPhysicalPageNumber !== undefined && (
             <span>Default page {group.defaultPhysicalPageNumber}</span>

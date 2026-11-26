@@ -11,7 +11,7 @@ import { validateEditableActivity } from './activitySchema.service';
 import { defaultBookActivityTaskProfileRegistry } from './activityTaskProfileRegistry';
 
 export const BOOK_ACTIVITY_EVIDENCE_REF_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u;
-export const BOOK_ACTIVITY_MAX_EVIDENCE_REFS = 32;
+export const BOOK_ACTIVITY_MAX_EVIDENCE_REFS = 64;
 
 export interface ActivityCandidateInput {
   /** Book identity is a transport claim; the Worker re-resolves ownership. */

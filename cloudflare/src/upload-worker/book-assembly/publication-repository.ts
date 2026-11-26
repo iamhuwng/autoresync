@@ -109,7 +109,9 @@ const hydrateReferenceOnlyGroups = (value: unknown): unknown => {
   const units = value.units.map((unit) => {
     if (!isRecord(unit) || !Array.isArray(unit.pageGroups)) return unit;
     const pageGroups = unit.pageGroups.map((group) => {
-      if (!isRecord(group) || group.mode !== 'reference_only' || 'activityKeys' in group) return group;
+      if (!isRecord(group)
+        || (group.mode !== 'reference_only' && group.mode !== 'teacher_only')
+        || 'activityKeys' in group) return group;
       changed = true;
       return { ...group, activityKeys: [] };
     });
@@ -458,8 +460,11 @@ const sourceSet = (value: unknown, expectedStrategy?: unknown): boolean => {
         : nonEmptyString(source.ownerNodeKey));
   });
 };
-const unitStructures = (value: unknown): boolean => {
+const unitStructures = (value: unknown, allowTeacherOnly = false): boolean => {
   if (!recordArray(value, 1)) return false;
+  const allowedModes = allowTeacherOnly
+    ? ['activity', 'reference_only', 'teacher_only']
+    : ['activity', 'reference_only'];
   return value.every((unit) => {
     assertAllowedKeys(unit, UNIT_KEYS, 'invalid_book_assembly_publication_record');
     if (!nonEmptyString(unit.unitKey)
@@ -479,10 +484,10 @@ const unitStructures = (value: unknown): boolean => {
         && Array.isArray(group.pages)
         && group.pages.length > 0
         && group.pages.every((page) => safeIntegerAtLeast(page, 1))
-        && (group.mode === 'reference_only'
-          ? stringArray(group.activityKeys) && group.activityKeys.length === 0
-          : stringArray(group.activityKeys, 1))
-        && ['activity', 'reference_only'].includes(String(group.mode))
+        && (group.mode === 'activity'
+          ? stringArray(group.activityKeys, 1)
+          : stringArray(group.activityKeys) && group.activityKeys.length === 0)
+        && allowedModes.includes(String(group.mode))
         && (group.defaultPhysicalPageNumber === undefined
           || safeIntegerAtLeast(group.defaultPhysicalPageNumber, 1));
     });
@@ -494,7 +499,7 @@ const manifest = (value: unknown, bookId: string): boolean => {
   if (value.bookId !== bookId
     || !sourceSet(value.sourceSet)
     || !recordArray(value.nodes, 1)
-    || !unitStructures(value.units)) return false;
+    || !unitStructures(value.units, true)) return false;
   return value.nodes.every((node) => {
     assertAllowedKeys(node, NODE_KEYS, 'invalid_book_assembly_publication_record');
     return nonEmptyString(node.nodeKey)

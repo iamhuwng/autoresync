@@ -4,6 +4,7 @@ import type {
   TrustedBookSourceVersionProjection,
 } from '../../types/bookAssembly.types';
 import type { EditableActivity } from '../../types/bookActivity.types';
+import { BOOK_ACTIVITY_MAX_EVIDENCE_REFS } from '../book-activity/activityCandidate.service';
 
 export const UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION = 'prd0062.unit_activity_import.v1' as const;
 export const UNIT_ACTIVITY_IMPORT_PROMPT_VERSION = 'book-unit-json-v1' as const;
@@ -59,9 +60,10 @@ const sourcePageRefs = (unit: BookUnitCandidate): string[] => {
   return [...refs].sort();
 };
 
-export const allowedActivitySlotEvidenceRefs = (
+const collectSlotEvidenceRefs = (
   unit: BookUnitCandidate,
   activityKey: string,
+  includeTeacherOnly: boolean,
 ): string[] => {
   const slot = unit.activitySlots.find((entry) => entry.activityKey === activityKey);
   const refs = new Set<string>([`import:${activityKey}`]);
@@ -73,18 +75,44 @@ export const allowedActivitySlotEvidenceRefs = (
     for (const page of group.pages) refs.add(`source:${group.sourceKey}:page:${page}`);
   };
   for (const pageGroupKey of slot.pageGroupKeys) {
-    addGroup(groups.get(pageGroupKey));
+    const group = groups.get(pageGroupKey);
+    if (group && group.mode === 'activity') addGroup(group);
   }
   for (const group of unit.pageGroups) {
-    if (group.mode === 'reference_only') addGroup(group);
+    if (group.mode === 'reference_only' || (includeTeacherOnly && group.mode === 'teacher_only')) {
+      addGroup(group);
+    }
   }
   return [...refs].sort();
 };
 
+/** Student-safe evidence refs for sourceEvidenceRefs (excludes teacher_only). */
+export const allowedActivitySlotSourceEvidenceRefs = (
+  unit: BookUnitCandidate,
+  activityKey: string,
+): string[] => collectSlotEvidenceRefs(unit, activityKey, false);
+
+/** Authoring evidence refs for answerEvidenceRefs (includes unit teacher_only answer keys). */
+export const allowedActivitySlotAnswerEvidenceRefs = (
+  unit: BookUnitCandidate,
+  activityKey: string,
+): string[] => collectSlotEvidenceRefs(unit, activityKey, true);
+
+/** Full authoring evidence refs for legacy evidenceRefs provenance. */
+export const allowedActivitySlotEvidenceRefs = (
+  unit: BookUnitCandidate,
+  activityKey: string,
+): string[] => allowedActivitySlotAnswerEvidenceRefs(unit, activityKey);
+
 const slotSourcePageRefs = (
   unit: BookUnitCandidate,
   slot: BookUnitCandidate['activitySlots'][number],
-): string[] => allowedActivitySlotEvidenceRefs(unit, slot.activityKey);
+): string[] => allowedActivitySlotSourceEvidenceRefs(unit, slot.activityKey);
+
+const slotAnswerPageRefs = (
+  unit: BookUnitCandidate,
+  slot: BookUnitCandidate['activitySlots'][number],
+): string[] => allowedActivitySlotAnswerEvidenceRefs(unit, slot.activityKey);
 
 const supportedActivityContract = {
   families: [
@@ -141,6 +169,7 @@ const supportedActivityContract = {
       contextRequirement: 'mode "required" with acceptedKinds ["book-pages"]; every interaction MUST include sourceAssisted: { questionLabel, accessiblePrompt, responseShape, sourceExerciseLabel } with unique questionLabel values',
     },
   ],
+  maxEvidenceRefsPerField: BOOK_ACTIVITY_MAX_EVIDENCE_REFS,
   forbiddenObjectTypes: ['Resource', 'Task Group', 'Task Set'],
 };
 
@@ -222,7 +251,9 @@ export const buildUnitActivityImportPrompt = ({
         order: slot.order,
         contextRequirement: slot.contextRequirement,
         pageGroupKeys: slot.pageGroupKeys,
-        allowedEvidenceRefs: slotSourcePageRefs(unit, slot),
+        allowedEvidenceRefs: slotAnswerPageRefs(unit, slot),
+        allowedSourceEvidenceRefs: slotSourcePageRefs(unit, slot),
+        allowedAnswerEvidenceRefs: slotAnswerPageRefs(unit, slot),
       })),
       allowedEvidenceRefs: sourcePageRefs(unit),
     },
@@ -237,7 +268,7 @@ export const buildUnitActivityImportPrompt = ({
         content: exampleActivityContent(slot),
         evidenceRefs: [`import:${slot.activityKey}`],
         sourceEvidenceRefs: slotSourcePageRefs(unit, slot).filter((ref) => !ref.startsWith('import:')).slice(0, 1),
-        answerEvidenceRefs: slotSourcePageRefs(unit, slot).filter((ref) => !ref.startsWith('import:')).slice(0, 1),
+        answerEvidenceRefs: slotAnswerPageRefs(unit, slot).filter((ref) => !ref.startsWith('import:')).slice(0, 1),
       })),
     },
   };
@@ -257,7 +288,8 @@ export const buildUnitActivityImportPrompt = ({
     '- Include accessibility-facing labels/instructions in editable Activity text. Do not rely on visual layout alone.',
     '- taskProfile may be null. If namespaced, use only a real registered taxonomy/type/version.',
     '- Do not create Resource, Task Group, or Task Set objects. This import accepts Activity content only.',
-    '- Use only allowed source/page evidence refs from the contract.',
+    '- Use only allowed source/page evidence refs from the contract. Page groups with mode "teacher_only" (such as Answer Keys) may ONLY be cited in answerEvidenceRefs (or evidenceRefs), never in sourceEvidenceRefs, stimulus, or student-facing instructions.',
+    `- Each evidence array (evidenceRefs, sourceEvidenceRefs, answerEvidenceRefs) may contain at most ${BOOK_ACTIVITY_MAX_EVIDENCE_REFS} unique entries; include only the specific page or group refs used for that slot.`,
     '- Do not include hidden IDs, editable IDs, sourceVersionId, provider object keys, provider URLs, credentials, private source authority, teacher notes, guessed offsets, unsupported visual approximation, or accepted answers from unrelated sources.',
   ].join('\n');
 };
@@ -310,7 +342,9 @@ export const buildBulkUnitActivityImportPrompt = ({
         order: slot.order,
         contextRequirement: slot.contextRequirement,
         pageGroupKeys: slot.pageGroupKeys,
-        allowedEvidenceRefs: slotSourcePageRefs(unit, slot),
+        allowedEvidenceRefs: slotAnswerPageRefs(unit, slot),
+        allowedSourceEvidenceRefs: slotSourcePageRefs(unit, slot),
+        allowedAnswerEvidenceRefs: slotAnswerPageRefs(unit, slot),
       })),
     })),
     supportedActivityContract,
@@ -327,7 +361,7 @@ export const buildBulkUnitActivityImportPrompt = ({
               content: exampleActivityContent(exampleSlot),
               evidenceRefs: [`import:${exampleSlot.activityKey}`],
               sourceEvidenceRefs: slotSourcePageRefs(exampleUnit, exampleSlot).filter((ref) => !ref.startsWith('import:')).slice(0, 1),
-              answerEvidenceRefs: slotSourcePageRefs(exampleUnit, exampleSlot).filter((ref) => !ref.startsWith('import:')).slice(0, 1),
+              answerEvidenceRefs: slotAnswerPageRefs(exampleUnit, exampleSlot).filter((ref) => !ref.startsWith('import:')).slice(0, 1),
             },
           ],
         },
@@ -346,7 +380,8 @@ export const buildBulkUnitActivityImportPrompt = ({
     '- You may return all requested units together or a partial batch (for example 5 units at a time); every included unit must contain all of its activitySlots.',
     '- Every slot must use exactly one interaction family from supportedActivityContract.',
     '- Keep answer rules inside editable Activity content only. Use review-required for long-response.',
-    '- Use only allowedEvidenceRefs belonging to that exact unit and slot.',
+    '- Use only allowedEvidenceRefs belonging to that exact unit and slot. Page groups with mode "teacher_only" (such as Answer Keys) may ONLY be cited in answerEvidenceRefs (or evidenceRefs), never in sourceEvidenceRefs, stimulus, or student-facing instructions.',
+    `- Each evidence array (evidenceRefs, sourceEvidenceRefs, answerEvidenceRefs) may contain at most ${BOOK_ACTIVITY_MAX_EVIDENCE_REFS} unique entries; include only the specific page or group refs used for that slot.`,
     '- Do not include hidden IDs, sourceVersionId, provider URLs, credentials, teacher notes, or Resource/Task Group/Task Set objects.',
   ].join('\n');
 };

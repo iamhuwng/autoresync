@@ -11,6 +11,7 @@ import {
   type BookDeliveryBinding,
   type BookRuntimePageGroupContext,
 } from '../../../../src/services/book-delivery/bookDelivery.types.ts';
+import type { BookPageGroupCandidate } from '../../../../src/types/bookAssembly.types.ts';
 import { projectCombinedPageContext } from '../../../../src/services/book-assembly/componentStudentDocument.types.ts';
 import { resolveMaterialQualifiedAssemblyCandidate } from '../../../../src/services/book-assembly/componentPdfActivation.service.ts';
 import {
@@ -504,6 +505,80 @@ const bindingIdFor = async (operationId: string): Promise<string> => {
   return `bd_${[...digest.slice(0, 20)].map((byte) => byte.toString(16).padStart(2, '0')).join('')}`;
 };
 
+export const resolveScopedComponentStudentPageGroups = (input: {
+  readonly binding: BookDeliveryBinding;
+  readonly activation: NonNullable<ReturnType<typeof resolveActiveComponentStudentDocument>>['activation'];
+  readonly descriptor: NonNullable<ReturnType<typeof resolveActiveComponentStudentDocument>>['descriptor'];
+  readonly candidatesByUnit: ReadonlyMap<string, ReturnType<typeof resolveMaterialQualifiedAssemblyCandidate>>;
+}): readonly BookRuntimePageGroupContext[] | null => {
+  const { binding, activation, descriptor, candidatesByUnit } = input;
+  const assignedPageGroupKeys = new Set(binding.placements.flatMap((placement) => placement.pageGroupKeys));
+  const activityById = new Map(activation.activities.map((entry) => [entry.activityId, entry]));
+  const assignedUnitKeys = new Set<string>();
+  for (const placement of binding.placements) {
+    const activity = activityById.get(placement.activityId);
+    if (!activity) return null;
+    assignedUnitKeys.add(activity.unitKey);
+  }
+  const assignedUnitReferences = activation.unitCandidates
+    .filter((reference) => assignedUnitKeys.has(reference.unitKey));
+  if (assignedUnitReferences.length !== assignedUnitKeys.size) return null;
+
+  const groupFacts = new Map<string, {
+    sourceKey: string;
+    pages: readonly number[];
+    activityKeys: readonly string[];
+    unitKey: string;
+    mode: BookPageGroupCandidate['mode'];
+  }>();
+  const assignedPageGroupCandidates: BookPageGroupCandidate[] = [];
+  const seenProjectedGroupKeys = new Set<string>();
+  for (const reference of assignedUnitReferences) {
+    const candidate = candidatesByUnit.get(reference.unitKey);
+    const unit = candidate?.manifest?.units.find((entry) => entry.unitKey === reference.unitKey);
+    if (!candidate || !unit) return null;
+    for (const group of unit.pageGroups) {
+      if (groupFacts.has(group.pageGroupKey)) return null;
+      groupFacts.set(group.pageGroupKey, { ...group, unitKey: unit.unitKey });
+      if (assignedPageGroupKeys.has(group.pageGroupKey) && !seenProjectedGroupKeys.has(group.pageGroupKey)) {
+        if (group.mode !== 'activity') return null;
+        seenProjectedGroupKeys.add(group.pageGroupKey);
+        assignedPageGroupCandidates.push(group);
+      }
+    }
+  }
+  let pageGroups: readonly BookRuntimePageGroupContext[] = [];
+  try {
+    pageGroups = projectCombinedPageContext(descriptor, assignedPageGroupCandidates);
+  } catch {
+    return null;
+  }
+  for (const placement of binding.placements) {
+    const activity = activityById.get(placement.activityId);
+    const groups = placement.pageGroupKeys.map((key) => groupFacts.get(key));
+    if (!activity || groups.some((group) => !group)
+      || groups.some((group) => group!.unitKey !== activity.unitKey
+        || group!.mode !== 'activity'
+        || !group!.activityKeys.includes(activity.activityKey))) return null;
+    const candidate = candidatesByUnit.get(activity.unitKey);
+    const slot = candidate?.manifest?.units.find((entry) => entry.unitKey === activity.unitKey)
+      ?.activitySlots.find((entry) => entry.activityKey === activity.activityKey);
+    const allowedSources = new Map(binding.sourceSet.sources.map((source) => [source.sourceKey, source.sourceVersionId]));
+    const canonicalScopes = [...new Map(groups.flatMap((group) => group!.pages.map((page) => [
+      `${group!.sourceKey}:${page}`, { sourceKey: group!.sourceKey, page },
+    ]))).values()].sort((a, b) => a.sourceKey.localeCompare(b.sourceKey) || a.page - b.page);
+    const storedScopes = placement.sourcePageScopes.flatMap((scopeEntry) => scopeEntry.pages.map((page) => ({
+      sourceKey: scopeEntry.sourceKey, page,
+    }))).sort((a, b) => a.sourceKey.localeCompare(b.sourceKey) || a.page - b.page);
+    const expectedPageGroupKeys = slot?.contextRequirement === 'none' ? [] : slot?.pageGroupKeys;
+    if (!slot || slot.contextRequirement !== placement.contextMode
+      || groups.some((group) => !allowedSources.has(group!.sourceKey))
+      || JSON.stringify(expectedPageGroupKeys) !== JSON.stringify(placement.pageGroupKeys)
+      || JSON.stringify(canonicalScopes) !== JSON.stringify(storedScopes)) return null;
+  }
+  return Object.freeze(pageGroups);
+};
+
 export const resolveTrustedBookDeliveryStudentDocument = async (env: BookDeliveryWorkerEnv, binding: BookDeliveryBinding) => {
     const authority = await readProductionBookAssemblyAuthority(env, binding.issuer.ownerId, binding.book.bookId, 'current');
     if (!authority) return null;
@@ -527,52 +602,33 @@ export const resolveTrustedBookDeliveryStudentDocument = async (env: BookDeliver
     } catch {
       return null;
     }
-    const pageGroups: BookRuntimePageGroupContext[] = [];
-    const groupFacts = new Map<string, {
-      sourceKey: string; pages: readonly number[]; activityKeys: readonly string[]; unitKey: string;
-    }>();
+    const activityById = new Map(qualified.activation.activities.map((entry) => [entry.activityId, entry]));
+    const assignedUnitKeys = new Set<string>();
+    for (const placement of binding.placements) {
+      const activity = activityById.get(placement.activityId);
+      if (!activity) return null;
+      assignedUnitKeys.add(activity.unitKey);
+    }
+    const assignedUnitReferences = qualified.activation.unitCandidates
+      .filter((reference) => assignedUnitKeys.has(reference.unitKey));
+    if (assignedUnitReferences.length !== assignedUnitKeys.size) return null;
+
     const assemblyRepository = new FirebaseRestBookAssemblyRepository({
       env: env as never, ownerId: binding.issuer.ownerId,
     });
-    const candidateByUnit = new Map<string, ReturnType<typeof resolveMaterialQualifiedAssemblyCandidate>>();
-    for (const reference of qualified.activation.unitCandidates) {
+    const candidatesByUnit = new Map<string, ReturnType<typeof resolveMaterialQualifiedAssemblyCandidate>>();
+    await Promise.all(assignedUnitReferences.map(async (reference) => {
       const candidateScope = await assemblyRepository.readScope(binding.book.bookId, reference.unitKey);
       const candidate = resolveMaterialQualifiedAssemblyCandidate(authority, reference.unitKey, candidateScope.candidates);
-      const unit = candidate?.manifest?.units.find((entry) => entry.unitKey === reference.unitKey);
-      if (!candidate || !unit) return null;
-      candidateByUnit.set(reference.unitKey, candidate);
-      for (const group of unit.pageGroups) {
-        if (groupFacts.has(group.pageGroupKey)) return null;
-        groupFacts.set(group.pageGroupKey, { ...group, unitKey: unit.unitKey });
-      }
-      try { pageGroups.push(...projectCombinedPageContext(qualified.descriptor, unit.pageGroups)); } catch { return null; }
-    }
-    for (const placement of binding.placements) {
-      const activity = qualified.activation.activities.find((entry) => entry.activityId === placement.activityId);
-      const groups = placement.pageGroupKeys.map((key) => groupFacts.get(key));
-      if (!activity || groups.some((group) => !group)
-        || groups.some((group) => group!.unitKey !== activity.unitKey
-          || !group!.activityKeys.includes(activity.activityKey))) return null;
-      let candidate = candidateByUnit.get(activity.unitKey);
-      if (candidate === undefined) {
-        const candidateScope = await assemblyRepository.readScope(binding.book.bookId, activity.unitKey);
-        candidate = resolveMaterialQualifiedAssemblyCandidate(authority, activity.unitKey, candidateScope.candidates);
-        candidateByUnit.set(activity.unitKey, candidate);
-      }
-      const slot = candidate?.manifest?.units.find((entry) => entry.unitKey === activity.unitKey)
-        ?.activitySlots.find((entry) => entry.activityKey === activity.activityKey);
-      const allowedSources = new Map(binding.sourceSet.sources.map((source) => [source.sourceKey, source.sourceVersionId]));
-      const canonicalScopes = [...new Map(groups.flatMap((group) => group!.pages.map((page) => [
-        `${group!.sourceKey}:${page}`, { sourceKey: group!.sourceKey, page },
-      ]))).values()].sort((a, b) => a.sourceKey.localeCompare(b.sourceKey) || a.page - b.page);
-      const storedScopes = placement.sourcePageScopes.flatMap((scopeEntry) => scopeEntry.pages.map((page) => ({
-        sourceKey: scopeEntry.sourceKey, page,
-      }))).sort((a, b) => a.sourceKey.localeCompare(b.sourceKey) || a.page - b.page);
-      if (!slot || slot.contextRequirement !== placement.contextMode
-        || groups.some((group) => !allowedSources.has(group!.sourceKey))
-        || JSON.stringify(slot.pageGroupKeys) !== JSON.stringify(placement.pageGroupKeys)
-        || JSON.stringify(canonicalScopes) !== JSON.stringify(storedScopes)) return null;
-    }
+      candidatesByUnit.set(reference.unitKey, candidate);
+    }));
+    const pageGroups = resolveScopedComponentStudentPageGroups({
+      binding,
+      activation: qualified.activation,
+      descriptor: qualified.descriptor,
+      candidatesByUnit,
+    });
+    if (!pageGroups) return null;
     const access = sourceUploadAccess(env as unknown as Record<string, unknown>);
     const account = validateBookSourceUploadAccountState(await new FirebaseRtdbRestClient({
       env, fetchImpl: globalThis.fetch, getAccessToken: access.getAccessToken,

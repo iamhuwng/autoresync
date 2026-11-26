@@ -1,4 +1,5 @@
 import type {
+  PageGroupMode,
   SourcePageReference,
   SourceSetCandidate,
 } from '../../types/bookAssembly.types';
@@ -20,7 +21,7 @@ export interface ReplacementPageGroupDescriptor {
   readonly sourceKey: string;
   readonly ownerNodeKey?: string;
   readonly pages: readonly number[];
-  readonly mode: 'activity' | 'reference_only';
+  readonly mode: PageGroupMode;
 }
 
 /** Safe, trusted metadata for one immutable Source Version. */
