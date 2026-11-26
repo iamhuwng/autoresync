@@ -525,6 +525,48 @@ export class FirebaseRtdbRestClient {
     await this.patchLocations(Object.entries(updates).map(([path, value]) => ({ path, value })));
   }
 
+  /**
+   * Multi-location PATCH scoped under `basePath`, writing exact relative child
+   * paths in a single RTDB HTTP request. Each leaf path is still evaluated
+   * independently by RTDB security rules.
+   */
+  async patchRelative(
+    basePath: string,
+    updates: Readonly<Record<string, unknown>>,
+  ): Promise<void> {
+    const entries = Object.entries(updates);
+    if (entries.length === 0) return;
+    const payload: Record<string, unknown> = {};
+    for (const [relativePath, value] of entries) {
+      if (typeof relativePath !== 'string'
+        || !relativePath
+        || relativePath.startsWith('/')
+        || relativePath.endsWith('/')
+        || relativePath.includes('//')
+        || relativePath.includes('..')
+        || Object.prototype.hasOwnProperty.call(payload, relativePath)
+        || Object.keys(payload).some((other) => relativePath.startsWith(`${other}/`) || other.startsWith(`${relativePath}/`))) {
+        throw new Error('firebase_rtdb_relative_patch_invalid');
+      }
+      payload[relativePath] = value;
+    }
+    const auth = await this.requestAuth(basePath);
+    let response: Response;
+    try {
+      response = await this.options.fetchImpl.call(globalThis, auth.url, {
+        method: 'PATCH',
+        headers: { ...auth.headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    } catch {
+      throw new Error('firebase_rtdb_relative_patch_transport_failed');
+    }
+    if (!response.ok) {
+      const body = (await response.text()).slice(0, 240).replace(/[\r]+/gu, ' ');
+      throw new Error(`firebase_rtdb_patch_failed:${response.status}:${basePath}:${body}`);
+    }
+  }
+
   private async patchLocations(
     updates: readonly { readonly path: string; readonly value: unknown }[],
   ): Promise<void> {

@@ -88,11 +88,41 @@ const slotSourcePageRefs = (
 
 const supportedActivityContract = {
   families: [
-    { family: 'choice', variants: ['single-select', 'multi-select'], answerRule: 'accepted options stay inside trusted Activity content' },
-    { family: 'text-entry', variants: ['short-answer', 'sentence-completion'], answerRule: 'normalization and accepted text stay inside trusted Activity content' },
-    { family: 'matching', variants: ['matching-pairs'], answerRule: 'pair keys stay local to the editable Activity content' },
-    { family: 'ordering', variants: ['sequence'], answerRule: 'ordered labels stay local to the editable Activity content' },
-    { family: 'long-response', variants: ['draft-response'], answerRule: 'review-required only; no objective scoring' },
+    {
+      family: 'choice',
+      variants: ['single-select', 'multi-select'],
+      interactionFields: ['prompt', 'options', 'acceptedOptionIndexes'],
+      sourceAssistedResponseShapes: ['single-choice (when requiredSelectionCount is 1)', 'multiple-choice (when requiredSelectionCount >= 2)'],
+      answerRule: 'accepted options stay inside trusted Activity content; set requiredSelectionCount to match acceptedOptionIndexes.length',
+    },
+    {
+      family: 'text-entry',
+      variants: ['short-text', 'sentence-completion'],
+      interactionFields: ['prompt', 'acceptedAnswers'],
+      sourceAssistedResponseShapes: ['short-text', 'text'],
+      answerRule: 'normalization and accepted text stay inside trusted Activity content',
+    },
+    {
+      family: 'matching',
+      variants: ['matching-pairs'],
+      interactionFields: ['prompt', 'leftItems', 'rightItems', 'acceptedPairs (array of [leftIndex, rightIndex])'],
+      sourceAssistedResponseShapes: ['matching'],
+      answerRule: 'pair indexes stay local to the editable Activity content',
+    },
+    {
+      family: 'ordering',
+      variants: ['sequence'],
+      interactionFields: ['prompt', 'orderingItems', 'acceptedOrder (permutation of 0..n-1)'],
+      sourceAssistedResponseShapes: ['ordering'],
+      answerRule: 'ordered labels stay local to the editable Activity content',
+    },
+    {
+      family: 'long-response',
+      variants: ['draft-response', 'v1'],
+      interactionFields: ['prompt', 'rubric: { criteria: string[] }'],
+      sourceAssistedResponseShapes: ['long-response', 'long-text'],
+      answerRule: 'scoring.mode must be review-required; no objective scoring',
+    },
   ],
   stimulusAndMedia: [
     'Use plain text stimulus when the source page context needs quotation or paraphrase.',
@@ -100,10 +130,56 @@ const supportedActivityContract = {
     'Do not include provider object keys, provider URLs, buckets, credentials, or private source authority.',
   ],
   presentationExamples: [
-    { presentationMode: 'structured', useWhen: 'standalone prompt can be answered without viewing mapped book pages' },
-    { presentationMode: 'source-assisted', useWhen: 'student must use mapped pageGroup/source page evidence' },
+    {
+      presentationMode: 'structured',
+      useWhen: 'slot.contextRequirement is none or optional',
+      contextRequirement: 'mode "none" with acceptedKinds [], OR mode "optional" with acceptedKinds ["book-pages"]; omit interactions[].sourceAssisted',
+    },
+    {
+      presentationMode: 'source-assisted',
+      useWhen: 'slot.contextRequirement is required',
+      contextRequirement: 'mode "required" with acceptedKinds ["book-pages"]; every interaction MUST include sourceAssisted: { questionLabel, accessiblePrompt, responseShape, sourceExerciseLabel } with unique questionLabel values',
+    },
   ],
   forbiddenObjectTypes: ['Resource', 'Task Group', 'Task Set'],
+};
+
+const exampleActivityContent = (slot: BookUnitCandidate['activitySlots'][number]) => {
+  const isSourceAssisted = slot.contextRequirement === 'required';
+  const interaction = isSourceAssisted
+    ? {
+      prompt: 'Question text.',
+      options: ['A', 'B'],
+      acceptedOptionIndexes: [0],
+      sourceAssisted: {
+        questionLabel: 'Q1',
+        accessiblePrompt: 'Question 1: choose the best option based on the mapped book page.',
+        responseShape: 'single-choice',
+        sourceExerciseLabel: 'Exercise 1',
+      },
+    }
+    : {
+      prompt: 'Question text.',
+      options: ['A', 'B'],
+      acceptedOptionIndexes: [0],
+    };
+  return {
+    schemaVersion: 1,
+    title: 'Teacher-visible Activity title',
+    taskProfile: null,
+    presentationMode: isSourceAssisted ? 'source-assisted' : 'structured',
+    contextRequirement: {
+      mode: slot.contextRequirement,
+      acceptedKinds: slot.contextRequirement === 'none' ? [] : ['book-pages'],
+    },
+    instructions: [{ text: 'Student instructions.' }],
+    stimulus: null,
+    assetRefs: [],
+    interaction: { family: 'choice', variant: 'single-select' },
+    answerRule: { defaultPoints: 1, normalization: 'exact', requiredSelectionCount: 1 },
+    interactions: [interaction],
+    scoring: { mode: 'auto-where-possible' },
+  };
 };
 
 export const buildUnitActivityImportPrompt = ({
@@ -146,6 +222,7 @@ export const buildUnitActivityImportPrompt = ({
         order: slot.order,
         contextRequirement: slot.contextRequirement,
         pageGroupKeys: slot.pageGroupKeys,
+        allowedEvidenceRefs: slotSourcePageRefs(unit, slot),
       })),
       allowedEvidenceRefs: sourcePageRefs(unit),
     },
@@ -157,23 +234,7 @@ export const buildUnitActivityImportPrompt = ({
       unitKey,
       slots: unit.activitySlots.map((slot) => ({
         activityKey: slot.activityKey,
-        content: {
-          schemaVersion: 1,
-          title: 'Teacher-visible Activity title',
-          taskProfile: null,
-          presentationMode: 'structured',
-          contextRequirement: {
-            mode: slot.contextRequirement === 'none' ? 'none' : slot.contextRequirement,
-            acceptedKinds: slot.contextRequirement === 'none' ? [] : ['book-pages'],
-          },
-          instructions: [{ text: 'Student instructions.' }],
-          stimulus: null,
-          assetRefs: [],
-          interaction: { family: 'choice', variant: 'single-select' },
-          answerRule: { defaultPoints: 1, normalization: 'exact', requiredSelectionCount: 1 },
-          interactions: [{ prompt: 'Question text.', options: ['A', 'B'], acceptedOptionIndexes: [0] }],
-          scoring: { mode: 'auto-where-possible' },
-        },
+        content: exampleActivityContent(slot),
         evidenceRefs: [`import:${slot.activityKey}`],
         sourceEvidenceRefs: slotSourcePageRefs(unit, slot).filter((ref) => !ref.startsWith('import:')).slice(0, 1),
         answerEvidenceRefs: slotSourcePageRefs(unit, slot).filter((ref) => !ref.startsWith('import:')).slice(0, 1),
@@ -263,23 +324,7 @@ export const buildBulkUnitActivityImportPrompt = ({
           slots: [
             {
               activityKey: exampleSlot.activityKey,
-              content: {
-                schemaVersion: 1,
-                title: 'Teacher-visible Activity title',
-                taskProfile: null,
-                presentationMode: exampleSlot.contextRequirement === 'none' ? 'structured' : 'source-assisted',
-                contextRequirement: {
-                  mode: exampleSlot.contextRequirement === 'none' ? 'none' : exampleSlot.contextRequirement,
-                  acceptedKinds: exampleSlot.contextRequirement === 'none' ? [] : ['book-pages'],
-                },
-                instructions: [{ text: 'Student instructions.' }],
-                stimulus: null,
-                assetRefs: [],
-                interaction: { family: 'choice', variant: 'single-select' },
-                answerRule: { defaultPoints: 1, normalization: 'exact', requiredSelectionCount: 1 },
-                interactions: [{ prompt: 'Question text.', options: ['A', 'B'], acceptedOptionIndexes: [0] }],
-                scoring: { mode: 'auto-where-possible' },
-              },
+              content: exampleActivityContent(exampleSlot),
               evidenceRefs: [`import:${exampleSlot.activityKey}`],
               sourceEvidenceRefs: slotSourcePageRefs(exampleUnit, exampleSlot).filter((ref) => !ref.startsWith('import:')).slice(0, 1),
               answerEvidenceRefs: slotSourcePageRefs(exampleUnit, exampleSlot).filter((ref) => !ref.startsWith('import:')).slice(0, 1),

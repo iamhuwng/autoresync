@@ -202,7 +202,7 @@ describe('PRD0062 ticket 13A Assembly candidate Worker', () => {
     await expect(handlers.discoverDrafts({ env: mutationEnv() as never, uid: 'teacher-1', bookId: 'book-1' }))
       .resolves.toMatchObject({ body: { code: 'draft_discovery_unqualified' }, init: { status: 409 } });
     repository.book = componentAuthority('source-a-v1', 0, 0);
-    repository.unitKeys = Array.from({ length: 33 }, (_, index) => `unit-${index}`);
+    repository.unitKeys = Array.from({ length: 65 }, (_, index) => `unit-${index}`);
     await expect(handlers.discoverDrafts({ env: mutationEnv() as never, uid: 'teacher-1', bookId: 'book-1' }))
       .resolves.toMatchObject({ body: { code: 'draft_discovery_limit' }, init: { status: 409 } });
     repository.unitKeys = ['unit-1'];

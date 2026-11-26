@@ -973,7 +973,7 @@ describe('Book Activity authoring Worker boundary', () => {
     });
     const candidateId = String((staged.body as Record<string, unknown>).candidateId);
     let lastStatus = 0;
-    for (let index = 0; index < 260; index += 1) {
+    for (let index = 0; index < 516; index += 1) {
       const suffix = (0x100 + index).toString(16).padStart(3, '0');
       const response = await current.handlers.validate({
         request: request({
@@ -987,7 +987,7 @@ describe('Book Activity authoring Worker boundary', () => {
       lastStatus = response.init.status;
     }
     expect(lastStatus).toBe(409);
-    expect(Object.keys(current.state['teacher-1'].operations ?? {})).toHaveLength(256);
+    expect(Object.keys(current.state['teacher-1'].operations ?? {})).toHaveLength(512);
   });
 
   it('rejects streamed 256KiB-plus body without Content-Length and leaves no candidate state', async () => {
@@ -1147,5 +1147,97 @@ describe('Book Activity authoring Worker boundary', () => {
     });
     expect(requests).toEqual(['GET', 'PUT', 'GET', 'PUT']);
     expect(checks).toBe(2);
+  });
+
+  it('validates registered Task Profiles via the canonical renderer manifest registry and rejects unregistered profiles', async () => {
+    const current = worker();
+    const registered = await current.handlers.stage({
+      request: request({
+        operationId: operation('701'),
+        expectedRevision: 0,
+        content: {
+          ...activity,
+          taskProfile: { taxonomyId: 'ielts-listening', typeId: 'listening-multiple-choice-single', taxonomyVersion: 1 },
+          interaction: { family: 'choice', variant: 'single-choice' },
+        },
+      }),
+      env: {},
+      uid: 'teacher-1',
+    });
+    expect(registered.init.status).toBe(200);
+    expect(registered.body).toMatchObject({ status: 'staged', validation: { valid: true } });
+
+    const unregistered = await current.handlers.stage({
+      request: request({
+        operationId: operation('702'),
+        expectedRevision: 0,
+        content: {
+          ...activity,
+          taskProfile: { taxonomyId: 'custom-exam', typeId: 'not-registered', taxonomyVersion: 1 },
+        },
+      }),
+      env: {},
+      uid: 'teacher-1',
+    });
+    expect(unregistered.init.status).toBe(422);
+    expect(unregistered.body).toMatchObject({
+      status: 'invalid',
+      validation: {
+        valid: false,
+        errors: expect.arrayContaining([expect.objectContaining({ code: 'unregistered-task-profile' })]),
+      },
+    });
+  });
+
+  it('protects the latest saved candidate per Activity when pruning terminal candidates at capacity', async () => {
+    const candidates: Record<string, unknown> = {
+      'cand-live-saved': {
+        candidateId: 'cand-live-saved',
+        targetActivityId: 'act-unit-1',
+        ownerId: 'teacher-1',
+        bookId: 'book-1',
+        targetRevision: 0,
+        revision: 3,
+        lifecycle: 'saved',
+        content: activity,
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [],
+        sourceEvidenceRefs: [],
+        answerEvidenceRefs: [],
+        updatedAt: 100,
+      },
+    };
+    for (let index = 0; index < 1535; index += 1) {
+      const id = `cand-discarded-${index}`;
+      candidates[id] = {
+        candidateId: id,
+        targetActivityId: `act-other-${index}`,
+        ownerId: 'teacher-1',
+        bookId: 'book-1',
+        targetRevision: 0,
+        revision: 2,
+        lifecycle: 'discarded',
+        content: null,
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [],
+        sourceEvidenceRefs: [],
+        answerEvidenceRefs: [],
+        updatedAt: 200 + index,
+      };
+    }
+    const current = worker({ state: { 'teacher-1': { candidates } } });
+    const staged = await current.handlers.stage({
+      request: request({ operationId: operation('703'), expectedRevision: 0, content: activity }),
+      env: {},
+      uid: 'teacher-1',
+    });
+    expect(staged.init.status).toBe(200);
+    expect(staged.body).toMatchObject({ status: 'staged' });
+    // Even though cand-live-saved had the oldest updatedAt (100), pruning must
+    // preserve it and evict an older discarded candidate instead.
+    expect(current.state['teacher-1'].candidates?.['cand-live-saved']).toBeDefined();
+    expect(current.state['teacher-1'].candidates?.['cand-discarded-0']).toBeUndefined();
   });
 });

@@ -6,6 +6,7 @@ import type { BookRouteHandlersOptions } from '../book-route-handlers.ts';
 import { FirebaseRestBookActivityAuthoringRepository } from '../book-activity-authoring/repository.ts';
 import { activityMatchesAssemblyContract, createBookActivityAuthoringWorkerHandlers } from '../book-activity-authoring/worker.ts';
 import { validateEditableActivity } from '../../../../src/services/book-activity/activitySchema.service.ts';
+import { defaultBookActivityTaskProfileRegistry } from '../../../../src/services/book-activity/activityTaskProfileRegistry.ts';
 import { createFirebaseClaimTokenProvider, type BookFirebaseClaimTuple } from '../book-activity-authoring/firebase-token.ts';
 import { FirebaseRestBookAssemblyRepository } from './repository.ts';
 import { createBookAssemblyWorkerHandlers } from './worker.ts';
@@ -115,7 +116,11 @@ const savedActivityMatchesFinalManifest = (
       mappedBookPageRefs.push(`source:${group.sourceKey}:page:${page}`);
     }
   }
-  if (!mappedBookPageRefs.length || !validateEditableActivity(record(saved)?.content, { mappedBookPageRefs }).valid) return false;
+  if ((slot.contextRequirement !== 'none' && !mappedBookPageRefs.length)
+    || !validateEditableActivity(record(saved)?.content, {
+      mappedBookPageRefs,
+      taskProfileRegistry: defaultBookActivityTaskProfileRegistry,
+    }).valid) return false;
   const raw = record(saved);
   return ['evidenceRefs', 'sourceEvidenceRefs', 'answerEvidenceRefs'].every((key) => {
     const refs = raw?.[key];
@@ -129,15 +134,19 @@ export const readVerifiedDraftActivityKeys = async (
   candidate: BookAssemblyCandidateRecord,
   bindingRepository: Pick<UnitActivityBindingRepository, 'read'>,
   activityRepository: Pick<FirebaseRestBookActivityAuthoringRepository, 'readOwnerRoot'>,
+  cachedOwnerRoot?: Awaited<ReturnType<FirebaseRestBookActivityAuthoringRepository['readOwnerRoot']>>,
 ): Promise<readonly string[]> => {
   const { ownerId, bookId, unitKey, manifest } = candidate;
   const unit = manifest?.units.find((entry) => entry.unitKey === unitKey);
   if (!manifest || !unit) return [];
-  const root = await activityRepository.readOwnerRoot(ownerId);
-  const savedKeys: string[] = [];
+  const root = cachedOwnerRoot ?? await activityRepository.readOwnerRoot(ownerId);
   const isFullPdf = manifest.sourceSet.sourceStrategy === 'full_pdf';
-  for (const { activityKey } of unit.activitySlots) {
-    const binding = await bindingRepository.read({ ownerId, bookId, unitKey, activityKey });
+  const bindingsBySlot = await Promise.all(unit.activitySlots.map(async ({ activityKey }) => ({
+    activityKey,
+    binding: await bindingRepository.read({ ownerId, bookId, unitKey, activityKey }),
+  })));
+  const savedKeys: string[] = [];
+  for (const { activityKey, binding } of bindingsBySlot) {
     if (!binding || binding.candidateLifecycle !== 'saved'
       || binding.ownerId !== ownerId || binding.bookId !== bookId
       || binding.unitKey !== unitKey || binding.activityKey !== activityKey) continue;
@@ -718,8 +727,17 @@ export const createProductionBookAssemblyRouteOptions = (): Pick<BookRouteHandle
       : null,
     bindingRepositoryFactory: (env) => bindings(env as Env),
     activateComponentPdf: (input, env) => activateComponentPdfInProduction(input, env as Env),
-    verifyDraftActivities: ({ env, candidate }) => readVerifiedDraftActivityKeys(candidate,
-      bindings(env as Env), new FirebaseRestBookActivityAuthoringRepository({ env: env as never })),
+    verifyDraftActivities: async ({ env, candidate, requestCache }) => {
+      const activityRepo = new FirebaseRestBookActivityAuthoringRepository({ env: env as never });
+      const cacheKey = `ownerRoot:${candidate.ownerId}`;
+      let ownerRootPromise = requestCache?.get(cacheKey) as Promise<Awaited<ReturnType<FirebaseRestBookActivityAuthoringRepository['readOwnerRoot']>>> | undefined;
+      if (!ownerRootPromise) {
+        ownerRootPromise = activityRepo.readOwnerRoot(candidate.ownerId);
+        requestCache?.set(cacheKey, ownerRootPromise);
+      }
+      const ownerRoot = await ownerRootPromise;
+      return readVerifiedDraftActivityKeys(candidate, bindings(env as Env), activityRepo, ownerRoot);
+    },
     verifyActivatedActivities: async ({ env, ownerId, bookId, unitKey, activityKeys }) =>
       Object.keys(await activities(env as Env, ownerId, bookId, unitKey, activityKeys)).length === activityKeys.length,
   }),

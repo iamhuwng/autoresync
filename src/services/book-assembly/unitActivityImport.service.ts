@@ -444,7 +444,17 @@ export const stageUnitActivityImportBundle = async ({
   const unit = manifest.units.find((entry) => entry.unitKey === unitKey);
   if (!unit) throw new UnitActivityImportError('missing-unit', 'Selected Unit has no Activity slot contract.');
   const staged: StagedUnitActivity[] = [];
+  const validatedSlots: Array<{
+    readonly slot: UnitActivityImportSlot;
+    readonly result: ActivityStageResult;
+    readonly validatedRevision: number;
+  }> = [];
+  let committedAnySlot = false;
   try {
+    // Phase 1: stage and validate every slot BEFORE saving any draft or writing
+    // any unit binding, so a revision conflict, schema error, or cancel on a
+    // later slot cleanly discards only unsaved candidates without mutating
+    // activity revisions or leaving bindings pointing at discarded tombstones.
     for (const slot of bundle.slots) {
       if (signal?.aborted) {
         throw new UnitActivityImportError('canceled', 'Import was canceled.');
@@ -466,6 +476,11 @@ export const stageUnitActivityImportBundle = async ({
         sourceEvidenceRefs: [...(slot.sourceEvidenceRefs ?? [])],
         answerEvidenceRefs: [...(slot.answerEvidenceRefs ?? [])],
       });
+      const stagedEntry: StagedUnitActivity = {
+        ...result,
+        unitActivityBinding: { unitKey, activityKey: slot.activityKey },
+      };
+      staged.push(stagedEntry);
       const validated = await activityAuthoring.validate({
         candidateId: result.candidateId,
         expectedRevision: result.revision,
@@ -474,12 +489,26 @@ export const stageUnitActivityImportBundle = async ({
         sourceEvidenceRefs: [...(slot.sourceEvidenceRefs ?? [])],
         answerEvidenceRefs: [...(slot.answerEvidenceRefs ?? [])],
       });
+      staged[staged.length - 1] = {
+        ...stagedEntry,
+        revision: validated.revision,
+      };
       if (validated.status !== 'validated' || validated.lifecycle !== 'validated') {
         throw new UnitActivityImportError('activity-binding-validation-failed', `Activity slot ${slot.activityKey} is not validated.`);
       }
+      validatedSlots.push({ slot, result, validatedRevision: validated.revision });
+      if (signal?.aborted) {
+        throw new UnitActivityImportError('canceled', 'Import was canceled.');
+      }
+    }
+
+    // Phase 2: commit all validated slots once every slot is conflict-free.
+    const committed: StagedUnitActivity[] = [];
+    for (const { slot, result, validatedRevision } of validatedSlots) {
+      committedAnySlot = true;
       const saved = await activityAuthoring.saveDraft({
         candidateId: result.candidateId,
-        expectedRevision: validated.revision,
+        expectedRevision: validatedRevision,
         evidenceRefs: [...(slot.evidenceRefs ?? [])],
         sourceEvidenceRefs: [...(slot.sourceEvidenceRefs ?? [])],
         answerEvidenceRefs: [...(slot.answerEvidenceRefs ?? [])],
@@ -491,20 +520,17 @@ export const stageUnitActivityImportBundle = async ({
       if (saved.status !== 'saved' || saved.activityId !== result.targetActivityId) {
         throw new UnitActivityImportError('activity-binding-save-failed', `Activity slot ${slot.activityKey} was not saved.`);
       }
-      // Rollback must address the persisted candidate state, not the initial
-      // staging revision that validate/save have superseded.
-      staged.push({
+      committed.push({
         ...result,
         revision: saved.candidateRevision,
         unitActivityBinding: { unitKey, activityKey: slot.activityKey },
       });
-      if (signal?.aborted) {
-        throw new UnitActivityImportError('canceled', 'Import was canceled.');
-      }
     }
+    return { bundle, staged: committed };
   } catch (error) {
-    if (staged.length > 0) await discardStagedUnitActivities(activityAuthoring, staged);
+    if (!committedAnySlot && staged.length > 0) {
+      await discardStagedUnitActivities(activityAuthoring, staged);
+    }
     throw error;
   }
-  return { bundle, staged };
 };

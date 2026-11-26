@@ -26,8 +26,10 @@ import {
 export const BOOK_ASSEMBLY_PUBLICATION_ROOT = 'book_assembly_publications/books';
 
 const MAX_RETRIES = 5;
-const MAX_SCOPE_BYTES = 2 * 1024 * 1024;
-const MAX_PUBLICATION_RECORDS_PER_FAMILY = 256;
+const MAX_SCOPE_BYTES = 16 * 1024 * 1024;
+const MAX_PUBLICATION_RECORDS_PER_FAMILY = 8192;
+const BATCH_PATCH_THRESHOLD = 12;
+const MAX_PATCH_ENTRIES_PER_REQUEST = 200;
 const MAX_RECORD_BYTES = 512 * 1024;
 const PATH_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$/u;
 const ACTIVITY_VERSION_REFERENCE_KEY = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,383}$/u;
@@ -1226,6 +1228,7 @@ implements BookAssemblyPublicationRepository<BookAssemblyPublicationResult> {
     families: readonly string[],
     alreadyPersisted?: Record<string, unknown>,
   ): Promise<void> {
+    const pending: Array<{ readonly relativePath: string; readonly value: unknown }> = [];
     for (const family of families) {
       const before = isRecord(current[family]) ? current[family] as Record<string, unknown> : {};
       const persisted = isRecord(alreadyPersisted?.[family]) ? alreadyPersisted![family] as Record<string, unknown> : {};
@@ -1246,7 +1249,33 @@ implements BookAssemblyPublicationRepository<BookAssemblyPublicationResult> {
           }
           continue;
         }
-        await this.prepareExact(childPath(bookId, `${family}/${key}`), value);
+        pending.push({ relativePath: `${family}/${key}`, value });
+      }
+    }
+    if (pending.length === 0) return;
+    if (pending.length <= BATCH_PATCH_THRESHOLD) {
+      for (const entry of pending) {
+        await this.prepareExact(childPath(bookId, entry.relativePath), entry.value);
+      }
+      return;
+    }
+    // Batch immutable child writes into multi-location PATCH requests under the
+    // book scope to avoid hitting Cloudflare Worker subrequest ceilings on
+    // multi-unit books. If a PATCH fails (for example due to a concurrent
+    // idempotent write or a mock transport without PATCH), fall back to exact
+    // per-record conflict verification.
+    for (let offset = 0; offset < pending.length; offset += MAX_PATCH_ENTRIES_PER_REQUEST) {
+      const chunk = pending.slice(offset, offset + MAX_PATCH_ENTRIES_PER_REQUEST);
+      const updates: Record<string, unknown> = {};
+      for (const entry of chunk) updates[entry.relativePath] = entry.value;
+      try {
+        await this.rtdb.patchRelative(scopePath(bookId), updates);
+      } catch {
+        for (let inner = 0; inner < chunk.length; inner += 8) {
+          await Promise.all(chunk.slice(inner, inner + 8).map((entry) => (
+            this.prepareExact(childPath(bookId, entry.relativePath), entry.value)
+          )));
+        }
       }
     }
   }

@@ -291,9 +291,10 @@ describe('unit Activity JSON import', () => {
       activityAuthoring: service,
       resolveActivityTargetId: (slot) => slot.activityKey,
     })).rejects.toThrow('stage failed');
+    expect(service.saveDraft).not.toHaveBeenCalled();
     expect(service.discard).toHaveBeenCalledWith({
       candidateId: 'candidate-activity-a',
-      expectedRevision: 9,
+      expectedRevision: 8,
       unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-a' },
     });
   });
@@ -544,6 +545,58 @@ describe('unit Activity JSON import', () => {
           { activityKey: 'activity-b', content: activity('B') },
         ],
       }), listeningManifest, 'unit-1')).toThrowError(expect.objectContaining({ code: 'cross-source-evidence' }));
+    });
+
+    it('stages and validates all slots before saving any draft so a conflict on a later slot leaves earlier slots untouched', async () => {
+      const saveDraft = vi.fn();
+      const discard = vi.fn().mockResolvedValue({ status: 'discarded', candidateId: 'cand-a', revision: 3, lifecycle: 'discarded' });
+      const stage = vi.fn()
+        .mockResolvedValueOnce({
+          status: 'staged',
+          candidateId: 'cand-a',
+          targetActivityId: bookScopedActivityTargetId('book-1', 'activity-a'),
+          revision: 1,
+          lifecycle: 'staged',
+          validation: { valid: true, errors: [] },
+          diff: null,
+          evidenceRefs: [],
+          sourceEvidenceRefs: [],
+          answerEvidenceRefs: [],
+        })
+        .mockRejectedValueOnce(new ActivityAuthoringHttpError(409, { status: 'conflict', currentRevision: 2 }));
+      const validate = vi.fn().mockResolvedValue({
+        status: 'validated',
+        candidateId: 'cand-a',
+        revision: 2,
+        lifecycle: 'validated',
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [],
+        sourceEvidenceRefs: [],
+        answerEvidenceRefs: [],
+      });
+
+      await expect(stageUnitActivityImportBundle({
+        text: bundle(),
+        manifest,
+        unitKey: 'unit-1',
+        activityAuthoring: {
+          stage,
+          validate,
+          saveDraft,
+          discard,
+          loadCandidate: vi.fn(),
+        },
+        resolveActivityTargetId: (slot) => bookScopedActivityTargetId('book-1', slot.activityKey),
+      })).rejects.toThrow(UnitActivityImportConflictError);
+
+      expect(saveDraft).not.toHaveBeenCalled();
+      expect(discard).toHaveBeenCalledTimes(1);
+      expect(discard).toHaveBeenCalledWith({
+        candidateId: 'cand-a',
+        expectedRevision: 2,
+        unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-a' },
+      });
     });
   });
 });

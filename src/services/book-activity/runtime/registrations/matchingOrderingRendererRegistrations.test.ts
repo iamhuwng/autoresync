@@ -38,9 +38,34 @@ describe('Ticket #39 renderer registrations', () => {
     )).toBe(true);
   });
 
-  it('keeps unclassified ordering variants unregistered and fail closed', () => {
+  it('registers generic ordering/sequence while keeping unclassified ordering variants fail-closed', () => {
     expect(coverageMatrix.rows.some((row) => row.interaction.family === 'ordering')).toBe(false);
-    expect(activityRendererManifest.registrations.some((entry) => entry.family === 'ordering')).toBe(false);
+    expect(activityRendererManifest.registrations.filter((entry) => entry.family === 'ordering')).toHaveLength(2);
+    expect(bookActivityRendererRegistry.resolve({
+      schemaVersion: 1,
+      title: 'Order steps',
+      taskProfile: null,
+      presentationMode: 'structured',
+      contextRequirement: { mode: 'none', acceptedKinds: [] },
+      instructions: [{ text: 'Order the steps.' }],
+      interaction: { family: 'ordering', variant: 'sequence' },
+      answerRule: { defaultPoints: 1, normalization: 'exact' },
+      stimulus: null,
+      assetRefs: [],
+      interactions: [{
+        interactionId: 'ordering-1',
+        family: 'ordering',
+        prompt: 'Order the steps.',
+        items: [{ itemId: 'item-a', label: 'Step A' }],
+      }],
+      scoring: { mode: 'auto-where-possible', feedbackVisibility: 'none' },
+    }, {
+      surface: 'student-runtime',
+      mode: 'editable',
+    })).toMatchObject({
+      supported: true,
+      registration: { family: 'ordering', variant: 'sequence', presentationMode: 'structured' },
+    });
     expect(bookActivityRendererRegistry.resolve({
       schemaVersion: 1,
       title: 'Order steps',

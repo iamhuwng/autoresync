@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import manifestSource from '../../src/services/book-activity/runtime/activityRendererManifest.json?raw';
 import releaseCandidateConfigSource from '../wrangler.book-source.jsonc?raw';
 
-const expectedRegistryVersion = 'activity-renderer-manifest-v1@sha256:649910eeb4ce46bc89e246ec4bcb7df883a0aae5da4fdbf2bc66d3bc3f9f1831';
+const expectedRegistryVersion = 'activity-renderer-manifest-v1@sha256:f5b4139e1883ee2d288933f0d168bd9c5a54fce7636668a99075ea208ac1274f';
 
 const stripJsoncLineComments = (source: string): string => {
   let output = '';
@@ -40,7 +40,7 @@ describe('prd0062 canonical Book Worker registry config', () => {
     };
     const manifestDigest = createHash('sha256').update(manifestSource, 'utf8').digest('hex');
 
-    expect(manifestDigest).toBe('649910eeb4ce46bc89e246ec4bcb7df883a0aae5da4fdbf2bc66d3bc3f9f1831');
+    expect(manifestDigest).toBe('f5b4139e1883ee2d288933f0d168bd9c5a54fce7636668a99075ea208ac1274f');
     expect(releaseCandidateConfig.vars.BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION)
       .toBe(`activity-renderer-manifest-v1@sha256:${manifestDigest}`);
     expect(releaseCandidateConfig.vars.BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION).toBe(expectedRegistryVersion);
