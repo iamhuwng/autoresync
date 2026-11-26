@@ -206,6 +206,51 @@ describe('student authentication Worker', () => {
     expect(database.values.has('student_identifiers/ids-only')).toBe(false);
   });
 
+  it('serializes overlapping registrations for one Firebase UID without deleting the winner', async () => {
+    const database = createMemoryDatabase();
+    let releaseFirstPatch: (() => void) | null = null;
+    let firstPatchStarted: (() => void) | null = null;
+    const firstPatchReady = new Promise<void>((resolve) => { firstPatchStarted = resolve; });
+    const firstPatchReleased = new Promise<void>((resolve) => { releaseFirstPatch = resolve; });
+    const patch = database.patchAdminMultiLocation.getMockImplementation()!;
+    let patchCount = 0;
+    database.patchAdminMultiLocation.mockImplementation(async (updates) => {
+      patchCount += 1;
+      if (patchCount === 1) {
+        firstPatchStarted?.();
+        await firstPatchReleased;
+      }
+      await patch(updates);
+    });
+    const identityToolkit = vi.fn(async (operation: string, body: Record<string, unknown>) => (
+      operation === 'accounts:signInWithPassword'
+        ? { ok: true, status: 200, data: { localId: 'same-uid', idToken: 'same-token', email: body.email } }
+        : { ok: false, status: 400, data: { error: { message: 'EMAIL_EXISTS' } } }
+    ));
+    const worker = createStudentAuthWorkerHandlers({
+      databaseFactory: () => database,
+      identityToolkit: identityToolkit as never,
+      createCustomToken: async () => 'same-token',
+      rateLimit: async () => true,
+    });
+
+    const first = worker.fetch(makeRequest('/auth/student/register', {
+      email: 'same@example.com', password: 'password123', displayName: 'Same Student', studentId: 'first-7',
+    }), makeEnv());
+    await firstPatchReady;
+    const second = worker.fetch(makeRequest('/auth/student/register', {
+      email: 'same@example.com', password: 'password123', displayName: 'Same Student', studentId: 'second-7',
+    }), makeEnv());
+    await expect(second).resolves.toMatchObject({ status: 409 });
+    releaseFirstPatch?.();
+
+    const firstResponse = await first;
+    expect(firstResponse.status).toBe(200);
+    expect(database.values.get('users/same-uid')).toMatchObject({ uid: 'same-uid', role: 'student' });
+    expect(database.values.get('student_identifiers/same-uid')).toMatchObject({ studentId: 'first-7' });
+    expect([...database.values.keys()].filter((path) => path.startsWith('student_login_ids/'))).toHaveLength(1);
+  });
+
   it('authenticates student IDs without returning the linked email address', async () => {
     const database = createMemoryDatabase();
     const identityToolkit = vi.fn(async (operation: string, body: Record<string, unknown>) => ({

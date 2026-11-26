@@ -33,6 +33,10 @@
       ".read": false,
       ".write": false
     },
+    "student_registration_claims": {
+      ".read": false,
+      ".write": false
+    },
     "student_identifiers": {
       "$uid": {
         ".read": "auth != null && ($uid === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",

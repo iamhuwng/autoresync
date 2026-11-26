@@ -176,6 +176,9 @@ const LoginPage = () => {
     if (errorCode === 'auth/student-id-unavailable') {
       return 'That student ID is already in use. Please choose another.';
     }
+    if (errorCode === 'auth/registration-in-progress') {
+      return 'This account is already being registered. Please wait a moment and try again.';
+    }
     if (errorCode === 'auth/weak-password') {
       return 'Choose a password with 6–128 characters.';
     }

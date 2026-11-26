@@ -63,6 +63,15 @@ interface StudentAuthDatabase {
   patchAdminMultiLocation(updates: Readonly<Record<string, unknown>>): Promise<void>;
 }
 
+interface RegistrationClaim {
+  readonly path: string;
+  readonly uid: string;
+  readonly operationId: string;
+  readonly startedAt: number;
+}
+
+const REGISTRATION_CLAIM_TTL_MS = 5 * 60 * 1000;
+
 interface StudentAuthWorkerOptions {
   readonly firebaseVerifier?: FirebaseVerifier;
   readonly fetchImpl?: typeof fetch;
@@ -377,6 +386,47 @@ const releaseStudentIdReservation = async (
   }
 };
 
+const acquireRegistrationClaim = async (
+  database: StudentAuthDatabase,
+  uid: string,
+  now: number,
+): Promise<RegistrationClaim | null> => {
+  const path = `student_registration_claims/${uid}`;
+  const current = await database.readWithEtag<Record<string, unknown>>(path);
+  const startedAt = typeof current.data?.startedAt === 'number' ? current.data.startedAt : 0;
+  if (current.data?.uid === uid
+    && typeof current.data.operationId === 'string'
+    && now - startedAt < REGISTRATION_CLAIM_TTL_MS) {
+    return null;
+  }
+  const operationId = crypto.randomUUID();
+  const claim = { uid, operationId, startedAt: now };
+  if (!await database.writeIfMatch(path, claim, current.etag)) return null;
+  return { path, ...claim };
+};
+
+const ownsRegistrationClaim = async (
+  database: StudentAuthDatabase,
+  claim: RegistrationClaim,
+): Promise<boolean> => {
+  const current = asRecord(await database.readValue(claim.path));
+  return current?.uid === claim.uid && current.operationId === claim.operationId;
+};
+
+const releaseRegistrationClaim = async (
+  database: StudentAuthDatabase,
+  claim: RegistrationClaim,
+): Promise<void> => {
+  try {
+    const current = await database.readWithEtag<Record<string, unknown>>(claim.path);
+    if (current.data?.uid === claim.uid && current.data.operationId === claim.operationId) {
+      await database.writeIfMatch(claim.path, null, current.etag);
+    }
+  } catch {
+    // A stale claim expires and is fenced by its operation ID before cleanup.
+  }
+};
+
 const registrationStateMatches = (input: {
   readonly uid: string;
   readonly normalizedStudentId: string;
@@ -409,6 +459,8 @@ const cleanupRegistrationArtifacts = async (input: {
   readonly reservationHash: string;
   readonly profileWasCreated: boolean;
   readonly identifierWasCreated: boolean;
+  readonly reservationWasCreated: boolean;
+  readonly expectedProfile: Record<string, unknown>;
 }): Promise<void> => {
   const removeIfOwned = async (
     path: string,
@@ -422,7 +474,9 @@ const cleanupRegistrationArtifacts = async (input: {
     }
   };
 
-  await removeIfOwned(`student_login_ids/${input.reservationHash}`, (value) => value?.uid === input.uid);
+  if (input.reservationWasCreated) {
+    await removeIfOwned(`student_login_ids/${input.reservationHash}`, (value) => value?.uid === input.uid);
+  }
   if (input.identifierWasCreated) {
     await removeIfOwned(`student_identifiers/${input.uid}`, (value) => (
       value?.uid === input.uid
@@ -434,6 +488,9 @@ const cleanupRegistrationArtifacts = async (input: {
       value?.uid === input.uid
       && value.role === 'student'
       && value.status === 'active'
+      && value.email === input.expectedProfile.email
+      && value.displayName === input.expectedProfile.displayName
+      && value.createdAt === input.expectedProfile.createdAt
     ));
   }
 };
@@ -569,11 +626,24 @@ export const createStudentAuthWorkerHandlers = (options: StudentAuthWorkerOption
       return workerError('student_id_already_assigned', 409);
     }
 
-    let reservation: { hash: string; createdAt: number } | null = null;
+    let registrationClaim: RegistrationClaim | null;
+    try {
+      registrationClaim = await acquireRegistrationClaim(database, uid, now());
+    } catch {
+      if (createdAccount) await callIdentityToolkit('accounts:delete', { idToken }, origin, env).catch(() => undefined);
+      return workerError('student_auth_unavailable', 503);
+    }
+    if (!registrationClaim) return workerError('registration_in_progress', 409);
+
+    let reservation: { hash: string; createdAt: number; created: boolean } | null = null;
     const profileWasCreated = !profile;
     const identifierWasCreated = !existingIdentifier;
+    let expectedProfile: Record<string, unknown> = profile ?? {};
     let registrationCommitted = false;
     try {
+      if (!await ownsRegistrationClaim(database, registrationClaim)) {
+        throw new Error('registration_claim_lost');
+      }
       reservation = await reserveStudentId(database, uid, studentId, now());
       if (!reservation) {
         if (createdAccount) await callIdentityToolkit('accounts:delete', { idToken }, origin, env).catch(() => undefined);
@@ -590,8 +660,12 @@ export const createStudentAuthWorkerHandlers = (options: StudentAuthWorkerOption
       if (!profile) {
         nextProfile.displayName = displayName;
       }
+      expectedProfile = nextProfile;
       const local = isLocalEmulator(env);
       const token = local ? null : await signCustomToken(uid, env);
+      if (!await ownsRegistrationClaim(database, registrationClaim)) {
+        throw new Error('registration_claim_lost');
+      }
       await database.patchAdminMultiLocation({
         [`users/${uid}`]: nextProfile,
         [`student_identifiers/${uid}`]: {
@@ -626,7 +700,8 @@ export const createStudentAuthWorkerHandlers = (options: StudentAuthWorkerOption
         status: createdAccount ? 201 : 200,
       };
     } catch {
-      if (!registrationCommitted && reservation) {
+      const claimOwned = await ownsRegistrationClaim(database, registrationClaim).catch(() => false);
+      if (!registrationCommitted && reservation && claimOwned) {
         await cleanupRegistrationArtifacts({
           database,
           uid,
@@ -634,10 +709,14 @@ export const createStudentAuthWorkerHandlers = (options: StudentAuthWorkerOption
           reservationHash: reservation.hash,
           profileWasCreated,
           identifierWasCreated,
+          reservationWasCreated: reservation.created,
+          expectedProfile,
         });
         if (createdAccount) await callIdentityToolkit('accounts:delete', { idToken }, origin, env).catch(() => undefined);
       }
       return workerError('student_auth_unavailable', 503);
+    } finally {
+      await releaseRegistrationClaim(database, registrationClaim);
     }
   };
 
