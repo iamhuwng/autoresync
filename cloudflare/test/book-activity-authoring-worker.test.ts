@@ -190,6 +190,57 @@ describe('Book Activity authoring Worker boundary', () => {
       candidateId, expectedRevision: 2, unitActivityBinding: binding }), env: {}, uid: 'teacher-1' });
     expect(saved.body).toMatchObject({ status: 'saved' });
   });
+
+  it('persists and reads back assemblyDraft seals with sourceSetFingerprint across stage, validate, and save', async () => {
+    const binding = { unitKey: 'unit-1', activityKey: 'slot-1' };
+    const seal = {
+      bookId: 'book-1',
+      unitKey: 'unit-1',
+      activityKey: 'slot-1',
+      candidateId: 'assembly-1',
+      candidateRevision: 1,
+      manifestFingerprint: 'fnv1a64:aaaaaaaaaaaaaaaa',
+      sourceSetFingerprint: 'fnv1a64:cccccccccccccccc',
+    };
+    const current = worker({
+      draftContext: async () => ({
+        seal,
+        contract: { activityKey: 'slot-1', contextRequirement: 'none' },
+        mappedBookPageRefs: ['source:full:page:8'],
+      }),
+      bindingRepositoryFactory: () => ({
+        read: async () => null,
+        bindCandidate: async () => 'created',
+        recordPublication: async () => 'updated',
+      }),
+    });
+    const staged = await current.handlers.stage({
+      request: request({
+        operationId: operation('311'),
+        expectedRevision: 0,
+        targetActivityId: 'ba_626f6f6b2d31_736c6f742d31',
+        unitActivityBinding: binding,
+        content: activity,
+      }),
+      env: {},
+      uid: 'teacher-1',
+    });
+    expect(staged.body).toMatchObject({ status: 'staged' });
+    const candidateId = String((staged.body as Record<string, unknown>).candidateId);
+    expect(current.state['teacher-1'].candidates?.[candidateId]).toMatchObject({ assemblyDraft: seal });
+    const validated = await current.handlers.validate({
+      request: request({ operationId: operation('312'), candidateId, expectedRevision: 1, unitActivityBinding: binding }),
+      env: {},
+      uid: 'teacher-1',
+    });
+    expect(validated.body).toMatchObject({ status: 'validated' });
+    const saved = await current.handlers.saveDraft({
+      request: request({ operationId: operation('313'), candidateId, expectedRevision: 2, unitActivityBinding: binding }),
+      env: {},
+      uid: 'teacher-1',
+    });
+    expect(saved.body).toMatchObject({ status: 'saved' });
+  });
   it('rejects mutation of an exact Material-activation-pinned Activity candidate', async () => {
     const staged = worker({ createRecordId: () => '123e4567-e89b-42d3-a456-426614174998' });
     const created = await staged.handlers.stage({

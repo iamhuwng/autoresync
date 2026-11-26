@@ -238,5 +238,24 @@ describe('production source publication boundary', () => {
       { readOwnerRoot: async () => ({ candidates: { [binding.candidateId]: saved }, activities: { [binding.activityId]: activity } }) },
     );
     expect(rejected).toEqual([]);
+
+    // Omitting sourceSetFingerprint MUST fail closed for Full-PDF even if manifestFingerprint matches
+    const legacySavedWithoutSourceSetSeal = {
+      ...saved,
+      assemblyDraft: {
+        bookId: 'book-1',
+        unitKey: 'unit-02',
+        activityKey: 'u02-ex1',
+        candidateId: 'assembly-full-2',
+        candidateRevision: 1,
+        manifestFingerprint: fingerprintComponentPdfActivationValue(fullManifest),
+      },
+    };
+    const rejectedWithoutSourceSetSeal = await readVerifiedDraftActivityKeys(
+      assembly as never,
+      { read: async () => binding as never },
+      { readOwnerRoot: async () => ({ candidates: { [binding.candidateId]: legacySavedWithoutSourceSetSeal }, activities: { [binding.activityId]: activity } }) },
+    );
+    expect(rejectedWithoutSourceSetSeal).toEqual([]);
   });
 });

@@ -86,8 +86,7 @@ const savedActivityMatchesFinalManifest = (
   const expectedManifestFingerprint = fingerprintComponentPdfActivationValue(manifest);
   const expectedSourceSetFingerprint = fingerprintComponentPdfActivationValue(manifest.sourceSet);
   const sealMatchesSourceSet = typeof seal?.sourceSetFingerprint === 'string'
-    ? seal.sourceSetFingerprint === expectedSourceSetFingerprint
-    : seal?.manifestFingerprint === expectedManifestFingerprint;
+    && seal.sourceSetFingerprint === expectedSourceSetFingerprint;
   const sealValid = isFullPdf
     ? Boolean(
       seal

@@ -160,7 +160,15 @@ interface ActivityResolution {
 
 const placementUnitKey = (
   placement: BookRuntimeProjection['activities'][number],
-): string => ('unitKey' in placement && typeof placement.unitKey === 'string' ? placement.unitKey : '');
+): string => {
+  if ('nodeKey' in placement && typeof placement.nodeKey === 'string' && placement.nodeKey.trim()) {
+    return placement.nodeKey.trim();
+  }
+  if ('unitKey' in placement && typeof placement.unitKey === 'string' && placement.unitKey.trim()) {
+    return placement.unitKey.trim();
+  }
+  return '';
+};
 
 const scopedRuntimePageGroupKey = (
   placement: BookRuntimeProjection['activities'][number],
@@ -177,6 +185,7 @@ const detectCrossUnitPageGroupCollision = (
   const ownerUnitByGroupKey = new Map<string, string>();
   for (const placement of deliveryProjection.activities) {
     const unitKey = placementUnitKey(placement);
+    if (!unitKey) continue;
     for (const key of placement.sourceContext.pageGroupKeys) {
       const prevUnit = ownerUnitByGroupKey.get(key);
       if (prevUnit !== undefined && prevUnit !== unitKey) return true;
@@ -186,6 +195,14 @@ const detectCrossUnitPageGroupCollision = (
   return false;
 };
 
+const placementScopedPages = (
+  placement: BookRuntimeProjection['activities'][number],
+  request: BookRuntimeDeliveryDocumentRequest | BookRuntimeStudentDocumentRequest | null,
+): number[] => (placement.sourceContext.sourcePageScopes ?? [])
+  .filter((scope) => !request || !('sourceKey' in request) || scope.sourceKey === request.sourceKey)
+  .flatMap((scope) => scope.pages)
+  .filter((page) => Number.isSafeInteger(page) && page >= 1);
+
 const deriveFullPdfPageGroups = (
   deliveryProjection: BookRuntimeProjection,
   request: BookRuntimeDeliveryDocumentRequest | BookRuntimeStudentDocumentRequest | null,
@@ -194,10 +211,7 @@ const deriveFullPdfPageGroups = (
   if (deliveryProjection.sourceSet.strategy !== 'full_pdf' || !request || !('sourceKey' in request)) return [];
   const byKey = new Map<string, Set<number>>();
   for (const placement of deliveryProjection.activities) {
-    const pages = (placement.sourceContext.sourcePageScopes ?? [])
-      .filter((scope) => scope.sourceKey === request.sourceKey)
-      .flatMap((scope) => scope.pages)
-      .filter((page) => Number.isSafeInteger(page) && page >= 1);
+    const pages = placementScopedPages(placement, request);
     if (pages.length === 0) continue;
     for (const rawKey of placement.sourceContext.pageGroupKeys) {
       const pageGroupKey = scopedRuntimePageGroupKey(placement, rawKey, hasCrossUnitCollision);
@@ -210,6 +224,52 @@ const deriveFullPdfPageGroups = (
     }
   }
   return [...byKey.entries()].map(([pageGroupKey, pages]) => ({
+    pageGroupKey,
+    combinedPhysicalPages: [...pages].sort((left, right) => left - right),
+  }));
+};
+
+const isolateCollidingDeclaredPageGroups = (
+  deliveryProjection: BookRuntimeProjection,
+  declaredPageGroups: readonly BookRuntimePageGroupContext[],
+  request: BookRuntimeDeliveryDocumentRequest | BookRuntimeStudentDocumentRequest | null,
+): readonly BookRuntimePageGroupContext[] | null => {
+  const byScopedKey = new Map<string, Set<number>>();
+  const collidingRawKeys = new Set<string>();
+  const ownerUnitByRawKey = new Map<string, string>();
+  for (const placement of deliveryProjection.activities) {
+    const unitKey = placementUnitKey(placement);
+    if (!unitKey) continue;
+    for (const rawKey of placement.sourceContext.pageGroupKeys) {
+      const prevUnit = ownerUnitByRawKey.get(rawKey);
+      if (prevUnit !== undefined && prevUnit !== unitKey) collidingRawKeys.add(rawKey);
+      ownerUnitByRawKey.set(rawKey, unitKey);
+    }
+  }
+  const declaredByRawKey = new Map<string, BookRuntimePageGroupContext>();
+  for (const group of declaredPageGroups) {
+    if (!declaredByRawKey.has(group.pageGroupKey)) declaredByRawKey.set(group.pageGroupKey, group);
+  }
+  for (const placement of deliveryProjection.activities) {
+    const scopedPages = placementScopedPages(placement, request);
+    for (const rawKey of placement.sourceContext.pageGroupKeys) {
+      const pageGroupKey = scopedRuntimePageGroupKey(placement, rawKey, true);
+      const pages = collidingRawKeys.has(rawKey)
+        ? scopedPages
+        : (scopedPages.length > 0 ? scopedPages : [...(declaredByRawKey.get(rawKey)?.combinedPhysicalPages ?? [])]);
+      if (pages.length === 0) {
+        if (collidingRawKeys.has(rawKey)) return null;
+        continue;
+      }
+      let set = byScopedKey.get(pageGroupKey);
+      if (!set) {
+        set = new Set<number>();
+        byScopedKey.set(pageGroupKey, set);
+      }
+      pages.forEach((page) => set!.add(page));
+    }
+  }
+  return [...byScopedKey.entries()].map(([pageGroupKey, pages]) => ({
     pageGroupKey,
     combinedPhysicalPages: [...pages].sort((left, right) => left - right),
   }));
@@ -230,10 +290,21 @@ const resolveActivities = (
         && source.sourceVersionId === candidateRequest.sourceVersionId)
     ? candidateRequest : null;
   const declaredPageGroups = Array.isArray(deliveryProjection.pageGroups) ? deliveryProjection.pageGroups : [];
-  const hasCrossUnitCollision = declaredPageGroups.length === 0 && detectCrossUnitPageGroupCollision(deliveryProjection);
-  const pageGroups = declaredPageGroups.length > 0
-    ? declaredPageGroups
+  const hasCrossUnitCollision = detectCrossUnitPageGroupCollision(deliveryProjection);
+  const isolatedPageGroups = declaredPageGroups.length > 0
+    ? (hasCrossUnitCollision
+      ? isolateCollidingDeclaredPageGroups(deliveryProjection, declaredPageGroups, request)
+      : declaredPageGroups)
     : deriveFullPdfPageGroups(deliveryProjection, request, hasCrossUnitCollision);
+  if (isolatedPageGroups === null) {
+    return {
+      activities: [],
+      pageGroups: [],
+      request,
+      error: 'Book page groups collide across units and cannot be isolated.',
+    };
+  }
+  const pageGroups = isolatedPageGroups;
   if (!request || pageGroups.length === 0) return { activities: [], pageGroups, request, error: 'Book document context is unavailable or stale.' };
   const byId = new Map<string, BookRuntimeShellActivity[]>();
   for (const activity of activities) {
