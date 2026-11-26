@@ -4,7 +4,11 @@ import { createBookDeliveryBinding } from '../../../../src/services/book-deliver
 import { createBookDeliveryProjectionResolver } from '../../../../src/services/book-delivery/bookDelivery.service.ts';
 import { FirebaseRestBookDeliveryRepository, type BookDeliveryRepositoryEnv } from '../book-delivery/repository.ts';
 import { FirebaseRestBookAssemblyPublicationRepository, type BookAssemblyPublicationRepositoryEnv } from '../book-assembly/publication-repository.ts';
-import { createTrustedBookDeliveryPublication, resolveTrustedBookDeliveryStudentDocument } from '../book-delivery/worker.ts';
+import {
+  createTrustedBookDeliveryPublication,
+  readTrustedFullPdfPhysicalPageCount,
+  resolveTrustedBookDeliveryStudentDocument,
+} from '../book-delivery/worker.ts';
 import { createPublicBookAuthorityReader } from './authority-reader.ts';
 import { defaultRuntimeFactory } from '../book-source/document.ts';
 import type { LiveBookDocumentAuthority } from '../book-delivery/documentAuthorization.ts';
@@ -13,6 +17,7 @@ type PublicDependencies = {
   readonly publicationRepository?: Pick<FirebaseRestBookAssemblyPublicationRepository, 'readScope'>;
   readonly resolveStudentDocument?: typeof resolveTrustedBookDeliveryStudentDocument;
   readonly readDocumentAuthority?: (env: PublicEnv, binding: BookDeliveryBinding) => Promise<LiveBookDocumentAuthority>;
+  readonly readFullPdfPhysicalPageCount?: (env: PublicEnv, ownerId: string, bookId: string, sourceVersionId: string) => Promise<number | undefined>;
 };
 type PublicEnv = BookDeliveryRepositoryEnv & BookAssemblyPublicationRepositoryEnv;
 const ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,159}$/u;
@@ -96,10 +101,18 @@ export const createPublicBookProductionHandlers = (options: PublicDependencies &
       if (!placements.length) return { body: { code: 'public_book_document_unavailable' }, init: { status: 409 } };
       const contextId = `public_${(await digest(`${input.bookId}:${scope.current.publicationId}:${scope.current.publicationRevision}`)).slice(0, 32)}`;
       const policy = { policyId: contextId, policyRevision: 1, basis: 'immutable-reference' as const };
+      const fullPdfSourceVersionId = version?.strategy === 'full_pdf'
+        ? version.manifest.sourceSet.sources[0]?.sourceVersionId
+        : undefined;
+      const readPageCount = options.readFullPdfPhysicalPageCount ?? readTrustedFullPdfPhysicalPageCount;
+      const fullPdfPhysicalPageCount = fullPdfSourceVersionId
+        ? await readPageCount(input.env, authority.ownerId, input.bookId, fullPdfSourceVersionId)
+        : undefined;
       const publication = createTrustedBookDeliveryPublication({ bookId: input.bookId,
         publicationId: scope.current.publicationId, publicationRevision: scope.current.publicationRevision,
         recipientId: input.uid, contextKind: 'public', contextId,
-        scope: { kind: 'placements', nodeKeys: [], placementIds: placements } }, scope, policy);
+        scope: { kind: 'placements', nodeKeys: [], placementIds: placements } }, scope, policy,
+        fullPdfPhysicalPageCount !== undefined ? { fullPdfPhysicalPageCount } : undefined);
       const now = (options.now ?? (() => new Date().toISOString()))();
       const binding = createBookDeliveryBinding({ bindingId: `bd_${(await digest(`${input.uid}:${body.operationId}`)).slice(0, 40)}`,
         revision: 1, status: 'draft', recipient: { recipientId: input.uid, recipientKind: 'student' },
@@ -119,6 +132,12 @@ export const createPublicBookProductionHandlers = (options: PublicDependencies &
       }
       const projection = await createBookDeliveryProjectionResolver({ repository,
         resolveStudentDocument: (value) => (options.resolveStudentDocument ?? resolveTrustedBookDeliveryStudentDocument)(input.env, value),
+        resolveFullPdfPhysicalPageCount: (value) => {
+          const sourceVersionId = value.sourceSet.sources[0]?.sourceVersionId;
+          return sourceVersionId
+            ? readPageCount(input.env, value.issuer.ownerId, value.book.bookId, sourceVersionId)
+            : Promise.resolve(undefined);
+        },
       }).resolve({ actor: { uid: input.uid }, recipientId: input.uid, contextId });
       return { body: { title: authority.title, projection }, init: { status: 200 } };
     } catch (error) {

@@ -996,4 +996,83 @@ describe('canonical Activity Version Firebase repositories', () => {
       getAccessToken: accessToken,
     })).toThrow('service_identity_mismatch');
   });
+
+  it('reads carried-forward Full-PDF canonical Activity Versions when successor manifest allocates a new placementId', async () => {
+    const successorRequest = {
+      ...request,
+      manifestVersionId: 'manifest-2',
+      publicationId: 'publication-2',
+    };
+    const successorPaths = {
+      manifest: `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${request.bookId}/versions/manifest-2`,
+      bookActivityVersion: `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${request.bookId}/activity_versions/${bookAssemblyActivityVersionScopeKey('manifest-2', request.activityVersionId)}`,
+      bookSafeProjection: `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${request.bookId}/activity_safe_projections/projection-successor-1`,
+      bookPlacement: `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${request.bookId}/placements/placement-successor-1`,
+      current: `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${request.bookId}/current`,
+      canonical: paths.canonical,
+      studentSafeProjection: paths.studentSafeProjection,
+    };
+    const state: Record<string, unknown> = {
+      [successorPaths.manifest]: {
+        schemaVersion: 1,
+        lifecycle: 'published',
+        bookId: request.bookId,
+        manifestVersionId: 'manifest-2',
+        publicationId: 'publication-2',
+        publicationRevision: 2,
+        ownerId: request.ownerId,
+        manifest: {},
+        studentSafeProjection: {},
+      },
+      [successorPaths.bookActivityVersion]: {
+        ...bookActivityVersionRecord(),
+        manifestVersionId: 'manifest-2',
+        publicationId: 'publication-2',
+        publicationRevision: 2,
+        safeProjectionId: 'projection-successor-1',
+        canonicalOriginManifestVersionId: 'manifest-1',
+        canonicalOriginPublicationId: 'publication-1',
+        canonicalOriginOperationId: canonicalRecord().createdByOperationId,
+      },
+      [successorPaths.bookSafeProjection]: {
+        ...bookSafeProjectionRecord(),
+        projectionId: 'projection-successor-1',
+        manifestVersionId: 'manifest-2',
+        publicationId: 'publication-2',
+        publicationRevision: 2,
+        placementIds: ['placement-successor-1'],
+      },
+      [successorPaths.bookPlacement]: {
+        ...bookPlacementRecord(),
+        placementId: 'placement-successor-1',
+        manifestVersionId: 'manifest-2',
+        publicationId: 'publication-2',
+        publicationRevision: 2,
+      },
+      [successorPaths.current]: {
+        manifestVersionId: 'manifest-2',
+        publicationId: 'publication-2',
+        publicationRevision: 2,
+      },
+      [successorPaths.canonical]: canonicalRecord(),
+      [successorPaths.studentSafeProjection]: {
+        schemaVersion: 1,
+        projectionKind: 'student-safe',
+        activityId: request.activityId,
+        activityVersionId: request.activityVersionId,
+        ownerId: request.ownerId,
+        content: canonicalRecord().projection,
+        payloadFingerprint: canonicalRecord().payloadFingerprint,
+        createdByOperationId: canonicalRecord().createdByOperationId,
+        publishedAt: canonicalRecord().publishedAt,
+      },
+    };
+    const harness = createFetchHarness(state);
+    const reader = new FirebaseRestExactPublishedActivityVersionReader({
+      env: readerEnv(),
+      fetchImpl: harness.fetchImpl,
+      getAccessToken: accessToken,
+    });
+    await expect(reader.readExact(successorRequest)).resolves.toEqual(canonicalRecord());
+  });
 });

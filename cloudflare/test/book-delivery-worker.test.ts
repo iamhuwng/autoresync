@@ -1140,4 +1140,163 @@ describe('Book Delivery Worker contract', () => {
     expect(provider.readObjectMetadata).not.toHaveBeenCalled();
     expect(provider.readBounded).not.toHaveBeenCalled();
   });
+
+  it('rejects activating a pre-existing full_pdf draft whose pinned manifest has teacher_only pages or is missing', async () => {
+    const unsafeScope = structuredClone(makeBookAssemblyPublicationScope()) as any;
+    unsafeScope.versions['manifest-1'].manifest.units[0].pageGroups.push({
+      pageGroupKey: 'teacher-only-notes',
+      sourceKey: 'full',
+      pages: [10],
+      activityKeys: [],
+      mode: 'teacher_only',
+    });
+    const deliveryRepo = new InMemoryBookDeliveryRepository();
+    const existingDraft = {
+      ...makeBookDeliveryTestBinding(),
+      bindingId: 'bd_unsafe_draft_1',
+      status: 'draft' as const,
+      book: {
+        bookId: 'book-pdf-1',
+        bookMode: 'pdf' as const,
+        bookRevision: 2,
+        manifestVersionId: 'manifest-1',
+        publicationId: 'publication-1',
+        publicationRevision: 4,
+        publicationStatus: 'published' as const,
+      },
+    };
+    await deliveryRepo.createDraft({
+      binding: existingDraft,
+      operationId: operation(110),
+      now: '2026-07-25T00:00:00.000Z',
+    });
+
+    const unsafeHandlers = createBookDeliveryWorkerHandlers({
+      repository: deliveryRepo as any,
+      publicationRepository: new InMemoryBookAssemblyPublicationRepository({ 'book-pdf-1': unsafeScope }),
+      now: () => '2026-07-25T00:01:00.000Z',
+    });
+    const activateUnsafe = await unsafeHandlers.activate({
+      env,
+      uid: 'teacher-1',
+      request: request({ bindingId: 'bd_unsafe_draft_1', expectedRecordRevision: 0, operationId: operation(111) }),
+    });
+    expect(activateUnsafe).toEqual({
+      body: { code: 'book_delivery_teacher_only_unstripped_forbidden' },
+      init: { status: 409 },
+    });
+    expect((await deliveryRepo.readBinding('bd_unsafe_draft_1'))?.status).toBe('draft');
+
+    const missingManifestHandlers = createBookDeliveryWorkerHandlers({
+      repository: deliveryRepo as any,
+      publicationRepository: new InMemoryBookAssemblyPublicationRepository({
+        'book-pdf-1': { ...makeBookAssemblyPublicationScope(), versions: {} },
+      }),
+      now: () => '2026-07-25T00:01:00.000Z',
+    });
+    const activateMissing = await missingManifestHandlers.activate({
+      env,
+      uid: 'teacher-1',
+      request: request({ bindingId: 'bd_unsafe_draft_1', expectedRecordRevision: 0, operationId: operation(112) }),
+    });
+    expect(activateMissing).toEqual({
+      body: { code: 'book_delivery_teacher_only_unstripped_forbidden' },
+      init: { status: 409 },
+    });
+    expect((await deliveryRepo.readBinding('bd_unsafe_draft_1'))?.status).toBe('draft');
+  });
+
+  it('preserves exact per-group pages for multi-group full_pdf Activities, hydrates physicalPageCount on old bindings, and bounds >120-char ref keys', async () => {
+    const scope = structuredClone(makeBookAssemblyPublicationScope()) as any;
+    const longRefKey = `reference-${'x'.repeat(115)}`;
+    const unit = scope.versions['manifest-1'].manifest.units[0];
+    unit.activitySlots[0].pageGroupKeys = ['group-a', 'group-b'];
+    unit.pageGroups = [
+      { pageGroupKey: 'group-a', sourceKey: 'full', pages: [2], activityKeys: ['activity-key-1'], mode: 'activity' },
+      { pageGroupKey: 'group-b', sourceKey: 'full', pages: [8], activityKeys: ['activity-key-1'], mode: 'activity' },
+      { pageGroupKey: longRefKey, sourceKey: 'full', pages: [12], activityKeys: [], mode: 'reference_only' },
+    ];
+    const twoPages = [
+      { sourceKey: 'full', sourceVersionId: 'source-v1', physicalPageNumber: 2 },
+      { sourceKey: 'full', sourceVersionId: 'source-v1', physicalPageNumber: 8 },
+    ];
+    scope.placements['placement-1'].pageGroupKeys = ['group-a', 'group-b'];
+    scope.placements['placement-1'].sourcePages = twoPages;
+    scope.activityVersions['activity-1-v1'].sourcePages = twoPages;
+    scope.activitySafeProjections['projection-1'].sourcePages = twoPages;
+
+    const repository = new InMemoryBookDeliveryRepository();
+    const handlers = createBookDeliveryWorkerHandlers({
+      repository: repository as any,
+      publicationRepository: new InMemoryBookAssemblyPublicationRepository({ 'book-pdf-1': scope }),
+      readFullPdfPhysicalPageCount: async () => 24,
+      allocateBindingId: () => 'binding-multi-group',
+      now: () => '2026-07-25T00:00:00.000Z',
+    });
+    const created = await handlers.create({
+      env,
+      uid: 'teacher-1',
+      request: request({ intent: makeBookDeliveryIssuanceIntent(), operationId: operation(120) }),
+    });
+    expect(created.init.status).toBe(200);
+    const createdBinding = (created.body as any).record.binding;
+    expect(createdBinding.activityPageGroups).toEqual([
+      { nodeKey: 'unit-1', pageGroupKey: 'group-a', sourceKey: 'full', pages: [2] },
+      { nodeKey: 'unit-1', pageGroupKey: 'group-b', sourceKey: 'full', pages: [8] },
+    ]);
+    expect(createdBinding.referencePageGroups).toHaveLength(1);
+    expect(createdBinding.referencePageGroups[0].pageGroupKey.startsWith('ref:')).toBe(true);
+    expect(createdBinding.referencePageGroups[0].pageGroupKey.length).toBeLessThanOrEqual(120);
+
+    await handlers.activate({
+      env,
+      uid: 'teacher-1',
+      request: request({ bindingId: 'binding-multi-group', expectedRecordRevision: 0, operationId: operation(121) }),
+    });
+    const resolved = await handlers.resolve({
+      env,
+      uid: 'teacher-1',
+      recipientId: 'teacher-1',
+      contextId: 'preview-1',
+    });
+    expect(resolved.init.status).toBe(200);
+    expect((resolved.body as any).pageGroups).toEqual([
+      { pageGroupKey: 'group-a', combinedPhysicalPages: [2] },
+      { pageGroupKey: 'group-b', combinedPhysicalPages: [8] },
+      { pageGroupKey: createdBinding.referencePageGroups[0].pageGroupKey, combinedPhysicalPages: [12] },
+    ]);
+
+    // Pre-existing binding without physicalPageCount gets hydrated on resolve()
+    const legacyRepo = new InMemoryBookDeliveryRepository();
+    const legacyBinding = {
+      ...makeBookDeliveryTestBinding(),
+      bindingId: 'binding-legacy-count',
+      status: 'draft' as const,
+    };
+    await legacyRepo.createDraft({
+      binding: legacyBinding,
+      operationId: operation(122),
+      now: '2026-07-25T00:00:00.000Z',
+    });
+    await legacyRepo.activate({
+      bindingId: 'binding-legacy-count',
+      expectedRecordRevision: 0,
+      operationId: operation(123),
+      now: '2026-07-25T00:00:01.000Z',
+    });
+    const hydrateHandlers = createBookDeliveryWorkerHandlers({
+      repository: legacyRepo as any,
+      publicationRepository: new InMemoryBookAssemblyPublicationRepository({ 'book-pdf-1': makeBookAssemblyPublicationScope() }),
+      readFullPdfPhysicalPageCount: async () => 36,
+    });
+    const hydrated = await hydrateHandlers.resolve({
+      env,
+      uid: 'teacher-1',
+      recipientId: 'teacher-1',
+      contextId: 'preview-1',
+    });
+    expect(hydrated.init.status).toBe(200);
+    expect((hydrated.body as any).sourceSet.sources[0].physicalPageCount).toBe(36);
+    expect((hydrated.body as any).documentRequests[0].physicalPageCount).toBe(36);
+  });
 });

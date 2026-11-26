@@ -847,6 +847,7 @@ describe('Book publication route composition', () => {
       let readCalls = 0;
       let readBookBindingsCalls = 0;
       let recordPublicationCalls = 0;
+      const readPreparedSpy = vi.spyOn(writer, 'readPrepared');
       const bindingRepo: UnitActivityBindingRepository = {
         read: async () => {
           readCalls += 1;
@@ -972,6 +973,7 @@ describe('Book publication route composition', () => {
       readCalls = 0;
       readBookBindingsCalls = 0;
       recordPublicationCalls = 0;
+      readPreparedSpy.mockClear();
       const targetUnitIdx = prePublishedUnits + 1;
       const targetUnitKey = `unit-${targetUnitIdx}`;
       const res = await handlers.fullPdfPublish({
@@ -986,7 +988,12 @@ describe('Book publication route composition', () => {
         uid: 'teacher-1',
       });
       expect(res.init.status).toBe(200);
-      return { readCalls, readBookBindingsCalls, recordPublicationCalls };
+      return {
+        readCalls,
+        readBookBindingsCalls,
+        recordPublicationCalls,
+        readPreparedCalls: readPreparedSpy.mock.calls.length,
+      };
     };
 
     // 5-unit fresh publish (publishing unit 5 after 4 published units -> 4 carried-forward + 1 new)
@@ -995,14 +1002,241 @@ describe('Book publication route composition', () => {
       readCalls: 0,
       readBookBindingsCalls: 1,
       recordPublicationCalls: 1,
+      readPreparedCalls: 0,
     });
 
-    // 20-unit incremental publish (19 carried-forward units + 1 new unit -> 1 GET + 1 PUT = 2 binding subrequests)
+    // 20-unit incremental publish (19 carried-forward units + 1 new unit -> 0 redundant readPrepared calls)
     const twentyUnitIncremental = await runScenario(20, 19);
     expect(twentyUnitIncremental).toEqual({
       readCalls: 0,
       readBookBindingsCalls: 1,
       recordPublicationCalls: 1,
+      readPreparedCalls: 0,
     });
+  });
+
+  it('republishes Component-PDF with bumped activityVersion (1 -> 2), publicationRevision (1 -> 2), activity-revision provenance, and request-scoped activation reader', async () => {
+    const repository = new InMemoryBookAssemblyPublicationRepository<BookAssemblyPublicationResult>();
+    const writer = new InMemoryCanonicalActivityVersionRepository();
+    let opCounter = 0;
+    let binding: UnitActivityBinding = {
+      schemaVersion: 1,
+      ownerId: 'teacher-1',
+      bookId: 'book-1',
+      unitKey: 'unit-1',
+      activityKey: 'slot-a',
+      activityId: 'activity:slot-a',
+      candidateId: 'activity-candidate-1',
+      candidateRevision: 3,
+      candidateLifecycle: 'saved',
+    };
+    const bindingRepo: UnitActivityBindingRepository = {
+      read: async () => structuredClone(binding),
+      readBookBindings: async () => ({ 'unit-1': { 'slot-a': structuredClone(binding) } }),
+      bindCandidate: async () => 'replayed',
+      recordPublication: async (value) => {
+        if (binding.activityVersion !== undefined && value.activityVersion <= binding.activityVersion) {
+          return 'conflict';
+        }
+        binding = {
+          ...binding,
+          activityVersionId: value.activityVersionId,
+          activityVersion: value.activityVersion,
+        };
+        return 'updated';
+      },
+    };
+    const coldActivationSpy = vi.fn(async () => {
+      throw new Error('must_use_request_scoped_activation_reader');
+    });
+    let scopedActivationCalls = 0;
+    const makeWholeInput = (candidateRevision: number) => ({
+      ownerId: 'teacher-1',
+      bookId: 'book-1',
+      bookRevision: 9,
+      sourceSetRevision: 3,
+      sourceSet: authority('component_pdfs').sourceSet,
+      activationReceipt: {
+        operationId: `act-op-${candidateRevision}`,
+        bookId: 'book-1',
+        bookRevision: 9,
+        sourceSetRevision: 3,
+        studentDocument: {
+          sourceVersionId: 'student-doc-v1',
+          descriptorRevision: 1,
+          descriptorFingerprint: 'fnv1a64:0123456789abcdef',
+        },
+        unitCandidates: [{ unitKey: 'unit-1', candidateId: 'candidate-1', candidateRevision }],
+        activities: [{
+          unitKey: 'unit-1',
+          activityKey: 'slot-a',
+          activityId: 'activity:slot-a',
+          activityCandidateId: binding.candidateId,
+          activityCandidateRevision: binding.candidateRevision,
+        }],
+      },
+      units: [{
+        unitKey: 'unit-1',
+        candidateId: 'candidate-1',
+        candidateRevision,
+        manifest: candidate('component_pdfs').manifest,
+      }],
+      studentDocument: {
+        schemaVersion: 1 as const,
+        bookId: 'book-1',
+        sourceVersionId: 'student-doc-v1',
+        descriptorRevision: 1,
+        byteSize: 1024,
+        sha256Hex: 'a'.repeat(64),
+        physicalPageCount: 2,
+        studentSafeStatus: 'ready' as const,
+        components: [{
+          sourceKey: 'source-1',
+          sourceVersionId: 'source-v1',
+          sourceOrder: 1,
+          ownerNodeKey: 'unit-1',
+          localPageCount: 2,
+          combinedStartPage: 1,
+          combinedEndPage: 2,
+        }],
+        createdAt: now,
+      },
+      registryVersion: 'registry-1',
+      activities: [{
+        unitKey: 'unit-1',
+        activityKey: 'slot-a',
+        activityId: 'activity:slot-a',
+        activityCandidateId: binding.candidateId,
+        activityCandidateRevision: binding.candidateRevision,
+      }],
+    });
+    let activeCandidateRevision = 6;
+    const handlers = createBookAssemblyPublicationRouteHandlers({
+      repositoryFactory: () => repository,
+      activityVersionWriterFactory: () => writer,
+      bindingRepositoryFactory: () => bindingRepo,
+      allocateOperationId: () => `00000000-0000-4000-8000-${String(++opCounter).padStart(12, '0')}`,
+      allocateId: (kind, key) => (kind === 'activity' ? `activity:${key}` : `${kind}:${opCounter}:${key}`),
+      now: () => now,
+      componentPdf: {
+        readUser: async () => ({ role: 'teacher', status: 'active' }),
+        readAuthority: async () => authority('component_pdfs'),
+        readWholeActivationApprovalInput: coldActivationSpy as never,
+        readCandidate: async () => ({ ...candidate('component_pdfs'), revision: activeCandidateRevision }),
+        readActivities,
+        readPreviewApproval: async () => ({
+          ...currentApproval(),
+          candidateRevision: activeCandidateRevision,
+          wholeActivationFingerprint: wholeActivationApprovalFingerprint(makeWholeInput(activeCandidateRevision) as never),
+        }),
+        sourceIsPreviewReady: async () => true,
+        readLineage: async () => {
+          const scope = await repository.readScope('book-1');
+          const prev = Object.values(scope.activityVersions ?? {})
+            .filter((entry) => entry.activityId === 'activity:slot-a')
+            .sort((left, right) => right.activityVersion - left.activityVersion)[0];
+          return {
+            'slot-a': prev
+              ? {
+                activityId: prev.activityId,
+                lastActivityVersionId: prev.activityVersionId,
+                lastActivityVersion: prev.activityVersion,
+              }
+              : { activityId: 'activity:slot-a' },
+          };
+        },
+        createRequestScope: () => ({
+          readUser: async () => ({ role: 'teacher', status: 'active' }),
+          readAuthority: async () => authority('component_pdfs'),
+          readWholeActivationApprovalInput: async () => {
+            scopedActivationCalls += 1;
+            return makeWholeInput(activeCandidateRevision) as never;
+          },
+          readCandidate: async () => ({ ...candidate('component_pdfs'), revision: activeCandidateRevision }),
+          readActivities,
+          readPreviewApproval: async () => ({
+            ...currentApproval(),
+            candidateRevision: activeCandidateRevision,
+            wholeActivationFingerprint: wholeActivationApprovalFingerprint(makeWholeInput(activeCandidateRevision) as never),
+          }),
+          sourceIsPreviewReady: async () => true,
+          readLineage: async () => {
+            const scope = await repository.readScope('book-1');
+            const prev = Object.values(scope.activityVersions ?? {})
+              .filter((entry) => entry.activityId === 'activity:slot-a')
+              .sort((left, right) => right.activityVersion - left.activityVersion)[0];
+            return {
+              'slot-a': prev
+                ? {
+                  activityId: prev.activityId,
+                  lastActivityVersionId: prev.activityVersionId,
+                  lastActivityVersion: prev.activityVersion,
+                }
+                : { activityId: 'activity:slot-a' },
+            };
+          },
+        }),
+      },
+    });
+    const env = {
+      BOOK_COMPONENT_PDF_PUBLICATION_ENABLED: 'true',
+      readDatabaseValue: async () => ({ role: 'teacher', status: 'active' }),
+    };
+
+    // Publish 1 -> activityVersion 1, publicationRevision 1
+    const first = await handlers.componentPdfPublish({
+      request: request('/book-assembly/component-pdf-publications', {
+        bookId: 'book-1',
+        expectedCurrentPublicationId: null,
+        expectedBookRevision: 9,
+        expectedSourceSetRevision: 3,
+        unitApprovals: [{
+          unitKey: 'unit-1',
+          candidateId: 'candidate-1',
+          candidateRevision: 6,
+          ...body().previewApproval,
+        }],
+      }),
+      env,
+      uid: 'teacher-1',
+    });
+    expect(first.init.status).toBe(200);
+    const firstBody = first.body as { publicationId: string; publicationRevision: number };
+    expect(firstBody.publicationRevision).toBe(1);
+    expect(binding.activityVersion).toBe(1);
+    expect(coldActivationSpy).not.toHaveBeenCalled();
+
+    // Publish 2 (republish after Activity edit) -> activityVersion 2, publicationRevision 2, 200 OK (no 503!)
+    activeCandidateRevision = 7;
+    binding = { ...binding, candidateId: 'activity-candidate-2', candidateRevision: 4 };
+    const second = await handlers.componentPdfPublish({
+      request: request('/book-assembly/component-pdf-publications', {
+        bookId: 'book-1',
+        expectedCurrentPublicationId: firstBody.publicationId,
+        expectedBookRevision: 9,
+        expectedSourceSetRevision: 3,
+        unitApprovals: [{
+          unitKey: 'unit-1',
+          candidateId: 'candidate-1',
+          candidateRevision: 7,
+          ...body().previewApproval,
+        }],
+      }),
+      env,
+      uid: 'teacher-1',
+    });
+    expect(second.init.status).toBe(200);
+    const secondBody = second.body as { publicationRevision: number };
+    expect(secondBody.publicationRevision).toBe(2);
+    expect(binding.activityVersion).toBe(2);
+    expect(coldActivationSpy).not.toHaveBeenCalled();
+    expect(scopedActivationCalls).toBeGreaterThanOrEqual(6);
+    const v2Canonical = await writer.readPrepared({
+      activityId: 'activity:slot-a',
+      activityVersionId: binding.activityVersionId!,
+      activityVersion: 2,
+    });
+    expect(v2Canonical?.provenance.kind).toBe('activity-revision');
+    expect(v2Canonical?.predecessorActivityVersionId).toBeDefined();
   });
 });

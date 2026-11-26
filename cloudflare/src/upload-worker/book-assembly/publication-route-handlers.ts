@@ -265,6 +265,7 @@ const recordPublishedBindings = async (
   input: BookAssemblyPublicationRouteInput,
   result: PublicationWorkerResult,
   requestBody: Record<string, unknown> | null,
+  readWholeActivationApprovalInputOverride?: NonNullable<BookAssemblyPublicationRouteOptions['componentPdf']>['readWholeActivationApprovalInput'],
 ): Promise<PublicationWorkerResult> => {
   if (!options.bindingRepositoryFactory) return result;
   const workerReceipt = result.body as {
@@ -353,8 +354,10 @@ const recordPublishedBindings = async (
     throw new Error('book_assembly_activity_binding_committed_version_unavailable');
   }
   const activityVersions = scope.activityVersions ?? {};
+  const activationReader = readWholeActivationApprovalInputOverride
+    ?? options.componentPdf?.readWholeActivationApprovalInput;
   const activation = Array.isArray(requestBody.unitApprovals)
-    ? await options.componentPdf?.readWholeActivationApprovalInput({
+    ? await activationReader?.({
       env: input.env, actorId: input.uid, bookId: requestBody.bookId,
     })
     : null;
@@ -501,6 +504,7 @@ const createComponentPdfHandler = (
   if (!ports) return unavailable('book_component_pdf_publication_dependencies_unavailable');
   return async (input) => {
     let worker: ReturnType<typeof createComponentPdfPublicationWorkerHandlers>;
+    let requestPorts: NonNullable<BookAssemblyPublicationRouteOptions['componentPdf']> | undefined;
     try {
       const baseRepository = (options.repositoryFactory ?? defaultRepositoryFactory)(input.env, input.uid);
       const initialScopeByBook = new Map<string, Promise<BookAssemblyPublicationScope<BookAssemblyPublicationResult>>>();
@@ -516,7 +520,7 @@ const createComponentPdfHandler = (
         readScope: readInitialScope,
         transaction: (bookId, mutate, txOptions) => baseRepository.transaction(bookId, mutate, txOptions),
       };
-      const requestPorts = ports.createRequestScope
+      requestPorts = ports.createRequestScope
         ? ports.createRequestScope({ readPublicationScope: readInitialScope })
         : ports;
       worker = createComponentPdfPublicationWorkerHandlers({
@@ -576,7 +580,15 @@ const createComponentPdfHandler = (
       env: input.env,
       uid: input.uid,
     });
-    try { return await recordPublishedBindings(options, input, result, requestBody); } catch {
+    try {
+      return await recordPublishedBindings(
+        options,
+        input,
+        result,
+        requestBody,
+        requestPorts?.readWholeActivationApprovalInput,
+      );
+    } catch {
       return { body: { code: 'book_assembly_activity_binding_unavailable' }, init: { status: 503 } };
     }
   };

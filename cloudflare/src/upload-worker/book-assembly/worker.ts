@@ -216,17 +216,18 @@ const replay = (
     return output(operation, fingerprint, 'idempotency-conflict', stored.createdAt);
   }
   const hydrated = clone(stored.result);
-  if (hydrated.candidate && hydrated.candidate.manifest === null) {
-    const liveCandidate = scope.candidates?.[hydrated.candidate.candidateId];
-    if (liveCandidate?.manifest) {
-      hydrated.candidate = {
-        ...hydrated.candidate,
-        manifest: clone(liveCandidate.manifest),
-      };
+  const liveCandidate = hydrated.candidate && hydrated.candidate.manifest === null
+    ? scope.candidates?.[hydrated.candidate.candidateId]
+    : undefined;
+  const candidate = hydrated.candidate && liveCandidate?.manifest
+    ? {
+      ...hydrated.candidate,
+      manifest: clone(liveCandidate.manifest),
     }
-  }
+    : hydrated.candidate;
   return {
     ...hydrated,
+    ...(candidate ? { candidate } : {}),
     status: 'replayed',
     receipt: { ...hydrated.receipt, status: 'replayed' },
   };

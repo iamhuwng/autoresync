@@ -257,4 +257,57 @@ describe('Course Book placement browser client', () => {
     expect(() => assertCourseBookRuntimeProjection(runtime)).not.toThrow();
     expect(() => assertCourseBookRuntimeProjection({ ...runtime, documentRequests: [{ ...runtime.documentRequests[0], expectedEtag: { private: true } }] })).toThrow('invalid_response');
   });
+
+  it('accepts full_pdf physicalPageCount and context-free navigation mapping fields while rejecting invalid combinations', () => {
+    const fullPdfRuntime = {
+      schemaVersion: 1,
+      projectionKind: 'book-runtime-delivery',
+      bindingId: 'binding-full-1',
+      bindingRevision: 1,
+      recipientId: 'student-1',
+      context: { contextId: 'course-material-1', kind: 'course', entitlementBasis: 'enrollment' },
+      book: { bookId: 'book-1', bookMode: 'pdf', bookRevision: 2, manifestVersionId: 'manifest-1', publicationId: 'pub-1', publicationRevision: 1, publicationStatus: 'published' },
+      scope: { kind: 'placements', nodeKeys: [], placementIds: ['placement-1'] },
+      outline: [{ nodeKey: 'unit-1', parentNodeKey: null, nodeType: 'unit', order: 1 }],
+      pageGroups: [{ pageGroupKey: 'group-1', combinedPhysicalPages: [4] }],
+      sourceSet: {
+        strategy: 'full_pdf',
+        sources: [{ sourceKey: 'full', sourceVersionId: 'source-v1', lifecycle: 'verified-usable', physicalPageCount: 20, localPageScope: { kind: 'all', pages: [] } }],
+      },
+      documentRequests: [{ sourceKey: 'full', sourceVersionId: 'source-v1', opaqueRouteKey: 'route-full-1', physicalPageCount: 20, localPageScope: { kind: 'all', pages: [] } }],
+      activities: [{
+        placementId: 'placement-1',
+        activityId: 'activity-1',
+        activityVersion: 1,
+        activityVersionId: 'version-1',
+        nodeKey: 'unit-1',
+        order: 1,
+        contextMode: 'none',
+        sourceContext: { available: false, description: 'No source context required.', pageGroupKeys: [], sourcePageScopes: [] },
+        navigationPageGroupKeys: ['group-1'],
+        navigationPageScopes: [{ sourceKey: 'full', pages: [4] }],
+      }],
+      actionFlags: { canAutosave: true, canSubmit: true, canReview: false },
+      provenance: { publicationId: 'pub-1', publicationRevision: 1, bindingId: 'binding-full-1', bindingRevision: 1 },
+    };
+    expect(() => assertCourseBookRuntimeProjection(fullPdfRuntime)).not.toThrow();
+    expect(() => assertCourseBookRuntimeProjection({
+      ...fullPdfRuntime,
+      sourceSet: {
+        strategy: 'full_pdf',
+        sources: [{ ...fullPdfRuntime.sourceSet.sources[0], physicalPageCount: 0 }],
+      },
+    })).toThrow('invalid_response');
+    expect(() => assertCourseBookRuntimeProjection({
+      ...fullPdfRuntime,
+      activities: [{ ...fullPdfRuntime.activities[0], contextMode: 'required' }],
+    })).toThrow('invalid_response');
+    expect(() => assertCourseBookRuntimeProjection({
+      ...fullPdfRuntime,
+      activities: [{
+        ...fullPdfRuntime.activities[0],
+        navigationPageScopes: undefined,
+      }],
+    })).toThrow('invalid_response');
+  });
 });

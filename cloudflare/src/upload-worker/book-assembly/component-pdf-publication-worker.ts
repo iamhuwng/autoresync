@@ -251,7 +251,8 @@ export const createComponentPdfPublicationWorkerHandlers = (options: {
         const requestOperationId = operationId(input.request, allocateOperationId);
         const bookId = id(body.bookId, 'invalid_book_id');
         const fingerprint = await requestFingerprint(input.uid, body);
-        const stored = (await options.repository.readScope(bookId)).operations?.[requestOperationId];
+        const scope = await options.repository.readScope(bookId);
+        const stored = scope.operations?.[requestOperationId];
         if (stored) {
           if (stored.ownerId !== input.uid || stored.fingerprint !== fingerprint) {
             return { body: { code: 'idempotency_conflict' }, init: { status: 409 } };
@@ -286,6 +287,7 @@ export const createComponentPdfPublicationWorkerHandlers = (options: {
           allocateId,
           now,
         });
+        const nextPublicationRevision = (scope.current?.publicationRevision ?? 0) + 1;
         const receipt = await command({
           ownerId: input.uid,
           bookId,
@@ -297,6 +299,7 @@ export const createComponentPdfPublicationWorkerHandlers = (options: {
           expectedSourceSetRevision: revision(body.expectedSourceSetRevision, 'invalid_expected_source_set_revision'),
           unitApprovals: unitApprovals(body.unitApprovals),
           operationFingerprint: fingerprint,
+          publicationRevision: nextPublicationRevision,
         });
         return {
           body: receipt,

@@ -28,6 +28,7 @@ export interface UnitActivityBindingRepository {
   readBookBindings?(
     ownerId: string,
     bookId: string,
+    options?: { readonly strict?: boolean },
   ): Promise<Readonly<Record<string, Readonly<Record<string, UnitActivityBinding>>>>>;
   bindCandidate(binding: UnitActivityBinding): Promise<UnitActivityBindingWriteStatus>;
   recordPublication(input: UnitActivityBindingKey & {

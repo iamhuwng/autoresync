@@ -741,7 +741,16 @@ implements ExactPublishedActivityVersionReader {
     const canonical = parseCanonicalFromRtdb(rawCanonical);
     if (!canonical || !sameCanonicalIdentity(canonical, request, bookActivity)) return null;
     const placementIds = (bookSafeProjection as Record<string, unknown>).placementIds as string[];
-    if (stable([...placementIds].sort()) !== stable([...canonical.placementIds].sort())) return null;
+    const carriedForwardSuccessor = canonical.provenance.kind === 'initial-book-publication'
+      && canonical.provenance.bookId === request.bookId
+      && canonical.provenance.manifestVersionId !== request.manifestVersionId
+      && canonical.provenance.manifestVersionId === bookActivity.canonicalOriginManifestVersionId
+      && canonical.provenance.publicationId === bookActivity.canonicalOriginPublicationId
+      && canonical.placementIds.length > 0;
+    if (!carriedForwardSuccessor
+      && stable([...placementIds].sort()) !== stable([...canonical.placementIds].sort())) {
+      return null;
+    }
     const placements = await Promise.all(
       placementIds.map((placementId) => rtdb.readValue(bookPlacementPath(request.bookId, placementId))),
     );

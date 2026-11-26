@@ -1,7 +1,10 @@
 import { BOOK_ACTIVITY_MAX_EVIDENCE_REFS } from '../book-activity/activityCandidate.service';
 import type { ActivityAuthoringService } from '../book-activity/activityAuthoring.service';
 import type { ActivityStageResult } from '../book-activity/activityAuthoring.repository';
-import { ActivityAuthoringHttpError } from '../book-activity/activityStorage.service';
+import {
+  ActivityAuthoringAmbiguousTransportError,
+  ActivityAuthoringHttpError,
+} from '../book-activity/activityStorage.service';
 import type { BookAssemblyManifestCandidate, BookUnitCandidate } from '../../types/bookAssembly.types';
 import {
   allowedActivitySlotAnswerEvidenceRefs,
@@ -548,19 +551,47 @@ export const stageUnitActivityImportBundle = async ({
     const committed: StagedUnitActivity[] = [];
     for (const { slot, result, validatedRevision } of validatedSlots) {
       failingSaveSlotKey = slot.activityKey;
-      const saved = await activityAuthoring.saveDraft({
-        candidateId: result.candidateId,
-        expectedRevision: validatedRevision,
-        evidenceRefs: [...(slot.evidenceRefs ?? [])],
-        sourceEvidenceRefs: [...(slot.sourceEvidenceRefs ?? [])],
-        answerEvidenceRefs: [...(slot.answerEvidenceRefs ?? [])],
-        unitActivityBinding: { unitKey, activityKey: slot.activityKey },
-        ...((expectedActivityRevisions[slot.activityKey] ?? 0) > 0
-          ? { replaceExistingUnitActivityBinding: true }
-          : {}),
-      });
+      let saved: Awaited<ReturnType<ActivityAuthoringService['saveDraft']>>;
+      try {
+        saved = await activityAuthoring.saveDraft({
+          candidateId: result.candidateId,
+          expectedRevision: validatedRevision,
+          evidenceRefs: [...(slot.evidenceRefs ?? [])],
+          sourceEvidenceRefs: [...(slot.sourceEvidenceRefs ?? [])],
+          answerEvidenceRefs: [...(slot.answerEvidenceRefs ?? [])],
+          unitActivityBinding: { unitKey, activityKey: slot.activityKey },
+          ...((expectedActivityRevisions[slot.activityKey] ?? 0) > 0
+            ? { replaceExistingUnitActivityBinding: true }
+            : {}),
+        });
+      } catch (saveError) {
+        if (saveError instanceof ActivityAuthoringAmbiguousTransportError) {
+          // HTTP 202 binding-incomplete or post-send transport loss means 12C may
+          // have already committed this Activity draft; never discard it or let
+          // callers roll back the Assembly manifest underneath it.
+          committedCandidateIds.add(result.candidateId);
+          committedEntries.push({
+            activityKey: slot.activityKey,
+            targetActivityId: result.targetActivityId,
+            savedActivityRevision: (expectedActivityRevisions[slot.activityKey] ?? 0) + 1,
+          });
+        }
+        throw saveError;
+      }
       if (saved.status !== 'saved' || saved.activityId !== result.targetActivityId) {
         throw new UnitActivityImportError('activity-binding-save-failed', `Activity slot ${slot.activityKey} was not saved.`);
+      }
+      if (saved.binding?.phase === 'binding-pending' || saved.binding?.phase === 'binding-conflict') {
+        committedCandidateIds.add(result.candidateId);
+        committedEntries.push({
+          activityKey: slot.activityKey,
+          targetActivityId: result.targetActivityId,
+          savedActivityRevision: saved.revision,
+        });
+        throw new UnitActivityImportError(
+          'activity-binding-pending',
+          `Activity slot ${slot.activityKey} saved content at revision ${saved.revision}, but its Unit binding is ${saved.binding.phase}.`,
+        );
       }
       committedCandidateIds.add(result.candidateId);
       committedEntries.push({

@@ -112,4 +112,36 @@ describe('durable Unit Activity binding repository', () => {
     expect(bookPaths).toEqual([`${BOOK_ASSEMBLY_ACTIVITY_BINDING_ROOT}/teacher-1/books/book-1`]);
     expect(discovered['unit-1']?.['slot-1']).toMatchObject({ activityVersionId: 'activity-version-2', activityVersion: 2 });
   });
+
+  it('rejects malformed root or leaf records in strict readBookBindings mode while non-strict discovery skips bad leaves', async () => {
+    const makeRepo = (payload: unknown) => new FirebaseRestUnitActivityBindingRepository({
+      env: { FIREBASE_DB_URL: 'https://firebase.test' },
+      fetchImpl: async () => new Response(JSON.stringify(payload), { status: 200 }),
+      getFirebaseAuthToken: async () => 'token',
+    });
+
+    const malformedRoot = makeRepo('corrupted-root');
+    await expect(malformedRoot.readBookBindings('teacher-1', 'book-1')).resolves.toEqual({});
+    await expect(malformedRoot.readBookBindings('teacher-1', 'book-1', { strict: true }))
+      .rejects.toThrow('book_assembly_activity_binding_snapshot_malformed');
+
+    const malformedLeaf = makeRepo({
+      units: {
+        'unit-1': {
+          activities: {
+            'slot-good': binding({ activityKey: 'slot-good' }),
+            'slot-bad': { broken: true },
+          },
+        },
+      },
+    });
+    await expect(malformedLeaf.readBookBindings('teacher-1', 'book-1'))
+      .resolves.toEqual({ 'unit-1': { 'slot-good': binding({ activityKey: 'slot-good' }) } });
+    await expect(malformedLeaf.readBookBindings('teacher-1', 'book-1', { strict: true }))
+      .rejects.toThrow('book_assembly_activity_binding_snapshot_malformed');
+
+    // Empty/absent root is valid in strict mode
+    const emptyRoot = makeRepo(null);
+    await expect(emptyRoot.readBookBindings('teacher-1', 'book-1', { strict: true })).resolves.toEqual({});
+  });
 });

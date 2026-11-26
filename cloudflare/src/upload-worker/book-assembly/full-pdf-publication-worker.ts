@@ -2,6 +2,7 @@ import {
   type BookAssemblyPublicationResult,
 } from '../../../../src/services/book-assembly/publicationTransaction.service.ts';
 import {
+  canonicalActivityVersionReferenceKey,
   createCanonicalBookAssemblyPublicationService,
 } from '../../../../src/services/book-assembly/canonicalPublication.service.ts';
 import type {
@@ -280,7 +281,30 @@ export const createFullPdfPublicationWorkerHandlers = (options: {
               || freshAuthority.sourceSetRevision !== request.plan.sourceSetRevision) {
               return { status: 'conflict', failureCode: 'stale-authority-revision' };
             }
-            return service.publish(request);
+            const verifiedCommittedReferences = new Set<string>();
+            const currentVersion = current ? scope.versions?.[current.manifestVersionId] : undefined;
+            if (current && currentVersion
+              && currentVersion.lifecycle === 'published'
+              && currentVersion.ownerId === request.plan.ownerId
+              && currentVersion.bookId === request.plan.bookId
+              && currentVersion.publicationId === current.publicationId
+              && currentVersion.publicationRevision === current.publicationRevision) {
+              for (const record of Object.values(scope.activityVersions ?? {})) {
+                if (record.ownerId === request.plan.ownerId
+                  && record.bookId === request.plan.bookId
+                  && record.manifestVersionId === current.manifestVersionId
+                  && record.publicationId === current.publicationId
+                  && record.publicationRevision === current.publicationRevision
+                  && typeof record.canonicalPayloadFingerprint === 'string'
+                  && record.canonicalPayloadFingerprint.length > 0) {
+                  verifiedCommittedReferences.add(canonicalActivityVersionReferenceKey(record));
+                }
+              }
+            }
+            return service.publish({
+              ...request,
+              ...(verifiedCommittedReferences.size > 0 ? { verifiedCommittedReferences } : {}),
+            });
           },
           allocateOperationId: () => requestOperationId,
           allocateId,

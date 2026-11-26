@@ -92,6 +92,12 @@ export interface BookHomeworkCanonicalResolverOptions {
   readonly manifestBindingRevision?: number;
   /** Injected for tests and for a Worker clock; command.createdAt remains the assignment timestamp. */
   readonly now?: () => string;
+  /** Optional trusted full_pdf physical page count lookup so unmapped physical pages remain navigable. */
+  readonly readFullPdfPhysicalPageCount?: (input: {
+    readonly ownerId: string;
+    readonly bookId: string;
+    readonly sourceVersionId: string;
+  }) => Promise<number | undefined>;
   /** Stable output is intentionally injectable so a deployment can use its existing fingerprint primitive. */
   readonly fingerprint?: (value: unknown) => string;
 }
@@ -706,6 +712,26 @@ const publicationTargetMatches = (
   if (!publication.scope.nodeKeys.includes(target.nodeKey)) fail('stale-publication', 'Structural target is outside the trusted publication scope.');
 };
 
+const resolveFullPdfPhysicalPageCount = async (
+  options: BookHomeworkCanonicalResolverOptions,
+  scope: AssemblyScope<BookAssemblyPublicationResult>,
+  bookId: string,
+  manifestVersionId: string,
+): Promise<number | undefined> => {
+  if (!options.readFullPdfPhysicalPageCount) return undefined;
+  const version = scope.versions?.[manifestVersionId];
+  const sourceVersionId = version?.strategy === 'full_pdf'
+    ? version.manifest.sourceSet.sources[0]?.sourceVersionId
+    : undefined;
+  if (!version || !sourceVersionId) return undefined;
+  const count = await options.readFullPdfPhysicalPageCount({
+    ownerId: version.ownerId,
+    bookId,
+    sourceVersionId,
+  });
+  return typeof count === 'number' && Number.isSafeInteger(count) && count >= 1 ? count : undefined;
+};
+
 const loadPublication = async (
   options: BookHomeworkCanonicalResolverOptions,
   command: BookHomeworkSagaCommand,
@@ -724,6 +750,12 @@ const loadPublication = async (
   if (!readScope) fail('invalid-publication', 'No trusted publication loader or Assembly scope reader is configured.');
   const scope = await (readScope as NonNullable<typeof readScope>)(command.intent.bookId);
   const selection = targetSelectionForScope(target, scope, command.intent.expectedPublication);
+  const fullPdfPhysicalPageCount = await resolveFullPdfPhysicalPageCount(
+    options,
+    scope,
+    command.intent.bookId,
+    command.intent.expectedPublication.manifestVersionId,
+  );
   const publication = createTrustedBookDeliveryPublication(
     {
       bookId: command.intent.bookId,
@@ -740,6 +772,7 @@ const loadPublication = async (
       policyRevision: 1,
       basis: 'immutable-reference',
     },
+    fullPdfPhysicalPageCount !== undefined ? { fullPdfPhysicalPageCount } : undefined,
   );
   return publication;
 };
@@ -765,9 +798,23 @@ const resolveCanonical = async (
       return pending;
     }
     : undefined;
-  const scopedOptions = readPublicationScopeOnce
-    ? { ...options, readPublicationScope: readPublicationScopeOnce }
-    : options;
+  const pageCountCache = new Map<string, Promise<number | undefined>>();
+  const readFullPdfPhysicalPageCountOnce = options.readFullPdfPhysicalPageCount
+    ? (input: { readonly ownerId: string; readonly bookId: string; readonly sourceVersionId: string }) => {
+      const key = `${input.ownerId}:${input.bookId}:${input.sourceVersionId}`;
+      let pending = pageCountCache.get(key);
+      if (!pending) {
+        pending = options.readFullPdfPhysicalPageCount!(input);
+        pageCountCache.set(key, pending);
+      }
+      return pending;
+    }
+    : undefined;
+  const scopedOptions: BookHomeworkCanonicalResolverOptions = {
+    ...options,
+    ...(readPublicationScopeOnce ? { readPublicationScope: readPublicationScopeOnce } : {}),
+    ...(readFullPdfPhysicalPageCountOnce ? { readFullPdfPhysicalPageCount: readFullPdfPhysicalPageCountOnce } : {}),
+  };
 
   const publication = await loadPublication(scopedOptions, command, target, selected[0]!);
   try { assertPublishedBookDeliveryPublication(publication); } catch (error) {
@@ -951,6 +998,12 @@ export const resolveBookHomeworkPreviewSource = async (
   const target = input.target ?? { kind: 'unit' as const, bookId, nodeKey: id(input.unitKey, 'unitKey') };
   if (!isRecord(target) || target.bookId !== bookId) fail('invalid-target', 'Preview target is invalid.');
   const selection = targetSelectionForScope(target, scope, expected);
+  const fullPdfPhysicalPageCount = await resolveFullPdfPhysicalPageCount(
+    options,
+    scope,
+    bookId,
+    expected.manifestVersionId,
+  );
   const publication = createTrustedBookDeliveryPublication(
     {
       bookId,
@@ -967,6 +1020,7 @@ export const resolveBookHomeworkPreviewSource = async (
       policyRevision: 1,
       basis: 'immutable-reference',
     },
+    fullPdfPhysicalPageCount !== undefined ? { fullPdfPhysicalPageCount } : undefined,
   );
   if (publication.ownerId !== ownerId
     || publication.bookId !== bookId

@@ -258,4 +258,66 @@ describe('Book Homework authoritative return-path resolver', () => {
       action: { kind: 'student-launch', placementId: 'placement-vocab-u1' },
     })).resolves.toBeNull();
   });
+
+  it('resolves carried-forward Full-PDF Homework launch and submit when successor manifest allocates a new placementId', async () => {
+    const baseScope = publicationScope();
+    const carriedScope = {
+      ...baseScope,
+      activityVersions: {
+        'activity-version-vocab-u1': {
+          ...baseScope.activityVersions['activity-version-vocab-u1'],
+          safeProjectionId: 'projection-vocab-successor',
+          canonicalOriginManifestVersionId: 'manifest-vocab-u0',
+          canonicalOriginPublicationId: 'publication-vocab-u0',
+          canonicalOriginOperationId: 'op-vocab-u0',
+        },
+      },
+      activitySafeProjections: {
+        'projection-vocab-successor': {
+          schemaVersion: 1,
+          projectionId: 'projection-vocab-successor',
+          activityId: 'activity-vocab-u1',
+          activityVersionId: 'activity-version-vocab-u1',
+          ownerId,
+          bookId: 'book-vocab-u1-d43935c735245dc8',
+          manifestVersionId: 'manifest-vocab-u1',
+          publicationId: 'publication-vocab-u1',
+          publicationRevision: 4,
+          placementIds: ['placement-vocab-u1'],
+          sourcePages: [{ sourceKey: 'full', sourceVersionId: 'source-v1', physicalPageNumber: 1 }],
+          payloadFingerprint: 'fnv1a64:0123456789abcdef',
+        },
+      },
+    };
+    const carriedCanonical = {
+      ...canonical(),
+      placementIds: ['placement-vocab-u0-original'],
+      provenance: {
+        kind: 'initial-book-publication' as const,
+        bookId: 'book-vocab-u1-d43935c735245dc8',
+        manifestVersionId: 'manifest-vocab-u0',
+        publicationId: 'publication-vocab-u0',
+        publicationRevision: 1,
+        unitKey: 'unit-1',
+        activityKey: 'activity-1',
+        sourcePages: [{ sourceKey: 'full', sourceVersionId: 'source-v1', physicalPageNumber: 1 }],
+      },
+    };
+    const base = dependencies();
+    const resolver = new BookHomeworkAuthoritativeContextResolver({
+      ...base,
+      publications: { readScope: vi.fn(async () => carriedScope as never) },
+      exactActivityVersions: { readExact: vi.fn(async () => carriedCanonical as never) },
+    } as BookHomeworkContextResolverDependencies);
+
+    await expect(resolver.resolve({
+      assignmentId,
+      actorUid: recipientId,
+      action: { kind: 'student-launch', placementId: 'placement-vocab-u1' },
+    })).resolves.toMatchObject({
+      placementId: 'placement-vocab-u1',
+      activityId: 'activity-vocab-u1',
+      activityVersionId: 'activity-version-vocab-u1',
+    });
+  });
 });

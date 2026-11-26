@@ -238,6 +238,27 @@ export class BookHomeworkAuthoritativeContextResolver implements BookHomeworkCon
       activityVersion: activity.activityVersion,
       payloadFingerprint: activity.canonicalPayloadFingerprint,
     });
+    const carriedForwardProjection = activity.safeProjectionId
+      ? scope.activitySafeProjections?.[activity.safeProjectionId]
+      : undefined;
+    const placementAuthorized = canonical !== null && (
+      canonical.placementIds.includes(storedPlacement.placementId)
+      || (canonical.provenance.kind === 'initial-book-publication'
+        && canonical.provenance.bookId === book.bookId
+        && canonical.provenance.manifestVersionId !== manifest.manifestVersionId
+        && canonical.provenance.manifestVersionId === activity.canonicalOriginManifestVersionId
+        && canonical.provenance.publicationId === activity.canonicalOriginPublicationId
+        && canonical.placementIds.length > 0
+        && carriedForwardProjection !== undefined
+        && carriedForwardProjection.bookId === book.bookId
+        && carriedForwardProjection.ownerId === ownerId
+        && carriedForwardProjection.manifestVersionId === manifest.manifestVersionId
+        && carriedForwardProjection.publicationId === book.publicationId
+        && carriedForwardProjection.publicationRevision === book.publicationRevision
+        && carriedForwardProjection.activityId === activity.activityId
+        && carriedForwardProjection.activityVersionId === activity.activityVersionId
+        && carriedForwardProjection.placementIds.includes(storedPlacement.placementId))
+    );
     if (!canonical
       || canonical.lifecycle !== 'published'
       || canonical.ownerId !== ownerId
@@ -245,7 +266,7 @@ export class BookHomeworkAuthoritativeContextResolver implements BookHomeworkCon
       || canonical.activityVersionId !== activity.activityVersionId
       || canonical.activityVersion !== activity.activityVersion
       || canonical.payloadFingerprint !== activity.canonicalPayloadFingerprint
-      || !canonical.placementIds.includes(storedPlacement.placementId)) return null;
+      || !placementAuthorized) return null;
 
     return {
       assignmentId: root.assignmentId,

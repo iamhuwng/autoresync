@@ -1,7 +1,10 @@
 /** Default #59 server composition. All records are read through durable RTDB adapters. */
 import type { NormalizedActivity } from '../../../../src/types/bookActivity.types.ts';
 import type { BookAssemblyCandidateRecord } from '../../../../src/services/book-assembly/unitAssembly.types.ts';
-import type { UnitActivityBindingRepository } from '../../../../src/services/book-assembly/unitActivityBinding.repository.ts';
+import type {
+  UnitActivityBinding,
+  UnitActivityBindingRepository,
+} from '../../../../src/services/book-assembly/unitActivityBinding.repository.ts';
 import type { BookRouteHandlersOptions } from '../book-route-handlers.ts';
 import { FirebaseRestBookActivityAuthoringRepository } from '../book-activity-authoring/repository.ts';
 import { activityMatchesAssemblyContract, createBookActivityAuthoringWorkerHandlers } from '../book-activity-authoring/worker.ts';
@@ -495,10 +498,31 @@ const lineage = async (
     assemblyScope: suppliedComponentCache?.assemblyScope,
   });
   if (!qualified) return {};
+  const publicationScope = suppliedComponentCache?.publicationScope
+    ?? await new FirebaseRestBookAssemblyPublicationRepository({ env: env as never, ownerId }).readScope(bookId);
+  const currentManifestVersionId = publicationScope.current?.manifestVersionId ?? null;
   const result: Record<string, { activityId: string; lastActivityVersionId?: string; lastActivityVersion?: number }> = {};
   qualified.activation.activities
     .filter((activity) => activity.unitKey === unitKey)
-    .forEach((activity) => { result[activity.activityKey] = { activityId: activity.activityId }; });
+    .forEach((activity) => {
+      const committedVersions = Object.values(publicationScope.activityVersions ?? {})
+        .filter((entry) => entry.ownerId === ownerId
+          && entry.bookId === bookId
+          && entry.activityId === activity.activityId);
+      const prev = (currentManifestVersionId
+        ? committedVersions
+          .filter((entry) => entry.manifestVersionId === currentManifestVersionId)
+          .sort((left, right) => right.activityVersion - left.activityVersion)[0]
+        : undefined)
+        ?? committedVersions.sort((left, right) => right.activityVersion - left.activityVersion)[0];
+      result[activity.activityKey] = prev
+        ? {
+          activityId: prev.activityId,
+          lastActivityVersionId: prev.activityVersionId,
+          lastActivityVersion: prev.activityVersion,
+        }
+        : { activityId: activity.activityId };
+    });
   return result;
 };
 

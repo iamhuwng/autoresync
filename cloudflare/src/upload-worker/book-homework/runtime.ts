@@ -24,6 +24,7 @@ import {
   FirebaseRestBookDeliveryRepository,
   type BookDeliveryRepositoryEnv,
 } from '../book-delivery/repository.ts';
+import { readTrustedFullPdfPhysicalPageCount } from '../book-delivery/worker.ts';
 import {
   FirebaseRestBookAssemblyPublicationRepository,
   type BookAssemblyPublicationRepositoryEnv,
@@ -188,6 +189,9 @@ export const createBookHomeworkProductionCanonicalResolver = (
   });
   return createBookHomeworkCanonicalResolver({
     readPublicationScope: (bookId) => publicationReader.readScope(bookId),
+    readFullPdfPhysicalPageCount: ({ ownerId: bookOwnerId, bookId, sourceVersionId }) => (
+      readTrustedFullPdfPhysicalPageCount(env, bookOwnerId, bookId, sourceVersionId)
+    ),
     classReader: async (classId) => {
       const value = await authorityReader.readValue(`classes/${classId}`);
       return value && typeof value === 'object' && !Array.isArray(value)
@@ -295,6 +299,9 @@ export const createBookHomeworkProductionRuntime = (
         });
         return await createBookHomeworkCanonicalResolver({
           readPublicationScope: (bookId) => publicationReader.readScope(bookId),
+          readFullPdfPhysicalPageCount: ({ ownerId: bookOwnerId, bookId, sourceVersionId }) => (
+            readTrustedFullPdfPhysicalPageCount(env, bookOwnerId, bookId, sourceVersionId)
+          ),
           classReader: async (classId) => {
             const value = await authorityReader.readValue(`classes/${classId}`);
             return value && typeof value === 'object' && !Array.isArray(value)

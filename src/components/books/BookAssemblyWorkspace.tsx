@@ -31,6 +31,7 @@ import {
   stageUnitActivityImportBundle,
   UnitActivityImportConflictError,
   UnitActivityImportError,
+  UnitActivityImportPartialCommitError,
 } from '../../services/book-assembly/unitActivityImport.service';
 import {
   buildBulkUnitActivityImportPrompt,
@@ -1812,26 +1813,81 @@ const BookAssemblyWorkspace = ({
           signal: controller.signal,
         });
       } catch (importError) {
-        if (manifestWasMutated && previousManifest && !(importError instanceof UnitActivityImportConflictError)) {
-          try {
-            const restored = await repository.replace({
-              operationId: operationId(),
-              bookId: validManifest.bookId,
-              unitKey,
-              candidateId: assemblyResult.candidate.candidateId,
-              expectedCandidateRevision: assemblyResult.candidate.revision,
-              expectedBookRevision: effectiveBookRevision,
-              expectedSourceSetRevision: effectiveSourceSetRevision,
-              manifest: previousManifest,
-            });
-            if (restored.candidate) {
-              setCandidate(restored.candidate);
-              setCandidatesByUnit((prev) => ({ ...prev, [unitKey]: restored.candidate! }));
-              setSavedSnapshot(previousSnapshot);
-              onDirtyChange?.(true);
+        const hasRemainingCommittedSlots = importError instanceof UnitActivityImportPartialCommitError
+          && importError.committedActivityKeys.some((key) => !importError.rolledBackActivityKeys.includes(key));
+        if (hasRemainingCommittedSlots) {
+          const remainingCommittedKeys = importError.committedActivityKeys.filter(
+            (key) => !importError.rolledBackActivityKeys.includes(key),
+          );
+          if (remainingCommittedKeys.length > 0) {
+            setImportedActivityKeysByUnit((current) => ({
+              ...current,
+              [unitKey]: [...new Set([...(current[unitKey] ?? []), ...remainingCommittedKeys])],
+            }));
+          }
+          throw importError;
+        }
+        if (!(importError instanceof UnitActivityImportConflictError)) {
+          if (manifestWasMutated && previousManifest) {
+            let restored: BookAssemblyMutationResult;
+            try {
+              restored = await repository.replace({
+                operationId: operationId(),
+                bookId: validManifest.bookId,
+                unitKey,
+                candidateId: assemblyResult.candidate.candidateId,
+                expectedCandidateRevision: assemblyResult.candidate.revision,
+                expectedBookRevision: effectiveBookRevision,
+                expectedSourceSetRevision: effectiveSourceSetRevision,
+                manifest: previousManifest,
+              });
+            } catch (rollbackError) {
+              const primaryCause = importError instanceof Error ? importError.message : 'Unit Activity import failed.';
+              const rollbackCause = rollbackError instanceof Error ? rollbackError.message : 'Manifest restore failed.';
+              throw new UnitActivityImportError(
+                'manifest-rollback-failed',
+                `${primaryCause} Manifest changes could not be reverted (${rollbackCause}) and remain saved at revision ${assemblyResult.candidate.revision}.`,
+              );
             }
-          } catch {
-            // Preserve the primary import error if compensating manifest restore fails.
+            if (!restored.candidate) {
+              const primaryCause = importError instanceof Error ? importError.message : 'Unit Activity import failed.';
+              throw new UnitActivityImportError(
+                'manifest-rollback-failed',
+                `${primaryCause} Manifest changes could not be reverted (${mutationErrorMessage(restored)}) and remain saved at revision ${assemblyResult.candidate.revision}.`,
+              );
+            }
+            setCandidate(restored.candidate);
+            setCandidatesByUnit((prev) => ({ ...prev, [unitKey]: restored.candidate! }));
+            setSavedSnapshot(previousSnapshot);
+            onDirtyChange?.(true);
+          } else if (!previousCandidate && assemblyResult.status === 'created') {
+            try {
+              const discarded = await repository.discard({
+                operationId: operationId(),
+                bookId: validManifest.bookId,
+                unitKey,
+                candidateId: assemblyResult.candidate.candidateId,
+                expectedCandidateRevision: assemblyResult.candidate.revision,
+              });
+              if (!['discarded', 'replayed'].includes(discarded.status)) {
+                throw new Error(mutationErrorMessage(discarded));
+              }
+              setCandidate(null);
+              setCandidatesByUnit((prev) => {
+                const next = { ...prev };
+                delete next[unitKey];
+                return next;
+              });
+              setSavedSnapshot('');
+              onDirtyChange?.(true);
+            } catch (rollbackError) {
+              const primaryCause = importError instanceof Error ? importError.message : 'Unit Activity import failed.';
+              const rollbackCause = rollbackError instanceof Error ? rollbackError.message : 'Candidate cleanup failed.';
+              throw new UnitActivityImportError(
+                'manifest-rollback-failed',
+                `${primaryCause} Newly created Unit draft could not be discarded (${rollbackCause}) and remains saved at revision ${assemblyResult.candidate.revision}.`,
+              );
+            }
           }
         }
         throw importError;
@@ -1864,7 +1920,9 @@ const BookAssemblyWorkspace = ({
         slotCount: importResult.staged.length,
       });
     } catch (error) {
-      if (controller.signal.aborted) {
+      if (controller.signal.aborted
+        && !(error instanceof UnitActivityImportPartialCommitError)
+        && !(error instanceof UnitActivityImportError && error.code === 'manifest-rollback-failed')) {
         setStatus('idle');
         setUnitImportStatus('Import canceled. Existing draft was kept.');
         return;
@@ -2072,9 +2130,24 @@ const BookAssemblyWorkspace = ({
             });
             return;
           }
+          const hasRemainingCommittedSlots = unitError instanceof UnitActivityImportPartialCommitError
+            && unitError.committedActivityKeys.some((key) => !unitError.rolledBackActivityKeys.includes(key));
+          if (hasRemainingCommittedSlots) {
+            const remainingCommittedKeys = unitError.committedActivityKeys.filter(
+              (key) => !unitError.rolledBackActivityKeys.includes(key),
+            );
+            if (remainingCommittedKeys.length > 0) {
+              setImportedActivityKeysByUnit((current) => ({
+                ...current,
+                [bundle.unitKey]: [...new Set([...(current[bundle.unitKey] ?? []), ...remainingCommittedKeys])],
+              }));
+            }
+            throw unitError;
+          }
           if (bulkManifestMutated && previousBulkManifest) {
+            let restored: BookAssemblyMutationResult;
             try {
-              const restored = await repository.replace({
+              restored = await repository.replace({
                 operationId: operationId(),
                 bookId: validManifest.bookId,
                 unitKey: bundle.unitKey,
@@ -2084,15 +2157,54 @@ const BookAssemblyWorkspace = ({
                 expectedSourceSetRevision: sessionContext.authority.sourceSetRevision,
                 manifest: previousBulkManifest,
               });
-              if (restored.candidate) {
-                sessionContext.candidatesByUnit[bundle.unitKey] = restored.candidate;
-                setCandidate(restored.candidate);
-                setCandidatesByUnit((prev) => ({ ...prev, [bundle.unitKey]: restored.candidate! }));
-                setSavedSnapshot(previousBulkSnapshot);
-                onDirtyChange?.(true);
+            } catch (rollbackError) {
+              const primaryCause = unitError instanceof Error ? unitError.message : 'Bulk Activity import failed.';
+              const rollbackCause = rollbackError instanceof Error ? rollbackError.message : 'Manifest restore failed.';
+              throw new UnitActivityImportError(
+                'manifest-rollback-failed',
+                `${primaryCause} Manifest changes for ${unitLabel} could not be reverted (${rollbackCause}) and remain saved at revision ${assemblyResult.candidate.revision}.`,
+              );
+            }
+            if (!restored.candidate) {
+              const primaryCause = unitError instanceof Error ? unitError.message : 'Bulk Activity import failed.';
+              throw new UnitActivityImportError(
+                'manifest-rollback-failed',
+                `${primaryCause} Manifest changes for ${unitLabel} could not be reverted (${mutationErrorMessage(restored)}) and remain saved at revision ${assemblyResult.candidate.revision}.`,
+              );
+            }
+            sessionContext.candidatesByUnit[bundle.unitKey] = restored.candidate;
+            setCandidate(restored.candidate);
+            setCandidatesByUnit((prev) => ({ ...prev, [bundle.unitKey]: restored.candidate! }));
+            setSavedSnapshot(previousBulkSnapshot);
+            onDirtyChange?.(true);
+          } else if (!previousBulkCandidate && assemblyResult.status === 'created') {
+            try {
+              const discarded = await repository.discard({
+                operationId: operationId(),
+                bookId: validManifest.bookId,
+                unitKey: bundle.unitKey,
+                candidateId: assemblyResult.candidate.candidateId,
+                expectedCandidateRevision: assemblyResult.candidate.revision,
+              });
+              if (!['discarded', 'replayed'].includes(discarded.status)) {
+                throw new Error(mutationErrorMessage(discarded));
               }
-            } catch {
-              // Preserve the primary bulk import error if compensating manifest restore fails.
+              delete sessionContext.candidatesByUnit[bundle.unitKey];
+              setCandidate(null);
+              setCandidatesByUnit((prev) => {
+                const next = { ...prev };
+                delete next[bundle.unitKey];
+                return next;
+              });
+              setSavedSnapshot('');
+              onDirtyChange?.(true);
+            } catch (rollbackError) {
+              const primaryCause = unitError instanceof Error ? unitError.message : 'Bulk Activity import failed.';
+              const rollbackCause = rollbackError instanceof Error ? rollbackError.message : 'Candidate cleanup failed.';
+              throw new UnitActivityImportError(
+                'manifest-rollback-failed',
+                `${primaryCause} Newly created draft for ${unitLabel} could not be discarded (${rollbackCause}) and remains saved at revision ${assemblyResult.candidate.revision}.`,
+              );
             }
           }
           throw unitError;

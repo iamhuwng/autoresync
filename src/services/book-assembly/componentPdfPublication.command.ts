@@ -35,6 +35,8 @@ export interface ComponentPdfPublicationRequest {
   })[];
   /** Trusted transport fingerprint used by the durable operation ledger. */
   readonly operationFingerprint?: string;
+  /** Next monotonic Book publication revision derived from committed scope. */
+  readonly publicationRevision?: number;
 }
 
 export interface ComponentPdfPublicationCommandReceipt {
@@ -247,6 +249,7 @@ export const createComponentPdfPublicationCommand = (
       previewApproval,
       activitiesByKey,
       existingLineageByActivityKey: lineage,
+      ...(request.publicationRevision !== undefined ? { publicationRevision: request.publicationRevision } : {}),
       allocateId: (kind, key) => {
         if (['publication', 'plan', 'manifest-version'].includes(kind)) {
           const existing = sharedIds.get(kind);

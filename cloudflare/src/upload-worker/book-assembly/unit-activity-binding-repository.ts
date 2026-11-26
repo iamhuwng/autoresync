@@ -142,27 +142,51 @@ export class FirebaseRestUnitActivityBindingRepository implements UnitActivityBi
   async readBookBindings(
     ownerId: string,
     bookId: string,
+    options?: { readonly strict?: boolean },
   ): Promise<Readonly<Record<string, Readonly<Record<string, UnitActivityBinding>>>>> {
+    const strict = options?.strict === true;
     const safeOwnerId = id(ownerId);
     const safeBookId = id(bookId);
     const raw = await this.rtdb.readValue(bookBindingsPath(safeOwnerId, safeBookId));
+    if (raw === null || raw === undefined) return {};
     const root = record(raw);
-    const rawUnits = record(root?.units);
-    if (!rawUnits) return {};
+    if (!root) {
+      if (strict) throw new Error('book_assembly_activity_binding_snapshot_malformed');
+      return {};
+    }
+    if (root.units === null || root.units === undefined) return {};
+    const rawUnits = record(root.units);
+    if (!rawUnits) {
+      if (strict) throw new Error('book_assembly_activity_binding_snapshot_malformed');
+      return {};
+    }
     const byUnit: Record<string, Record<string, UnitActivityBinding>> = {};
     for (const [unitKey, unitNode] of Object.entries(rawUnits)) {
-      const activitiesNode = record(record(unitNode)?.activities);
-      if (!activitiesNode) continue;
+      if (unitNode === null || unitNode === undefined) continue;
+      const unitRecord = record(unitNode);
+      if (!unitRecord) {
+        if (strict) throw new Error('book_assembly_activity_binding_snapshot_malformed');
+        continue;
+      }
+      if (unitRecord.activities === null || unitRecord.activities === undefined) continue;
+      const activitiesNode = record(unitRecord.activities);
+      if (!activitiesNode) {
+        if (strict) throw new Error('book_assembly_activity_binding_snapshot_malformed');
+        continue;
+      }
       const byActivity: Record<string, UnitActivityBinding> = {};
       for (const [activityKey, value] of Object.entries(activitiesNode)) {
         if (value === null || value === undefined) continue;
         try {
           const binding = assertUnitActivityBinding(value);
-          if (sameKey(binding, { ownerId: safeOwnerId, bookId: safeBookId, unitKey, activityKey })) {
-            byActivity[activityKey] = binding;
+          if (!sameKey(binding, { ownerId: safeOwnerId, bookId: safeBookId, unitKey, activityKey })) {
+            if (strict) throw new Error('book_assembly_activity_binding_snapshot_malformed');
+            continue;
           }
+          byActivity[activityKey] = binding;
         } catch {
-          // Ignore malformed individual leaf so discovery stays fail-closed per slot.
+          if (strict) throw new Error('book_assembly_activity_binding_snapshot_malformed');
+          // Ignore malformed individual leaf in non-strict discovery so discovery stays fail-closed per slot.
         }
       }
       if (Object.keys(byActivity).length > 0) {

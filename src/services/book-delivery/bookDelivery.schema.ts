@@ -374,7 +374,7 @@ const validateBookDeliveryBindingUnsafe = (value: unknown): BookDeliveryValidati
       'recipient', 'revision', 'schedulePolicy', 'schemaVersion', 'scope',
       'sourceSet', 'status',
     ],
-    ['referencePageGroups'],
+    ['activityPageGroups', 'referencePageGroups'],
   );
   if (!exact(value, expectedKeys, 'binding', errors)) return { valid: false, errors };
   const binding = value as Record<string, any>;
@@ -534,6 +534,30 @@ const validateBookDeliveryBindingUnsafe = (value: unknown): BookDeliveryValidati
       ...(Array.isArray(placement.navigationPageGroupKeys) ? placement.navigationPageGroupKeys : []),
     ]),
   );
+  if (Object.hasOwn(binding, 'activityPageGroups')) {
+    if (!boundedArray(binding.activityPageGroups)) {
+      error(errors, 'invalid-value', 'binding.activityPageGroups', 'Activity page groups must be a bounded array.');
+    } else {
+      const seenActivityGroupScopes = new Set<string>();
+      (binding.activityPageGroups as readonly Record<string, any>[]).forEach((group, groupIndex) => {
+        const path = `binding.activityPageGroups[${groupIndex}]`;
+        if (!exact(group, ['nodeKey', 'pageGroupKey', 'pages', 'sourceKey'], path, errors)) return;
+        if (!id(group.nodeKey) || !outlineKeys.has(group.nodeKey)) {
+          error(errors, 'contradictory-scope', `${path}.nodeKey`, 'Activity page group node is absent from the frozen outline.');
+        }
+        const scopedKey = `${String(group.nodeKey)}::${String(group.pageGroupKey)}`;
+        if (!id(group.pageGroupKey) || seenActivityGroupScopes.has(scopedKey) || !activityPageGroupKeys.has(group.pageGroupKey)) {
+          error(errors, 'duplicate-id', `${path}.pageGroupKey`, 'Activity page group key must match a bound placement and be unique per node.');
+        } else {
+          seenActivityGroupScopes.add(scopedKey);
+        }
+        if (!id(group.sourceKey) || !sourceKeys.has(group.sourceKey)) {
+          error(errors, 'source-scope-mismatch', `${path}.sourceKey`, 'Activity page group references an unbound source.');
+        }
+        validatePageArray(group.pages, `${path}.pages`, errors);
+      });
+    }
+  }
   if (Object.hasOwn(binding, 'referencePageGroups')) {
     if (!boundedArray(binding.referencePageGroups)) {
       error(errors, 'invalid-value', 'binding.referencePageGroups', 'Reference page groups must be a bounded array.');

@@ -87,6 +87,8 @@ export interface CreateComponentPdfPublicationAdapterPlanInput {
 
 export interface ComponentPdfPublicationCommandInput extends Omit<CreateComponentPdfPublicationAdapterPlanInput, 'ids'> {
   readonly allocateId: (kind: string, key: string) => string;
+  /** Monotonic Book publication revision (defaults to 1 for initial publication). */
+  readonly publicationRevision?: number;
 }
 
 export interface ComponentPdfMultiUnitPublicationInput {
@@ -274,6 +276,10 @@ const createPublicationRecords = (
     placementIds.push(ids.placementId);
     let canonical: CanonicalPublishedActivityVersionRecord;
     try {
+      const isRevision = input.ids.publicationRevision > 1
+        && ids.activityVersion > 1
+        && lineage?.lastActivityVersionId !== undefined;
+      const sourceContextFingerprint = fingerprint(sourcePages);
       const canonicalWithoutFingerprint: CanonicalPublishedActivityVersionRecordWithoutPayloadFingerprint = {
         schemaVersion: 1,
         lifecycle: 'published',
@@ -283,24 +289,32 @@ const createPublicationRecords = (
         ownerId: input.ownerId,
         activity: payload.activity,
         projection: projectStudentActivity(payload.activity),
-        ...(lineage?.lastActivityVersionId === undefined
-          ? {}
-          : { predecessorActivityVersionId: lineage.lastActivityVersionId }),
+        ...(isRevision
+          ? { predecessorActivityVersionId: lineage.lastActivityVersionId }
+          : {}),
         placementIds: [ids.placementId],
         evidenceRefs: [],
-        sourceContextFingerprint: fingerprint(sourcePages),
+        sourceContextFingerprint,
         createdByOperationId: input.operationId,
         publishedAt: input.now,
-        provenance: {
-          kind: 'initial-book-publication',
-          bookId: input.authority.bookId,
-          manifestVersionId: input.ids.manifestVersionId,
-          publicationId: input.ids.publicationId,
-          publicationRevision: input.ids.publicationRevision,
-          unitKey: unit.unitKey,
-          activityKey: slot.activityKey,
-          sourcePages,
-        },
+        provenance: isRevision
+          ? {
+            kind: 'activity-revision',
+            candidateId: input.candidate.candidateId,
+            candidateRevision: input.candidate.revision,
+            evidenceRefs: [],
+            sourceContext: { fingerprint: sourceContextFingerprint },
+          }
+          : {
+            kind: 'initial-book-publication',
+            bookId: input.authority.bookId,
+            manifestVersionId: input.ids.manifestVersionId,
+            publicationId: input.ids.publicationId,
+            publicationRevision: input.ids.publicationRevision,
+            unitKey: unit.unitKey,
+            activityKey: slot.activityKey,
+            sourcePages,
+          },
       };
       canonical = assertCanonicalPublishedActivityVersion({
         ...canonicalWithoutFingerprint,
@@ -489,7 +503,7 @@ export const createComponentPdfPublicationCommandOutput = (
   const unit = manifest.units.find((candidate) => candidate.unitKey === input.unitKey);
   if (!unit) throw new ComponentPdfPublicationAdapterError('component_pdfs_unit_missing');
   const publicationId = input.allocateId('publication', input.candidate.candidateId);
-  const publicationRevision = 1;
+  const publicationRevision = input.publicationRevision ?? 1;
   return createComponentPdfPublicationAdapter({
     ...input,
     ids: {

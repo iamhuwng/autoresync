@@ -267,20 +267,33 @@ const collectReceiptCandidateIds = (root: BookActivityAuthoringRoot): Set<string
   }
   return ids;
 };
+const isPendingBindingOperation = (operation: OperationRecord): boolean => {
+  const result = plainRecord(operation.result);
+  const receipt = bindingReceipt(result?.binding);
+  return receipt?.phase === 'binding-pending';
+};
 const prune = (
   root: BookActivityAuthoringRoot,
   at: number,
   verifiedBookBindings?: VerifiedBookBindings,
 ): void => {
   const receiptCandidateIds = collectReceiptCandidateIds(root);
-  const operations = Object.entries(root.operations ?? {})
+  const allOperations = Object.entries(root.operations ?? {})
     .flatMap(([id, value]) => {
       const operation = asOperation(value);
-      return operation && operation.createdAt >= at - OPERATION_RETENTION_MS ? [[id, operation] as const] : [];
-    })
+      return operation ? [[id, operation] as const] : [];
+    });
+  // Never evict operations with an unresolved binding-pending receipt so
+  // reconciliation retries remain idempotent and their candidates stay protected.
+  const pendingOperations = allOperations
+    .filter(([, operation]) => isPendingBindingOperation(operation))
+    .sort(([, left], [, right]) => right.createdAt - left.createdAt);
+  const pendingIds = new Set(pendingOperations.map(([id]) => id));
+  const recentNonPending = allOperations
+    .filter(([id, operation]) => !pendingIds.has(id) && operation.createdAt >= at - OPERATION_RETENTION_MS)
     .sort(([, left], [, right]) => right.createdAt - left.createdAt)
-    .slice(0, MAX_OPERATIONS_PER_OWNER);
-  root.operations = Object.fromEntries(operations);
+    .slice(0, Math.max(0, MAX_OPERATIONS_PER_OWNER - pendingOperations.length));
+  root.operations = Object.fromEntries([...pendingOperations, ...recentNonPending]);
   const candidates = Object.entries(root.candidates ?? {});
   if (candidates.length < MAX_CANDIDATES_PER_OWNER) return;
   const parsedCandidates = candidates.flatMap(([id, value]) => {
@@ -982,7 +995,7 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
             contextBinding?.unitKey ?? 'book',
           );
           if (!repo.readBookBindings) return undefined;
-          const byUnit = await repo.readBookBindings(input.uid, trustedBookId);
+          const byUnit = await repo.readBookBindings(input.uid, trustedBookId, { strict: true });
           const boundCandidateIds = new Set<string>();
           for (const unitBindings of Object.values(byUnit)) {
             for (const binding of Object.values(unitBindings)) {

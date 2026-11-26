@@ -358,7 +358,7 @@ export const createBookAssemblyClient = (options: AssemblyClientOptions) => {
           throw new Error('invalid_response');
         }
         const manifestsById = parsed.manifestsById as Record<string, BookAssemblyCandidateRecord['manifest']>;
-        return parsed.drafts.map((draft: { readonly candidate?: BookAssemblyCandidateRecord; readonly manifestRef?: string }) => {
+        const mappedDrafts = parsed.drafts.map((draft: { readonly candidate?: BookAssemblyCandidateRecord; readonly manifestRef?: string }) => {
           const rawCandidate = draft?.candidate;
           if (!rawCandidate || typeof draft?.manifestRef !== 'string'
             || !Object.hasOwn(manifestsById, draft.manifestRef)) {
@@ -368,6 +368,7 @@ export const createBookAssemblyClient = (options: AssemblyClientOptions) => {
             ...rawCandidate,
             manifest: manifestsById[draft.manifestRef] ?? null,
           };
+          const ownUnit = candidate.manifest?.units?.find((unit) => unit.unitKey === candidate.unitKey);
           if (candidate.bookId !== bookId
             || !Number.isSafeInteger(candidate.bookRevision) || candidate.bookRevision < 0
             || !Number.isSafeInteger(candidate.sourceSetRevision) || candidate.sourceSetRevision < 0
@@ -375,20 +376,34 @@ export const createBookAssemblyClient = (options: AssemblyClientOptions) => {
             || !Number.isSafeInteger(candidate.revision) || candidate.revision < 1
             || !candidate.manifest || candidate.manifest.bookId !== bookId
             || !Array.isArray(candidate.manifest.units) || !candidate.manifest.sourceSet
-            || !candidate.manifest.units.some((unit) => unit.unitKey === candidate.unitKey)
+            || !ownUnit
             || typeof candidate.updatedAt !== 'string') throw new Error('invalid_response');
           safeId(candidate.candidateId, 'candidate_id');
           safeId(candidate.ownerId, 'owner_id');
           safeId(candidate.unitKey, 'unit_key');
-          for (const [unitKey, keys] of Object.entries(sharedSavedKeys)) {
-            const unit = candidate.manifest.units.find((entry) => entry.unitKey === unitKey);
-            if (!unit || !Array.isArray(unit.activitySlots) || new Set(keys).size !== keys.length
-              || keys.some((key) => !unit.activitySlots.some((slot) => slot.activityKey === key))) {
+          const ownSavedKeys = sharedSavedKeys[candidate.unitKey];
+          if (ownSavedKeys !== undefined) {
+            if (!Array.isArray(ownUnit.activitySlots)
+              || new Set(ownSavedKeys).size !== ownSavedKeys.length
+              || ownSavedKeys.some((key) => !ownUnit.activitySlots.some((slot) => slot.activityKey === key))) {
               throw new Error('invalid_response');
             }
           }
           return { candidate, savedActivityKeysByUnit: sharedSavedKeys };
         });
+        for (const [unitKey, keys] of Object.entries(sharedSavedKeys)) {
+          const ownerDraft = mappedDrafts.find((entry) => entry.candidate.unitKey === unitKey);
+          const matchingUnit = ownerDraft?.candidate.manifest?.units.find((entry) => entry.unitKey === unitKey)
+            ?? mappedDrafts
+              .map((entry) => entry.candidate.manifest?.units.find((unit) => unit.unitKey === unitKey))
+              .find((unit) => unit !== undefined);
+          if (!matchingUnit || !Array.isArray(matchingUnit.activitySlots)
+            || new Set(keys).size !== keys.length
+            || keys.some((key) => !matchingUnit.activitySlots.some((slot) => slot.activityKey === key))) {
+            throw new Error('invalid_response');
+          }
+        }
+        return mappedDrafts;
       } catch {
         throw new BookAssemblyClientError('invalid_response', 502);
       }

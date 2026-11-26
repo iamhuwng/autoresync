@@ -1,5 +1,6 @@
 import type {
   BookAssemblyActivityVersionRecord,
+  BookAssemblyActivityVersionReference,
 } from '../../types/bookAssembly.types';
 import type {
   BookAssemblyPublicationResult,
@@ -20,8 +21,24 @@ import type {
   CanonicalActivityVersionWriter,
 } from './canonicalPublicationRepository';
 
+export const canonicalActivityVersionReferenceKey = (
+  reference: Pick<
+    BookAssemblyActivityVersionReference,
+    'activityId' | 'activityVersionId' | 'activityVersion' | 'canonicalPayloadFingerprint'
+  >,
+): string => (
+  `${reference.activityId}\u0000${reference.activityVersionId}\u0000${reference.activityVersion}\u0000${reference.canonicalPayloadFingerprint ?? ''}`
+);
+
 export interface CanonicalPublishBookAssemblyInput extends PublishBookAssemblyInput {
   readonly canonicalActivityVersions: readonly CanonicalPublishedActivityVersionRecord[];
+  /**
+   * Optional server-verified set of already-committed immutable references from
+   * the Book's current publication scope. Allows incremental carry-forward to
+   * avoid O(N) redundant RTDB reads + token exchanges while the Book CAS
+   * transaction re-verifies every reference against live scope.activityVersions.
+   */
+  readonly verifiedCommittedReferences?: ReadonlySet<string>;
 }
 
 const stable = (value: unknown): string => {
@@ -132,6 +149,10 @@ export const createCanonicalBookAssemblyPublicationService = (
       }
 
       for (const reference of input.plan.atomicWrites.activityVersionRefs ?? []) {
+        if (reference.canonicalPayloadFingerprint !== undefined
+          && input.verifiedCommittedReferences?.has(canonicalActivityVersionReferenceKey(reference))) {
+          continue;
+        }
         const existing = await activityVersions.readPrepared(reference);
         if (!existing
           || existing.lifecycle !== 'published'

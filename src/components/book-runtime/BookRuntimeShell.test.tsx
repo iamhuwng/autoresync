@@ -544,15 +544,15 @@ describe('BookRuntimeShell', () => {
 
     expect(screen.getByRole('button', { name: /Page Group 1 · 8, 9/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Page Group 2 · 12, 13/i })).toBeInTheDocument();
-    expect(screen.getByTestId('viewer-pages')).toHaveTextContent('unit-1::page-1@8');
+    expect(screen.getByTestId('viewer-pages')).toHaveTextContent('act::unit-1::page-1@8');
     expect(screen.getByText('Unit 1 Task')).toBeVisible();
     await user.click(screen.getByRole('button', { name: /Page Group 2 · 12, 13/i }));
     await waitFor(() => {
-      expect(screen.getByTestId('viewer-pages')).toHaveTextContent('unit-2::page-1@12');
+      expect(screen.getByTestId('viewer-pages')).toHaveTextContent('act::unit-2::page-1@12');
     });
     expect(screen.getByText('Unit 2 Task')).toBeVisible();
-    expect(seenViewerInputs.some((entry) => entry.pageGroupKey === 'unit-1::page-1' && entry.combinedPhysicalPage === 8)).toBe(true);
-    expect(seenViewerInputs.some((entry) => entry.pageGroupKey === 'unit-2::page-1' && entry.combinedPhysicalPage === 12)).toBe(true);
+    expect(seenViewerInputs.some((entry) => entry.pageGroupKey === 'act::unit-1::page-1' && entry.combinedPhysicalPage === 8)).toBe(true);
+    expect(seenViewerInputs.some((entry) => entry.pageGroupKey === 'act::unit-2::page-1' && entry.combinedPhysicalPage === 12)).toBe(true);
   });
 
   it('fails closed when explicit cross-unit pageGroupKeys collide without sourcePageScopes to isolate them', () => {
@@ -768,5 +768,72 @@ describe('BookRuntimeShell', () => {
     await user.click(screen.getByRole('button', { name: 'Jump to unmapped page 7' }));
     await waitFor(() => expect(screen.getByTestId('current-physical-page')).toHaveTextContent('7'));
     expect(capturedViewerInput!.pageGroupKey).toBe('u1-g1');
+  });
+
+  it('prevents reference Page Group collision with scoped Activity keys even when unit and group keys contain colons', async () => {
+    const base = delivery(true);
+    const fullPdfDelivery: BookRuntimeDeliveryProjection = {
+      ...base,
+      sourceSet: {
+        strategy: 'full_pdf',
+        sources: [{ sourceKey: 'full', sourceVersionId: 'full-v1', lifecycle: 'verified-usable', localPageScope: { kind: 'all', pages: [] }, physicalPageCount: 12 }],
+      },
+      documentRequests: [{ sourceKey: 'full', sourceVersionId: 'full-v1', opaqueRouteKey: 'full-route', localPageScope: { kind: 'all', pages: [] }, physicalPageCount: 12 }],
+      pageGroups: [
+        { pageGroupKey: 'shared', combinedPhysicalPages: [2, 6] },
+        { pageGroupKey: 'g-extra', combinedPhysicalPages: [4] },
+        { pageGroupKey: 'ref:u1::shared', combinedPhysicalPages: [11] },
+      ],
+      activities: [
+        {
+          placementId: 'p-1',
+          activityId: 'activity-1',
+          activityVersionId: 'activity-1-v1',
+          activityVersion: 1,
+          nodeKey: 'ref:u1',
+          order: 1,
+          contextMode: 'required',
+          sourceContext: {
+            available: true,
+            description: 'Unit 1',
+            pageGroupKeys: ['shared', 'g-extra'],
+            sourcePageScopes: [{ sourceKey: 'full', pages: [2, 4] }],
+          },
+        },
+        {
+          placementId: 'p-2',
+          activityId: 'activity-2',
+          activityVersionId: 'activity-2-v1',
+          activityVersion: 1,
+          nodeKey: 'u2',
+          order: 2,
+          contextMode: 'required',
+          sourceContext: {
+            available: true,
+            description: 'Unit 2',
+            pageGroupKeys: ['shared'],
+            sourcePageScopes: [{ sourceKey: 'full', pages: [6] }],
+          },
+        },
+      ],
+    };
+
+    render(
+      <BookRuntimeShell
+        {...shellProps({
+          deliveryProjection: fullPdfDelivery,
+          activities: [
+            { activityId: 'activity-1', activityVersionId: 'activity-1-v1', projection: projection(true), label: 'Activity 1' },
+            { activityId: 'activity-2', activityVersionId: 'activity-2-v1', projection: projection(true), label: 'Activity 2' },
+          ],
+          registry: registry(true),
+        })}
+      />,
+    );
+
+    // Reference group 'ref:u1::shared' on page 11 is NOT silently dropped by Activity key scoping ('act::ref:u1::shared')
+    expect(screen.getByRole('button', { name: /Page Group 4 · 11/i })).toBeInTheDocument();
+    // Non-colliding multi-group 'g-extra' keeps its exact page 4 instead of unioning [2, 4]
+    expect(screen.getByRole('button', { name: /Page Group 2 · 4/i })).toBeInTheDocument();
   });
 });

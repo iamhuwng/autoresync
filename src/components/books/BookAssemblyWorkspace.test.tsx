@@ -1898,4 +1898,117 @@ describe('BookAssemblyWorkspace', () => {
     ]);
   });
 
+  it('never rolls back the manifest when an Activity slot remains committed and surfaces manifest rollback failures explicitly', async () => {
+    const user = userEvent.setup();
+    // Case 1: Phase 2 partial commit (slot 1 saved, slot 2 failed) -> manifest MUST NOT be reverted
+    const repoPartial = repository();
+    const initialManifest = {
+      ...candidate().manifest!,
+      units: [{
+        unitKey: 'unit-1',
+        activitySlots: [
+          { activityKey: 'activity-reading-1', order: 1, contextRequirement: 'required' as const, pageGroupKeys: ['pages-full-2-activity'] },
+          { activityKey: 'activity-reading-2', order: 2, contextRequirement: 'required' as const, pageGroupKeys: ['pages-full-2-activity'] },
+        ],
+        pageGroups: [
+          { pageGroupKey: 'pages-full-2-activity', sourceKey: 'full', pages: [2], defaultPhysicalPageNumber: 2, activityKeys: ['activity-reading-1', 'activity-reading-2'], mode: 'activity' as const },
+        ],
+      }],
+    };
+    const twoSlotPayload = JSON.stringify({
+      promptVersion: 'book-unit-json-v1',
+      schemaVersion: 'prd0062.unit_activity_import.v1',
+      bookId: 'book-1',
+      unitKey: 'unit-1',
+      slots: ['activity-reading-1', 'activity-reading-2'].map((activityKey) => ({
+        activityKey,
+        content: JSON.parse(unitImportJson()).slots[0].content,
+        evidenceRefs: [`import:${activityKey}`],
+        sourceEvidenceRefs: ['source:full:page:2'],
+        answerEvidenceRefs: ['source:full:page:2'],
+      })),
+    });
+    const authoringPartial = activityAuthoring();
+    vi.mocked(authoringPartial.stage)
+      .mockResolvedValueOnce({
+        status: 'staged',
+        candidateId: 'cand-1',
+        targetActivityId: bookScopedActivityTargetId('book-1', 'activity-reading-1'),
+        revision: 1,
+        lifecycle: 'staged',
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [],
+      })
+      .mockResolvedValueOnce({
+        status: 'staged',
+        candidateId: 'cand-2',
+        targetActivityId: bookScopedActivityTargetId('book-1', 'activity-reading-2'),
+        revision: 1,
+        lifecycle: 'staged',
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [],
+      });
+    vi.mocked(authoringPartial.saveDraft)
+      .mockResolvedValueOnce({
+        status: 'saved',
+        activityId: bookScopedActivityTargetId('book-1', 'activity-reading-1'),
+        candidateId: 'cand-1',
+        candidateRevision: 3,
+        revision: 1,
+        lifecycle: 'saved',
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [],
+      })
+      .mockRejectedValueOnce(new Error('save_slot_2_failed'));
+
+    const firstRender = renderWorkspace({
+      repository: repoPartial,
+      activityAuthoring: authoringPartial,
+      initialCandidate: { ...candidate(), manifest: initialManifest },
+    });
+    await user.click(screen.getByRole('button', { name: 'Add section' }));
+    fireEvent.change(screen.getByLabelText('Paste Unit Activity JSON'), { target: { value: twoSlotPayload } });
+    await user.click(screen.getByRole('button', { name: 'Stage Unit JSON' }));
+
+    await waitFor(() => expect(authoringPartial.saveDraft).toHaveBeenCalledTimes(2));
+    // Manifest was saved once before staging, and MUST NOT be reverted while activity-reading-1 stays committed
+    expect(repoPartial.replace).toHaveBeenCalledTimes(1);
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'teacher_materials_book_assembly_unit_import_failed',
+      expect.objectContaining({ code: 'partial-commit-failed' }),
+    );
+    firstRender.unmount();
+
+    // Case 2: Phase 1 staging fails AND compensating manifest restore ALSO fails -> explicit manifest-rollback-failed surfaced
+    const repoRollbackFail = repository();
+    vi.mocked(repoRollbackFail.replace)
+      .mockResolvedValueOnce({
+        status: 'validated',
+        candidate: { ...candidate(), revision: 2, manifest: initialManifest },
+        receipt: { operationId: 'op-save', status: 'validated', fingerprint: 'fp', committedAt: '2026-07-24T00:00:00.000Z' },
+        conflict: null,
+      })
+      .mockRejectedValueOnce(new Error('rtdb_restore_503'));
+    const authoringFailStage = activityAuthoring();
+    vi.mocked(authoringFailStage.stage).mockRejectedValueOnce(new Error('stage_failed'));
+    renderWorkspace({
+      repository: repoRollbackFail,
+      activityAuthoring: authoringFailStage,
+      initialCandidate: { ...candidate(), manifest: initialManifest },
+    });
+    await user.click(screen.getByRole('button', { name: 'Add section' }));
+    fireEvent.change(screen.getByLabelText('Paste Unit Activity JSON'), { target: { value: twoSlotPayload } });
+    await user.click(screen.getByRole('button', { name: 'Stage Unit JSON' }));
+
+    await waitFor(() => expect(repoRollbackFail.replace).toHaveBeenCalledTimes(2));
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'teacher_materials_book_assembly_unit_import_failed',
+      expect.objectContaining({ code: 'manifest-rollback-failed' }),
+    );
+    expect(screen.getAllByText(/Manifest changes could not be reverted/i).length).toBeGreaterThan(0);
+  });
+
 });

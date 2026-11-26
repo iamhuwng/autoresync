@@ -146,6 +146,8 @@ export interface BookDeliveryBinding {
   readonly context: BookDeliveryContext;
   readonly sourceSet: BookDeliverySourceSet;
   readonly placements: readonly BookDeliveryPlacement[];
+  /** Per-group Activity Page Group definitions from the pinned manifest for full_pdf delivery (prevents multi-group union bleed). */
+  readonly activityPageGroups?: readonly BookDeliveryReferencePageGroup[];
   /** Student-visible reference_only page groups (never teacher_only) for full_pdf delivery. */
   readonly referencePageGroups?: readonly BookDeliveryReferencePageGroup[];
   readonly schedulePolicy: BookDeliverySchedulePolicyReference;

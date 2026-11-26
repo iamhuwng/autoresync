@@ -389,12 +389,13 @@ const assertGenericRuntimeProjection = (value: Record<string, unknown>): void =>
   });
   const sourceKeys: string[] = [];
   sourceSet.sources.forEach((source) => {
-    if (!isRecord(source) || !exactKeys(source, ['sourceKey', 'sourceVersionId', 'lifecycle', 'localPageScope'], ['sourceOrder', 'ownerNodeKey'])
+    if (!isRecord(source) || !exactKeys(source, ['sourceKey', 'sourceVersionId', 'lifecycle', 'localPageScope'], ['sourceOrder', 'ownerNodeKey', 'physicalPageCount'])
       || typeof source.sourceKey !== 'string' || !ID.test(source.sourceKey)
       || typeof source.sourceVersionId !== 'string' || !ID.test(source.sourceVersionId)
       || source.lifecycle !== 'verified-usable'
       || source.sourceOrder !== undefined && (!Number.isSafeInteger(source.sourceOrder) || (source.sourceOrder as number) < 1)
-      || source.ownerNodeKey !== undefined && (typeof source.ownerNodeKey !== 'string' || !ID.test(source.ownerNodeKey))) {
+      || source.ownerNodeKey !== undefined && (typeof source.ownerNodeKey !== 'string' || !ID.test(source.ownerNodeKey))
+      || source.physicalPageCount !== undefined && (!Number.isSafeInteger(source.physicalPageCount) || (source.physicalPageCount as number) < 1)) {
       fail('invalid_response', 502);
     }
     assertSourcePageScope(source.localPageScope);
@@ -416,7 +417,7 @@ const assertGenericRuntimeProjection = (value: Record<string, unknown>): void =>
       return;
     }
     if (!isRecord(request) || !exactKeys(request, ['sourceKey', 'sourceVersionId', 'opaqueRouteKey', 'localPageScope'],
-      ['expectedByteLength', 'expectedEtag', 'physicalPageNumber'])
+      ['expectedByteLength', 'expectedEtag', 'physicalPageNumber', 'physicalPageCount'])
       || typeof request.sourceKey !== 'string' || !sourceKeys.includes(request.sourceKey)
       || typeof request.sourceVersionId !== 'string' || !ID.test(request.sourceVersionId)
       || typeof request.opaqueRouteKey !== 'string' || !OPAQUE_ROUTE_KEY.test(request.opaqueRouteKey)) {
@@ -435,13 +436,17 @@ const assertGenericRuntimeProjection = (value: Record<string, unknown>): void =>
       && (!Number.isSafeInteger(request.physicalPageNumber) || (request.physicalPageNumber as number) < 1)) {
       fail('invalid_response', 502);
     }
+    if (request.physicalPageCount !== undefined
+      && (!Number.isSafeInteger(request.physicalPageCount) || (request.physicalPageCount as number) < 1)) {
+      fail('invalid_response', 502);
+    }
   });
   if (!Array.isArray(value.activities) || value.activities.length < 1) fail('invalid_response', 502);
   value.activities.forEach((activity) => {
     if (!isRecord(activity) || !exactKeys(activity, [
       'placementId', 'activityId', 'activityVersion', 'activityVersionId', 'nodeKey',
       'order', 'contextMode', 'sourceContext',
-    ], ['titleSnapshot', 'scheduleWindow'])
+    ], ['titleSnapshot', 'scheduleWindow', 'navigationPageGroupKeys', 'navigationPageScopes'])
       || typeof activity.placementId !== 'string' || !ID.test(activity.placementId)
       || typeof activity.activityId !== 'string' || !ID.test(activity.activityId)
       || typeof activity.activityVersion !== 'number' || !Number.isSafeInteger(activity.activityVersion)
@@ -459,6 +464,29 @@ const assertGenericRuntimeProjection = (value: Record<string, unknown>): void =>
       || !activity.sourceContext.pageGroupKeys.every((key) => typeof key === 'string' && ID.test(key))
       || !Array.isArray(activity.sourceContext.sourcePageScopes)) {
       fail('invalid_response', 502);
+    }
+    const hasNavGroups = Object.hasOwn(activity, 'navigationPageGroupKeys');
+    const hasNavScopes = Object.hasOwn(activity, 'navigationPageScopes');
+    if (hasNavGroups || hasNavScopes) {
+      if (activity.contextMode !== 'none' || !hasNavGroups || !hasNavScopes
+        || !Array.isArray(activity.navigationPageGroupKeys)
+        || activity.navigationPageGroupKeys.length === 0
+        || !uniqueStrings(activity.navigationPageGroupKeys)
+        || !activity.navigationPageGroupKeys.every((key) => typeof key === 'string' && ID.test(key))
+        || !Array.isArray(activity.navigationPageScopes)
+        || activity.navigationPageScopes.length === 0) {
+        fail('invalid_response', 502);
+      }
+      if (sourceSet.strategy === 'full_pdf') {
+        activity.navigationPageScopes.forEach((scope) => {
+          if (!isRecord(scope) || !exactKeys(scope, ['sourceKey', 'pages'])
+            || typeof scope.sourceKey !== 'string' || !sourceKeys.includes(scope.sourceKey)
+            || !Array.isArray(scope.pages) || scope.pages.length === 0
+            || scope.pages.some((page) => !Number.isSafeInteger(page) || (page as number) < 1)) {
+            fail('invalid_response', 502);
+          }
+        });
+      }
     }
     if (sourceSet.strategy === 'component_pdfs' && activity.sourceContext.sourcePageScopes.length !== 0) {
       fail('invalid_response', 502);

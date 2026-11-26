@@ -25,6 +25,15 @@ export interface UseBookRuntimeNavigationOptions {
   readonly onNavigationError?: (error: unknown, reason: BookRuntimeNavigationReason) => void;
 }
 
+const isWithinDocumentRange = (
+  page: number,
+  totalPhysicalPages?: number,
+): boolean => (
+  Number.isSafeInteger(page)
+  && page >= 1
+  && (totalPhysicalPages === undefined || (Number.isSafeInteger(totalPhysicalPages) && page <= totalPhysicalPages))
+);
+
 const normalizeState = (
   activities: readonly BookRuntimeNavigationActivity[],
   pageGroups: readonly BookRuntimeNavigationPageGroup[],
@@ -40,17 +49,20 @@ const normalizeState = (
     ? requested!.pageGroupKey!
     : active.pageGroupKeys[0];
   const group = pageGroups.find((candidate) => candidate.pageGroupKey === pageGroupKey);
-  const firstPage = group?.combinedPhysicalPages.find((page) => Number.isSafeInteger(page) && page > 0);
+  const firstPage = group?.combinedPhysicalPages.find((page) => isWithinDocumentRange(page, totalPhysicalPages))
+    ?? (totalPhysicalPages !== undefined && Number.isSafeInteger(totalPhysicalPages) && totalPhysicalPages >= 1
+      && group?.combinedPhysicalPages.some((page) => Number.isSafeInteger(page) && page > 0)
+      ? Math.min(group.combinedPhysicalPages.find((page) => Number.isSafeInteger(page) && page > 0)!, totalPhysicalPages)
+      : undefined);
   if (!pageGroupKey || !firstPage) throw new Error(`BookRuntimeShell requires combined pages for Activity ${active.activityId}.`);
   const requestedPage = requested?.combinedPhysicalPage;
   const validWithinGroup = requestedPage !== undefined
+    && isWithinDocumentRange(requestedPage, totalPhysicalPages)
     && (!requested?.pageGroupKey || requested.pageGroupKey === pageGroupKey)
     && Boolean(group?.combinedPhysicalPages.includes(requestedPage));
   const validWithinFullPdf = requestedPage !== undefined
     && totalPhysicalPages !== undefined
-    && Number.isSafeInteger(requestedPage)
-    && requestedPage >= 1
-    && requestedPage <= totalPhysicalPages;
+    && isWithinDocumentRange(requestedPage, totalPhysicalPages);
   const combinedPhysicalPage = validWithinGroup || validWithinFullPdf
     ? requestedPage!
     : firstPage;
@@ -107,15 +119,13 @@ export const useBookRuntimeNavigation = ({ activities, pageGroups, totalPhysical
       ...(activity.pageGroupKeys.includes(state.pageGroupKey) ? {} : { combinedPhysicalPage: undefined }), mobileTab: 'activity' }, 'activity-selected');
   }, [activities, state.pageGroupKey, transition]);
   const selectCombinedPhysicalPage = useCallback((combinedPhysicalPage: number) => {
+    if (!isWithinDocumentRange(combinedPhysicalPage, totalPhysicalPages)) return;
     const group = pageGroups.find((candidate) => candidate.combinedPhysicalPages.includes(combinedPhysicalPage));
     if (group) {
       void transition({ pageGroupKey: group.pageGroupKey, combinedPhysicalPage }, 'combined-page-selected');
       return;
     }
-    if (totalPhysicalPages !== undefined
-      && Number.isSafeInteger(combinedPhysicalPage)
-      && combinedPhysicalPage >= 1
-      && combinedPhysicalPage <= totalPhysicalPages) {
+    if (totalPhysicalPages !== undefined) {
       void transition({ combinedPhysicalPage }, 'combined-page-selected');
     }
   }, [pageGroups, totalPhysicalPages, transition]);

@@ -1519,7 +1519,7 @@ describe('Book Activity authoring Worker boundary', () => {
       uid: 'teacher-1',
     });
     expect(staged.init.status).toBe(200);
-    expect(readBookBindings).toHaveBeenCalledWith('teacher-1', 'book-1');
+    expect(readBookBindings).toHaveBeenCalledWith('teacher-1', 'book-1', { strict: true });
     // Both protected bound candidates MUST survive pruning despite having the oldest updatedAt
     expect(current.state['teacher-1'].candidates?.['cand-bound-by-repo']).toBeDefined();
     expect(current.state['teacher-1'].candidates?.['cand-in-flight-receipt']).toBeDefined();
@@ -1576,7 +1576,7 @@ describe('Book Activity authoring Worker boundary', () => {
       uid: 'teacher-1',
     });
     expect(stagedMixed.init.status).toBe(200);
-    expect(readBookBindings).toHaveBeenCalledWith('teacher-1', 'book-1');
+    expect(readBookBindings).toHaveBeenCalledWith('teacher-1', 'book-1', { strict: true });
     // Superseded saved candidate from book-2 MUST survive despite oldest updatedAt (10)
     expect(mixed.state['teacher-1'].candidates?.['cand-book2-bound-old']).toBeDefined();
     // Verified-unbound superseded saved candidate from book-1 was evicted instead
@@ -1692,5 +1692,117 @@ describe('Book Activity authoring Worker boundary', () => {
     expect(resReaderFails.init.status).toBe(200);
     expect(readerFails.state['teacher-1'].candidates?.['cand-saved-0']).toBeDefined();
     expect(readerFails.state['teacher-1'].candidates?.['cand-discarded-safe']).toBeUndefined();
+  });
+
+  it('retains binding-pending operation receipts past the operation retention window and requests strict binding snapshots for pruning', async () => {
+    const candidates: Record<string, unknown> = {
+      'cand-pending-old': {
+        candidateId: 'cand-pending-old',
+        targetActivityId: 'act-pending-old',
+        ownerId: 'teacher-1',
+        bookId: 'book-1',
+        targetRevision: 0,
+        revision: 3,
+        lifecycle: 'saved',
+        content: activity,
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [],
+        sourceEvidenceRefs: [],
+        answerEvidenceRefs: [],
+        updatedAt: 10,
+      },
+      'cand-pending-newer': {
+        candidateId: 'cand-pending-newer',
+        targetActivityId: 'act-pending-old',
+        ownerId: 'teacher-1',
+        bookId: 'book-1',
+        targetRevision: 1,
+        revision: 4,
+        lifecycle: 'saved',
+        content: activity,
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [],
+        sourceEvidenceRefs: [],
+        answerEvidenceRefs: [],
+        updatedAt: 9000,
+      },
+    };
+    for (let index = 0; index < 1534; index += 1) {
+      candidates[`cand-unbound-old-${index}`] = {
+        candidateId: `cand-unbound-old-${index}`,
+        targetActivityId: 'act-history-prune',
+        ownerId: 'teacher-1',
+        bookId: 'book-1',
+        targetRevision: index,
+        revision: 3,
+        lifecycle: 'saved',
+        content: activity,
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [],
+        sourceEvidenceRefs: [],
+        answerEvidenceRefs: [],
+        updatedAt: 500 + index,
+      };
+    }
+    const pendingOpId = operation('880');
+    const expiredCompleteOpId = operation('881');
+    const readBookBindings = vi.fn(async () => ({}));
+    const current = worker({
+      now: () => 1_000_000_000_000,
+      state: {
+        'teacher-1': {
+          candidates,
+          operations: {
+            [pendingOpId]: {
+              ownerId: 'teacher-1',
+              fingerprint: 'fnv1a64:1111111111111111',
+              createdAt: 1,
+              result: {
+                status: 'binding-pending',
+                candidateId: 'cand-pending-old',
+                binding: {
+                  schemaVersion: 1,
+                  phase: 'binding-pending',
+                  ownerId: 'teacher-1',
+                  bookId: 'book-1',
+                  unitKey: 'unit-1',
+                  activityKey: 'slot-1',
+                  activityId: 'act-pending-old',
+                  candidateId: 'cand-pending-old',
+                  candidateRevision: 3,
+                  candidateLifecycle: 'saved',
+                },
+              },
+            },
+            [expiredCompleteOpId]: {
+              ownerId: 'teacher-1',
+              fingerprint: 'fnv1a64:2222222222222222',
+              createdAt: 1,
+              result: { status: 'saved', candidateId: 'cand-unbound-old-0' },
+            },
+          },
+        },
+      },
+      bindingRepositoryFactory: () => ({
+        read: vi.fn(async () => null),
+        readBookBindings,
+        bindCandidate: vi.fn(async () => 'created' as const),
+        recordPublication: vi.fn(async () => 'updated' as const),
+      }),
+    });
+
+    const staged = await current.handlers.stage({
+      request: request({ operationId: operation('882'), expectedRevision: 0, content: activity }),
+      env: {},
+      uid: 'teacher-1',
+    });
+    expect(staged.init.status).toBe(200);
+    expect(readBookBindings).toHaveBeenCalledWith('teacher-1', 'book-1', { strict: true });
+    expect(current.state['teacher-1'].operations?.[pendingOpId]).toBeDefined();
+    expect(current.state['teacher-1'].operations?.[expiredCompleteOpId]).toBeUndefined();
+    expect(current.state['teacher-1'].candidates?.['cand-pending-old']).toBeDefined();
   });
 });

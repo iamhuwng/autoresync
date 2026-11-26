@@ -176,7 +176,7 @@ const scopedRuntimePageGroupKey = (
   hasCrossUnitCollision: boolean,
 ): string => {
   const unitKey = placementUnitKey(placement);
-  return hasCrossUnitCollision && unitKey ? `${unitKey}::${pageGroupKey}` : pageGroupKey;
+  return hasCrossUnitCollision && unitKey ? `act::${unitKey}::${pageGroupKey}` : pageGroupKey;
 };
 
 const placementNavigationPageGroupKeys = (
@@ -267,9 +267,10 @@ const isolateCollidingDeclaredPageGroups = (
     const scopedPages = placementScopedPages(placement, request);
     for (const rawKey of placementNavigationPageGroupKeys(placement)) {
       const pageGroupKey = scopedRuntimePageGroupKey(placement, rawKey, true);
+      const declaredPages = [...(declaredByRawKey.get(rawKey)?.combinedPhysicalPages ?? [])];
       const pages = collidingRawKeys.has(rawKey)
         ? scopedPages
-        : (scopedPages.length > 0 ? scopedPages : [...(declaredByRawKey.get(rawKey)?.combinedPhysicalPages ?? [])]);
+        : (declaredPages.length > 0 ? declaredPages : scopedPages);
       if (pages.length === 0) {
         if (collidingRawKeys.has(rawKey)) return null;
         continue;

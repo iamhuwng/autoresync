@@ -52,4 +52,26 @@ describe('useBookRuntimeNavigation', () => {
     act(() => result.current.selectActivity('placement-b:activity-shared:v1'));
     await waitFor(() => expect(result.current.state).toMatchObject({ runtimeKey: 'placement-b:activity-shared:v1', activityId: 'activity-shared', pageGroupKey: 'group-2' }));
   });
+
+  it('enforces totalPhysicalPages upper bound on both initial state and page changes, even for mapped pages', async () => {
+    const outOfRangeGroups = [
+      { pageGroupKey: 'group-1', combinedPhysicalPages: [2, 12] },
+      { pageGroupKey: 'group-2', combinedPhysicalPages: [15] },
+    ];
+    const { result } = renderHook(() => useBookRuntimeNavigation({
+      activities,
+      pageGroups: outOfRangeGroups,
+      totalPhysicalPages: 10,
+      initialState: { runtimeKey: 'placement-1:activity-1:v1', combinedPhysicalPage: 12 },
+    }));
+    expect(result.current.state.combinedPhysicalPage).toBe(2);
+
+    act(() => result.current.selectCombinedPhysicalPage(12));
+    expect(result.current.state.combinedPhysicalPage).toBe(2);
+    act(() => result.current.selectCombinedPhysicalPage(15));
+    expect(result.current.state.combinedPhysicalPage).toBe(2);
+
+    act(() => result.current.selectCombinedPhysicalPage(7));
+    await waitFor(() => expect(result.current.state.combinedPhysicalPage).toBe(7));
+  });
 });

@@ -514,6 +514,41 @@ export const createTrustedBookDeliveryPublication = (
       ...(placement.navigationPageGroupKeys ?? []),
     ]),
   );
+  const activityPageGroups = version.strategy === 'full_pdf'
+    ? (() => {
+      const allowedSourceKey = publicationSources[0]!.sourceKey;
+      const groups: Array<{
+        readonly nodeKey: string;
+        readonly pageGroupKey: string;
+        readonly sourceKey: string;
+        readonly pages: readonly number[];
+      }> = [];
+      const seenScopedKeys = new Set<string>();
+      for (const placement of placements) {
+        const unit = version.manifest.units.find((candidate) => candidate.unitKey === placement.nodeKey);
+        if (!unit) continue;
+        const groupKeys = placement.pageGroupKeys.length > 0
+          ? placement.pageGroupKeys
+          : (placement.navigationPageGroupKeys ?? []);
+        for (const pageGroupKey of groupKeys) {
+          const scopedKey = `${unit.unitKey}::${pageGroupKey}`;
+          if (seenScopedKeys.has(scopedKey)) continue;
+          const group = unit.pageGroups.find((candidate) => candidate.pageGroupKey === pageGroupKey);
+          if (!group || group.mode !== 'activity' || group.sourceKey !== allowedSourceKey || group.pages.length === 0) {
+            continue;
+          }
+          seenScopedKeys.add(scopedKey);
+          groups.push({
+            nodeKey: unit.unitKey,
+            pageGroupKey,
+            sourceKey: group.sourceKey,
+            pages: [...new Set(group.pages)].sort((left, right) => left - right),
+          });
+        }
+      }
+      return groups;
+    })()
+    : [];
 
   const referencePageGroups = version.strategy === 'full_pdf'
     ? (() => {
@@ -572,6 +607,7 @@ export const createTrustedBookDeliveryPublication = (
       const { activityVersionId: _activityVersionId, pageGroupKeys: _pageGroupKeys, ...legacy } = placement;
       return legacy;
     }),
+    ...(activityPageGroups.length > 0 ? { activityPageGroups } : {}),
     ...(referencePageGroups.length > 0 ? { referencePageGroups } : {}),
     schedulePolicy,
   };
@@ -757,6 +793,55 @@ export const resolveTrustedBookDeliveryStudentDocument = async (env: BookDeliver
     };
 };
 
+export const readTrustedFullPdfPhysicalPageCount = async (
+  env: BookDeliveryWorkerEnv,
+  ownerId: string,
+  bookId: string,
+  sourceVersionId: string,
+): Promise<number | undefined> => {
+  try {
+    const authority = await readProductionBookAssemblyAuthority(env, ownerId, bookId, 'current');
+    const count = authority?.sourceVersionAuthority.getSourceVersion(sourceVersionId)?.physicalPageCount;
+    return typeof count === 'number' && Number.isSafeInteger(count) && count >= 1 ? count : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const isPinnedFullPdfManifestSafe = (
+  scope: BookAssemblyPublicationScope<BookAssemblyPublicationResult>,
+  binding: BookDeliveryBinding,
+): boolean => {
+  if (binding.sourceSet.strategy !== 'full_pdf' || binding.sourceSet.sources.length !== 1) {
+    return false;
+  }
+  const boundSource = binding.sourceSet.sources[0]!;
+  const version = scope.versions?.[binding.book.manifestVersionId];
+  if (!version
+    || version.lifecycle !== 'published'
+    || version.bookId !== binding.book.bookId
+    || version.ownerId !== binding.issuer.ownerId
+    || version.manifestVersionId !== binding.book.manifestVersionId
+    || version.publicationId !== binding.book.publicationId
+    || version.publicationRevision !== binding.book.publicationRevision
+    || version.strategy !== 'full_pdf'
+    || version.manifest?.sourceSet?.sourceStrategy !== 'full_pdf'
+    || !Array.isArray(version.manifest.sourceSet.sources)
+    || version.manifest.sourceSet.sources.length !== 1) {
+    return false;
+  }
+  const pinnedSource = version.manifest.sourceSet.sources[0]!;
+  if (pinnedSource.sourceKey !== boundSource.sourceKey
+    || pinnedSource.sourceVersionId !== boundSource.sourceVersionId) {
+    return false;
+  }
+  return Array.isArray(version.manifest.units)
+    && !version.manifest.units.some((unit) => (
+      !Array.isArray(unit.pageGroups)
+      || unit.pageGroups.some((group) => group.mode === 'teacher_only')
+    ));
+};
+
 export const createBookDeliveryWorkerHandlers = (options: {
   repository?: FirebaseRestBookDeliveryRepository;
   publicationRepository?: BookAssemblyPublicationRepository<BookAssemblyPublicationResult>;
@@ -791,14 +876,7 @@ export const createBookDeliveryWorkerHandlers = (options: {
     options.publicationRepository ?? new FirebaseRestBookAssemblyPublicationRepository({ env, ownerId })
   );
   const resolveStudentDocument = options.resolveStudentDocument ?? resolveTrustedBookDeliveryStudentDocument;
-  const readFullPdfPhysicalPageCount = options.readFullPdfPhysicalPageCount ?? (async (env, ownerId, bookId, sourceVersionId) => {
-    try {
-      const authority = await readProductionBookAssemblyAuthority(env, ownerId, bookId, 'current');
-      return authority?.sourceVersionAuthority.getSourceVersion(sourceVersionId)?.physicalPageCount;
-    } catch {
-      return undefined;
-    }
-  });
+  const readFullPdfPhysicalPageCount = options.readFullPdfPhysicalPageCount ?? readTrustedFullPdfPhysicalPageCount;
   const loadPublication: TrustedPublicationLoader = options.loadPublication ?? (async (env, intent, schedulePolicy, ownerId) => {
     const scope = await publicationRepositoryFor(env, ownerId).readScope(intent.bookId);
     const version = scope.current ? scope.versions?.[scope.current.manifestVersionId] : undefined;
@@ -891,6 +969,13 @@ export const createBookDeliveryWorkerHandlers = (options: {
         if (!record || !(await authorize(input.env, input.uid, record.binding.issuer.ownerId))) {
           return { body: { status: 'forbidden' }, init: { status: 403 } };
         }
+        if (record.binding.sourceSet.strategy === 'full_pdf') {
+          const scope = await publicationRepositoryFor(input.env, record.binding.issuer.ownerId)
+            .readScope(record.binding.book.bookId);
+          if (!isPinnedFullPdfManifestSafe(scope, record.binding)) {
+            throw new BookDeliveryWorkerError('book_delivery_teacher_only_unstripped_forbidden', 409);
+          }
+        }
         const result = await lifecycle.activate(String(request.bindingId), Number(request.expectedRecordRevision), String(request.operationId), now());
         return { body: result as unknown as Record<string, unknown>, init: { status: 200 } };
       }
@@ -969,6 +1054,12 @@ export const createBookDeliveryWorkerHandlers = (options: {
         const result = await createBookDeliveryProjectionResolver({
           repository,
           resolveStudentDocument: (binding) => resolveStudentDocument(input.env, binding),
+          resolveFullPdfPhysicalPageCount: (binding) => {
+            const sourceVersionId = binding.sourceSet.sources[0]?.sourceVersionId;
+            return sourceVersionId
+              ? readFullPdfPhysicalPageCount(input.env, binding.issuer.ownerId, binding.book.bookId, sourceVersionId)
+              : Promise.resolve(undefined);
+          },
         }).resolve({
           recipientId: input.recipientId,
           contextId: input.contextId,

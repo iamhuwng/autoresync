@@ -24,7 +24,10 @@ import type {
   BookDeliveryRecord,
   BookDeliveryRepository,
 } from '../../../../src/services/book-delivery/bookDelivery.entitlement.ts';
-import { resolveBookSourceProviderWiring } from '../../book-source-worker/source-provider-wiring.ts';
+import {
+  resolveBookSourceProviderWiring,
+  type BookDocumentProviderTag,
+} from '../../book-source-worker/source-provider-wiring.ts';
 import {
   assertValidBookHomeworkAuthorityRecord,
 } from '../book-homework/authority.ts';
@@ -383,9 +386,89 @@ export const fullPdfPublicationContainsTeacherOnlyPages = (
   manifestVersionId: string,
 ): boolean => {
   const publishedVersion = scope.versions?.[manifestVersionId];
-  return publishedVersion?.manifest?.units?.some(
-    (unit) => unit.pageGroups?.some((group) => group.mode === 'teacher_only') ?? false,
-  ) ?? false;
+  if (!publishedVersion?.manifest || !Array.isArray(publishedVersion.manifest.units)) {
+    return true;
+  }
+  return publishedVersion.manifest.units.some(
+    (unit) => !Array.isArray(unit.pageGroups)
+      || unit.pageGroups.some((group) => group.mode === 'teacher_only'),
+  );
+};
+
+export const isFullPdfPinnedPublicationSafe = (
+  scope: Awaited<ReturnType<FirebaseRestBookAssemblyPublicationRepository['readScope']>>,
+  binding: BookDeliveryBinding,
+  sourceVersionId?: string,
+): boolean => {
+  if (binding.sourceSet.strategy !== 'full_pdf' || binding.sourceSet.sources.length !== 1) {
+    return false;
+  }
+  const boundSource = binding.sourceSet.sources[0]!;
+  if (sourceVersionId !== undefined && boundSource.sourceVersionId !== sourceVersionId) {
+    return false;
+  }
+  const version = scope.versions?.[binding.book.manifestVersionId];
+  if (!version
+    || version.lifecycle !== 'published'
+    || version.bookId !== binding.book.bookId
+    || version.ownerId !== binding.issuer.ownerId
+    || version.manifestVersionId !== binding.book.manifestVersionId
+    || version.publicationId !== binding.book.publicationId
+    || version.publicationRevision !== binding.book.publicationRevision
+    || version.strategy !== 'full_pdf'
+    || version.manifest?.sourceSet?.sourceStrategy !== 'full_pdf'
+    || !Array.isArray(version.manifest.sourceSet.sources)
+    || version.manifest.sourceSet.sources.length !== 1) {
+    return false;
+  }
+  const pinnedSource = version.manifest.sourceSet.sources[0]!;
+  if (pinnedSource.sourceKey !== boundSource.sourceKey
+    || pinnedSource.sourceVersionId !== boundSource.sourceVersionId) {
+    return false;
+  }
+  return !fullPdfPublicationContainsTeacherOnlyPages(scope, binding.book.manifestVersionId);
+};
+
+export const createBookHistoricalSourceReader = (deps: {
+  readonly readPublicationScope: (
+    bookId: string,
+  ) => Promise<Awaited<ReturnType<FirebaseRestBookAssemblyPublicationRepository['readScope']>>>;
+  readonly readAccountState: () => Promise<ReturnType<typeof validateBookSourceUploadAccountState>>;
+  readonly providerTag: BookDocumentProviderTag;
+  readonly privateBucketName: string;
+}): BookSourceDocumentRuntime['readHistoricalSource'] => async ({ binding, sourceVersionId }) => {
+  if (binding.sourceSet.strategy === 'full_pdf') {
+    const scope = await deps.readPublicationScope(binding.book.bookId);
+    if (!isFullPdfPinnedPublicationSafe(scope, binding, sourceVersionId)) {
+      return { availability: 'revoked', source: null };
+    }
+  }
+  const accountState = await deps.readAccountState();
+  const matches = Object.values(accountState.operations).filter(
+    (operation) => operation.bookId === binding.book.bookId
+      && operation.ownerId === binding.issuer.ownerId
+      && operation.sourceVersionId === sourceVersionId,
+  );
+  if (matches.some((operation) => operation.status === 'cleanup_pending')) {
+    return { availability: 'revoked', source: null };
+  }
+  if (matches.some((operation) => operation.status === 'released')) {
+    return { availability: 'deleted', source: null };
+  }
+  const available = matches.filter(
+    readySourceOperation,
+  );
+  if (available.length !== 1) return { availability: 'missing', source: null };
+  const storage = available[0]!.verifiedStorage!;
+  return {
+    availability: 'available',
+    source: {
+      ...storage,
+      provider: deps.providerTag,
+      bucket: deps.privateBucketName,
+      objectKey: storage.providerObjectKey,
+    },
+  };
 };
 
 export const createBookSourceDocumentAuthorityReader = (deps: {
@@ -398,7 +481,7 @@ export const createBookSourceDocumentAuthorityReader = (deps: {
     binding: BookDeliveryBinding,
     scope: Awaited<ReturnType<FirebaseRestBookAssemblyPublicationRepository['readScope']>>,
   ) => Promise<ReturnType<typeof resolveActiveComponentStudentDocument> | null>;
-  readonly providerTag: 'b2' | 'r2';
+  readonly providerTag: BookDocumentProviderTag;
   readonly privateBucketName: string;
 }): BookSourceDocumentRuntime['readCurrentAuthority'] => async (binding) => {
   if (binding.context.kind === 'future_live') {
@@ -588,40 +671,12 @@ export const defaultRuntimeFactory = (
           : 'unresolved',
       };
     },
-    readHistoricalSource: async ({ binding, sourceVersionId }) => {
-      if (binding.sourceSet.strategy === 'full_pdf') {
-        const scope = await publicationRepository.readScope(binding.book.bookId);
-        if (fullPdfPublicationContainsTeacherOnlyPages(scope, binding.book.manifestVersionId)) {
-          return { availability: 'revoked', source: null };
-        }
-      }
-      const accountState = await readAccountState();
-      const matches = Object.values(accountState.operations).filter(
-        (operation) => operation.bookId === binding.book.bookId
-          && operation.ownerId === binding.issuer.ownerId
-          && operation.sourceVersionId === sourceVersionId,
-      );
-      if (matches.some((operation) => operation.status === 'cleanup_pending')) {
-        return { availability: 'revoked', source: null };
-      }
-      if (matches.some((operation) => operation.status === 'released')) {
-        return { availability: 'deleted', source: null };
-      }
-      const available = matches.filter(
-        readySourceOperation,
-      );
-      if (available.length !== 1) return { availability: 'missing', source: null };
-      const storage = available[0]!.verifiedStorage!;
-      return {
-        availability: 'available',
-        source: {
-          ...storage,
-          provider: providerTag,
-          bucket: privateBucketName,
-          objectKey: storage.providerObjectKey,
-        },
-      };
-    },
+    readHistoricalSource: createBookHistoricalSourceReader({
+      readPublicationScope: (bookId) => publicationRepository.readScope(bookId),
+      readAccountState,
+      providerTag,
+      privateBucketName,
+    }),
     readTeacherBookAuthority: async (uid, bookId) => {
       const authority = await readTeacherAuthority(uid, bookId);
       return authority ? {

@@ -21,6 +21,7 @@ export interface BookDeliveryPublishedPublicationReference {
   readonly outline: readonly BookDeliveryStructuralNodeProjection[];
   readonly sourceSet: BookDeliverySourceSet;
   readonly placements: readonly BookDeliveryPlacement[];
+  readonly activityPageGroups?: readonly BookDeliveryReferencePageGroup[];
   readonly referencePageGroups?: readonly BookDeliveryReferencePageGroup[];
   readonly schedulePolicy: BookDeliverySchedulePolicyReference;
 }
@@ -62,7 +63,7 @@ export function assertPublishedBookDeliveryPublication(
       'bookId', 'bookMode', 'bookRevision', 'manifestVersionId', 'outline', 'ownerId', 'placements', 'publicationId',
       'publicationRevision', 'publicationStatus', 'schedulePolicy', 'scope', 'sourceSet',
     ],
-    ['referencePageGroups'],
+    ['activityPageGroups', 'referencePageGroups'],
   );
   exactKeys(value, expectedKeys, 'publication');
   const publication = value as Record<string, any>;
@@ -105,6 +106,9 @@ export function assertPublishedBookDeliveryPublication(
     },
     sourceSet: publication.sourceSet,
     placements: publication.placements,
+    ...(Object.hasOwn(publication, 'activityPageGroups')
+      ? { activityPageGroups: publication.activityPageGroups }
+      : {}),
     ...(Object.hasOwn(publication, 'referencePageGroups')
       ? { referencePageGroups: publication.referencePageGroups }
       : {}),

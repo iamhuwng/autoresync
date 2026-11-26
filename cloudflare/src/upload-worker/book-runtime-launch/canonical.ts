@@ -271,13 +271,34 @@ const productionProjectionReader: BookRuntimeLaunchProjectionReader = {
       activityVersion: activity.activityVersion,
       payloadFingerprint: activity.canonicalPayloadFingerprint,
     });
+    const carriedForwardProjection = activity.safeProjectionId
+      ? scope.activitySafeProjections?.[activity.safeProjectionId]
+      : undefined;
+    const placementAuthorized = canonical !== null && (
+      canonical.placementIds.includes(placement.placementId)
+      || (canonical.provenance.kind === 'initial-book-publication'
+        && canonical.provenance.bookId === trusted.binding.book.bookId
+        && canonical.provenance.manifestVersionId !== manifest.manifestVersionId
+        && canonical.provenance.manifestVersionId === activity.canonicalOriginManifestVersionId
+        && canonical.provenance.publicationId === activity.canonicalOriginPublicationId
+        && canonical.placementIds.length > 0
+        && carriedForwardProjection !== undefined
+        && carriedForwardProjection.bookId === trusted.binding.book.bookId
+        && carriedForwardProjection.ownerId === trusted.binding.issuer.ownerId
+        && carriedForwardProjection.manifestVersionId === manifest.manifestVersionId
+        && carriedForwardProjection.publicationId === trusted.binding.book.publicationId
+        && carriedForwardProjection.publicationRevision === trusted.binding.book.publicationRevision
+        && carriedForwardProjection.activityId === activity.activityId
+        && carriedForwardProjection.activityVersionId === activity.activityVersionId
+        && carriedForwardProjection.placementIds.includes(placement.placementId))
+    );
     if (!canonical
       || canonical.activityId !== activity.activityId
       || canonical.activityVersionId !== activity.activityVersionId
       || canonical.activityVersion !== activity.activityVersion
       || canonical.ownerId !== trusted.binding.issuer.ownerId
       || canonical.payloadFingerprint !== activity.canonicalPayloadFingerprint
-      || !canonical.placementIds.includes(placement.placementId)) return null;
+      || !placementAuthorized) return null;
     return {
       activityId: canonical.activityId,
       activityVersionId: canonical.activityVersionId,

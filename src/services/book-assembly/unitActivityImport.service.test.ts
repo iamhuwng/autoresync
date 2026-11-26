@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ActivityAuthoringService } from '../book-activity/activityAuthoring.service';
-import { ActivityAuthoringHttpError } from '../book-activity/activityStorage.service';
+import {
+  ActivityAuthoringAmbiguousTransportError,
+  ActivityAuthoringHttpError,
+} from '../book-activity/activityStorage.service';
 import type { EditableActivity } from '../../types/bookActivity.types';
 import type { BookAssemblyManifestCandidate } from '../../types/bookAssembly.types';
 import {
@@ -885,6 +888,102 @@ describe('unit Activity JSON import', () => {
         replaceExistingUnitActivityBinding: true,
         unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-a' },
       }));
+    });
+
+    it('records binding-pending (HTTP 202 ambiguous error or pending receipt) as committed instead of discarding it', async () => {
+      for (const mode of ['ambiguous-202', 'pending-receipt'] as const) {
+        const discard = vi.fn().mockResolvedValue({ status: 'discarded', candidateId: 'cand-b', revision: 3, lifecycle: 'discarded' });
+        const stage = vi.fn()
+          .mockResolvedValueOnce({
+            status: 'staged',
+            candidateId: 'cand-a',
+            targetActivityId: bookScopedActivityTargetId('book-1', 'activity-a'),
+            revision: 1,
+            lifecycle: 'staged',
+            validation: { valid: true, errors: [] },
+            diff: null,
+            evidenceRefs: [],
+            sourceEvidenceRefs: [],
+            answerEvidenceRefs: [],
+          })
+          .mockResolvedValueOnce({
+            status: 'staged',
+            candidateId: 'cand-b',
+            targetActivityId: bookScopedActivityTargetId('book-1', 'activity-b'),
+            revision: 1,
+            lifecycle: 'staged',
+            validation: { valid: true, errors: [] },
+            diff: null,
+            evidenceRefs: [],
+            sourceEvidenceRefs: [],
+            answerEvidenceRefs: [],
+          });
+        const validate = vi.fn(async (input: { candidateId: string; expectedRevision: number }) => ({
+          status: 'validated' as const,
+          candidateId: input.candidateId,
+          revision: input.expectedRevision + 1,
+          lifecycle: 'validated' as const,
+          validation: { valid: true, errors: [] },
+          diff: null,
+          evidenceRefs: [],
+          sourceEvidenceRefs: [],
+          answerEvidenceRefs: [],
+        }));
+        const saveDraft = mode === 'ambiguous-202'
+          ? vi.fn().mockRejectedValueOnce(new ActivityAuthoringAmbiguousTransportError())
+          : vi.fn().mockResolvedValueOnce({
+            status: 'saved' as const,
+            activityId: bookScopedActivityTargetId('book-1', 'activity-a'),
+            candidateId: 'cand-a',
+            candidateRevision: 3,
+            revision: 1,
+            lifecycle: 'saved' as const,
+            validation: { valid: true, errors: [] },
+            diff: null,
+            evidenceRefs: [],
+            sourceEvidenceRefs: [],
+            answerEvidenceRefs: [],
+            binding: {
+              schemaVersion: 1 as const,
+              ownerId: 'teacher-1',
+              bookId: 'book-1',
+              unitKey: 'unit-1',
+              activityKey: 'activity-a',
+              activityId: bookScopedActivityTargetId('book-1', 'activity-a'),
+              candidateId: 'cand-a',
+              candidateRevision: 3,
+              candidateLifecycle: 'saved' as const,
+              phase: 'binding-pending' as const,
+            },
+          });
+
+        let caught: unknown = null;
+        try {
+          await stageUnitActivityImportBundle({
+            text: bundle(),
+            manifest,
+            unitKey: 'unit-1',
+            activityAuthoring: { stage, validate, saveDraft, discard, loadCandidate: vi.fn() },
+            resolveActivityTargetId: (slot) => bookScopedActivityTargetId('book-1', slot.activityKey),
+          });
+        } catch (error) {
+          caught = error;
+        }
+
+        expect(caught).toBeInstanceOf(UnitActivityImportPartialCommitError);
+        expect(caught).toMatchObject({
+          code: 'partial-commit-failed',
+          committedActivityKeys: ['activity-a'],
+          rolledBackActivityKeys: [],
+          failedActivityKey: 'activity-a',
+        });
+        expect(discard).toHaveBeenCalledTimes(1);
+        expect(discard).toHaveBeenCalledWith({
+          candidateId: 'cand-b',
+          expectedRevision: 2,
+          unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-b' },
+        });
+      }
     });
 
     it('allows ordinary textbook URLs in activity prompts while still blocking private storage URLs and script tags', () => {

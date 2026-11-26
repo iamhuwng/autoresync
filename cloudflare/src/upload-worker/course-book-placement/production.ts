@@ -12,6 +12,7 @@ import { FirebaseRestBookAssemblyPublicationRepository } from '../book-assembly/
 import { FirebaseRestBookDeliveryRepository } from '../book-delivery/repository.ts';
 import {
   createTrustedBookDeliveryPublication,
+  readTrustedFullPdfPhysicalPageCount,
   resolveTrustedBookDeliveryStudentDocument,
 } from '../book-delivery/worker.ts';
 import { FirebaseRtdbRestClient, type RepositoryEnv } from '../listening-authoring/rtdb.ts';
@@ -58,6 +59,7 @@ const bindingIdFor = async (operationId: string): Promise<string> => {
 const trustedPublication = (
   scope: PublicationScope,
   placement: Pick<CourseBookPlacement, 'courseMaterialId' | 'pins' | 'selection'>,
+  fullPdfPhysicalPageCount?: number,
 ): BookDeliveryPublishedPublicationReference => createTrustedBookDeliveryPublication({
   bookId: placement.pins.bookId,
   publicationId: placement.pins.publicationId,
@@ -68,7 +70,7 @@ const trustedPublication = (
   scope: placement.selection,
 }, scope, {
   policyId: `course:${placement.courseMaterialId}`, policyRevision: 1, basis: 'immutable-reference',
-});
+}, fullPdfPhysicalPageCount !== undefined ? { fullPdfPhysicalPageCount } : undefined);
 
 const placementFromScope = (input: {
   scope: PublicationScope; selection: CourseBookCommandSelection; actorUid: string;
@@ -125,7 +127,10 @@ const placementFromScope = (input: {
   };
 };
 
-const publicationPorts = (repository: FirebaseRestBookAssemblyPublicationRepository) => ({
+const publicationPorts = (
+  repository: FirebaseRestBookAssemblyPublicationRepository,
+  env: WorkerEnv,
+) => ({
   async derivePlacement(input: {
     actorUid: string; courseId: string; moduleId: string; courseMaterialId: string;
     selection: CourseBookCommandSelection; courseOwnerId: string;
@@ -145,7 +150,15 @@ const publicationPorts = (repository: FirebaseRestBookAssemblyPublicationReposit
     } catch { return false; }
   },
   async load(placement: CourseBookPlacement): Promise<BookDeliveryPublishedPublicationReference> {
-    return trustedPublication(await repository.readScope(placement.pins.bookId), placement);
+    const scope = await repository.readScope(placement.pins.bookId);
+    const version = scope.current ? scope.versions?.[scope.current.manifestVersionId] : undefined;
+    const fullPdfSourceVersionId = version?.strategy === 'full_pdf'
+      ? version.manifest.sourceSet.sources[0]?.sourceVersionId
+      : undefined;
+    const fullPdfPhysicalPageCount = fullPdfSourceVersionId
+      ? await readTrustedFullPdfPhysicalPageCount(env, version!.ownerId, placement.pins.bookId, fullPdfSourceVersionId)
+      : undefined;
+    return trustedPublication(scope, placement, fullPdfPhysicalPageCount);
   },
 });
 
@@ -154,7 +167,7 @@ export const createProductionCourseBookCommand = (env: WorkerEnv) => {
   const read = new FirebaseRtdbRestClient({ env: scopedEnv, fetchImpl: globalThis.fetch });
   const placements = new FirebaseCourseBookPlacementRepository({ env: scopedEnv });
   const assemblies = new FirebaseRestBookAssemblyPublicationRepository({ env });
-  const publications = publicationPorts(assemblies);
+  const publications = publicationPorts(assemblies, env);
   const enrollments = new FirebaseCourseEnrollmentAuthorityPort({ env: scopedEnv });
   const deliveryRepository = new FirebaseRestBookDeliveryRepository({ env });
   const ports: CourseBookCommandPorts<Record<string, unknown>> = {
@@ -199,6 +212,12 @@ export const createProductionCourseBookCommand = (env: WorkerEnv) => {
         return createBookDeliveryProjectionResolver({
           repository: deliveryRepository, allowedAdapterContexts: ['course'],
           resolveStudentDocument: (binding) => resolveTrustedBookDeliveryStudentDocument(scopedEnv, binding),
+          resolveFullPdfPhysicalPageCount: (binding) => {
+            const sourceVersionId = binding.sourceSet.sources[0]?.sourceVersionId;
+            return sourceVersionId
+              ? readTrustedFullPdfPhysicalPageCount(env, binding.issuer.ownerId, binding.book.bookId, sourceVersionId)
+              : Promise.resolve(undefined);
+          },
         }).resolve({
           recipientId: input.studentId, contextId: input.placement.courseMaterialId,
           actor: { uid: input.studentId },
@@ -231,6 +250,12 @@ export const resolveCurrentCourseBook = async (env: WorkerEnv, uid: string, cour
   return createBookDeliveryProjectionResolver({
     repository, allowedAdapterContexts: ['course'],
     resolveStudentDocument: (binding) => resolveTrustedBookDeliveryStudentDocument(scopedEnv, binding),
+    resolveFullPdfPhysicalPageCount: (binding) => {
+      const sourceVersionId = binding.sourceSet.sources[0]?.sourceVersionId;
+      return sourceVersionId
+        ? readTrustedFullPdfPhysicalPageCount(env, binding.issuer.ownerId, binding.book.bookId, sourceVersionId)
+        : Promise.resolve(undefined);
+    },
   }).resolve({
     recipientId: uid, contextId: courseMaterialId, actor: { uid },
   });
