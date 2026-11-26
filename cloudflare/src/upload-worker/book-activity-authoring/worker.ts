@@ -2,12 +2,16 @@ import type { ActivityDiff, ActivityValidationContext, NormalizedActivity } from
 import { normalizeActivity } from '../../../../src/services/book-activity/activityCanonical.service.ts';
 import { diffActivities } from '../../../../src/services/book-activity/activityDiff.service.ts';
 import { validateEditableActivity } from '../../../../src/services/book-activity/activitySchema.service.ts';
+import { defaultBookActivityTaskProfileRegistry } from '../../../../src/services/book-activity/activityTaskProfileRegistry.ts';
 import {
   BOOK_ACTIVITY_EVIDENCE_REF_PATTERN,
   BOOK_ACTIVITY_MAX_EVIDENCE_REFS,
 } from '../../../../src/services/book-activity/activityCandidate.service.ts';
 import {
   FirebaseRestBookActivityAuthoringRepository,
+  MAX_ACTIVITIES_PER_OWNER,
+  MAX_CANDIDATES_PER_OWNER,
+  MAX_OPERATIONS_PER_OWNER,
   type BookActivityAuthoringRepositoryEnv,
   type BookActivityAuthoringRoot,
 } from './repository.ts';
@@ -55,9 +59,6 @@ interface AssemblyDraftActivityContext {
   readonly contract: AssemblyActivityContract;
   readonly mappedBookPageRefs: readonly string[];
 }
-const MAX_CANDIDATES_PER_OWNER = 128;
-const MAX_ACTIVITIES_PER_OWNER = 128;
-const MAX_OPERATIONS_PER_OWNER = 256;
 const OPERATION_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const MATERIAL_BOOK_PATH = (bookId: string): string => `material_catalog/books/${bookId}`;
 const MATERIAL_BOOK_STATUSES = new Set([
@@ -258,11 +259,28 @@ const prune = (root: BookActivityAuthoringRoot, at: number): void => {
   root.operations = Object.fromEntries(operations);
   const candidates = Object.entries(root.candidates ?? {});
   if (candidates.length < MAX_CANDIDATES_PER_OWNER) return;
-  const removable = candidates
-    .flatMap(([id, value]) => {
-      const candidate = asCandidate(value, id);
-      return candidate && terminal(candidate) ? [[id, candidate] as const] : [];
-    })
+  const parsedCandidates = candidates.flatMap(([id, value]) => {
+    const candidate = asCandidate(value, id);
+    return candidate ? [[id, candidate] as const] : [];
+  });
+  // Protect the latest saved candidate for every target Activity so active
+  // unit bindings never lose their saved candidate record during pruning.
+  const latestSavedByTarget = new Map<string, { id: string; updatedAt: number; revision: number }>();
+  for (const [id, candidate] of parsedCandidates) {
+    if (candidate.lifecycle !== 'saved') continue;
+    const prev = latestSavedByTarget.get(candidate.targetActivityId);
+    if (!prev || candidate.updatedAt > prev.updatedAt
+      || (candidate.updatedAt === prev.updatedAt && candidate.revision > prev.revision)) {
+      latestSavedByTarget.set(candidate.targetActivityId, {
+        id,
+        updatedAt: candidate.updatedAt,
+        revision: candidate.revision,
+      });
+    }
+  }
+  const protectedSavedIds = new Set(Array.from(latestSavedByTarget.values(), (entry) => entry.id));
+  const removable = parsedCandidates
+    .filter(([id, candidate]) => terminal(candidate) && !protectedSavedIds.has(id))
     .sort(([, left], [, right]) => left.updatedAt - right.updatedAt);
   const next = { ...(root.candidates ?? {}) };
   for (const [id] of removable) {
@@ -552,9 +570,14 @@ const validateContent = (
   normalized?: NormalizedActivity;
   diff: ActivityDiff | null;
 } => {
-  const validation = validateEditableActivity(content, validationContext);
+  const effectiveContext: ActivityValidationContext = {
+    ...validationContext,
+    taskProfileRegistry:
+      validationContext.taskProfileRegistry ?? defaultBookActivityTaskProfileRegistry,
+  };
+  const validation = validateEditableActivity(content, effectiveContext);
   if (!validation.valid) return { validation: { valid: false, errors: validation.errors }, diff: null };
-  const normalized = normalizeActivity(validation.value, undefined, previous, validationContext);
+  const normalized = normalizeActivity(validation.value, undefined, previous, effectiveContext);
   return { validation: { valid: true, errors: [] }, normalized, diff: diffActivities(previous ?? null, normalized) };
 };
 

@@ -12,7 +12,7 @@ import type {
 export const BOOK_ASSEMBLY_ROOT = 'book_assembly/books';
 const MAX_RETRIES = 5;
 export const BOOK_ASSEMBLY_MAX_CANDIDATES_PER_SCOPE = 32;
-export const BOOK_ASSEMBLY_MAX_DRAFT_UNITS = 32;
+export const BOOK_ASSEMBLY_MAX_DRAFT_UNITS = 64;
 const MAX_OPERATIONS_PER_SCOPE = 32;
 const MAX_SCOPE_BYTES = 2 * 1024 * 1024;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;

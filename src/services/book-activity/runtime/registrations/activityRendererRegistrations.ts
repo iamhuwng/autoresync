@@ -5,6 +5,8 @@ import {
   SingleChoiceRenderer,
 } from '../../../../components/book-runtime/interactions/choice';
 import { TextEntryRenderer } from '../../../../components/book-runtime/interactions/text-entry';
+import { MatchingRenderer } from '../../../../components/book-runtime/interactions/matching';
+import { OrderingRenderer } from '../../../../components/book-runtime/interactions/ordering';
 import { LongResponseRenderer } from '../../../../components/book-runtime/interactions/long-response';
 import {
   choiceMultipleResponseCodec,
@@ -16,6 +18,14 @@ import {
   textEntryResponseCodec,
   TEXT_ENTRY_RESPONSE_CODEC_ID,
 } from '../codecs/textEntryResponseCodec';
+import {
+  matchingResponseCodec,
+  MATCHING_RESPONSE_CODEC_ID,
+} from '../codecs/matchingResponseCodec';
+import {
+  orderingResponseCodec,
+  ORDERING_RESPONSE_CODEC_ID,
+} from '../codecs/orderingResponseCodec';
 import {
   longResponseResponseCodec,
   LONG_RESPONSE_RESPONSE_CODEC_ID,
@@ -248,6 +258,38 @@ export const activityRendererRegistrations: readonly ActivityRendererRegistratio
       codec: choiceCodecFor(variant),
     })),
   ),
+  ...(['short-text', 'sentence-completion'] as const).flatMap((variant) =>
+    (['structured', 'source-assisted'] as const).map((presentationMode) => ({
+      family: 'text-entry' as const,
+      variant,
+      presentationMode,
+      responseCodec: TEXT_ENTRY_RESPONSE_CODEC_ID,
+      rendererId: 'text-entry-v1',
+      codecId: TEXT_ENTRY_RESPONSE_CODEC_ID,
+      renderer: asUnknownRenderer(TextEntryRenderer),
+      codec: asUnknownCodec(textEntryResponseCodec),
+    })),
+  ),
+  ...(['structured', 'source-assisted'] as const).map((presentationMode) => ({
+    family: 'matching' as const,
+    variant: 'matching-pairs',
+    presentationMode,
+    responseCodec: MATCHING_RESPONSE_CODEC_ID,
+    rendererId: 'matching-v1',
+    codecId: MATCHING_RESPONSE_CODEC_ID,
+    renderer: asUnknownRenderer(MatchingRenderer),
+    codec: asUnknownCodec(matchingResponseCodec),
+  })),
+  ...(['structured', 'source-assisted'] as const).map((presentationMode) => ({
+    family: 'ordering' as const,
+    variant: 'sequence',
+    presentationMode,
+    responseCodec: ORDERING_RESPONSE_CODEC_ID,
+    rendererId: 'ordering-v1',
+    codecId: ORDERING_RESPONSE_CODEC_ID,
+    renderer: asUnknownRenderer(OrderingRenderer),
+    codec: asUnknownCodec(orderingResponseCodec),
+  })),
   {
     family: 'choice',
     variant: 'v1',
@@ -268,26 +310,18 @@ export const activityRendererRegistrations: readonly ActivityRendererRegistratio
     renderer: asUnknownRenderer(SingleChoiceRenderer),
     codec: asUnknownCodec(choiceSingleResponseCodec),
   },
-  {
-    family: 'long-response',
-    variant: 'v1',
-    presentationMode: 'structured',
-    responseCodec: LONG_RESPONSE_RESPONSE_CODEC_ID,
-    rendererId: 'long-response-v1',
-    codecId: LONG_RESPONSE_RESPONSE_CODEC_ID,
-    renderer: asUnknownRenderer(LongResponseRenderer),
-    codec: asUnknownCodec(longResponseResponseCodec),
-  },
-  {
-    family: 'long-response',
-    variant: 'v1',
-    presentationMode: 'source-assisted',
-    responseCodec: LONG_RESPONSE_RESPONSE_CODEC_ID,
-    rendererId: 'long-response-v1',
-    codecId: LONG_RESPONSE_RESPONSE_CODEC_ID,
-    renderer: asUnknownRenderer(LongResponseRenderer),
-    codec: asUnknownCodec(longResponseResponseCodec),
-  },
+  ...(['v1', 'draft-response'] as const).flatMap((variant) =>
+    (['structured', 'source-assisted'] as const).map((presentationMode) => ({
+      family: 'long-response' as const,
+      variant,
+      presentationMode,
+      responseCodec: LONG_RESPONSE_RESPONSE_CODEC_ID,
+      rendererId: 'long-response-v1',
+      codecId: LONG_RESPONSE_RESPONSE_CODEC_ID,
+      renderer: asUnknownRenderer(LongResponseRenderer),
+      codec: asUnknownCodec(longResponseResponseCodec),
+    })),
+  ),
 ];
 
 export const ticket25LongResponseRendererRegistration = activityRendererRegistrations.find((entry) => (

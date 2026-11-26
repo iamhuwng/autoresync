@@ -1081,4 +1081,48 @@ describe('Book Assembly publication Firebase repository', () => {
     await expect(resultRepository.readScope('book-1'))
       .rejects.toThrow('invalid_book_assembly_publication_operation');
   });
+
+  it('batches multi-unit immutable publication writes via PATCH and supports >256 records per family', async () => {
+    const scope = completeScope();
+    const basePlacement = Object.values(scope.placements!)[0]!;
+    const placements: Record<string, typeof basePlacement> = {};
+    for (let index = 0; index < 275; index += 1) {
+      const id = `placement-bulk-${index}`;
+      placements[id] = { ...basePlacement, placementId: id, order: index + 1 };
+    }
+    const largeScope = { ...scope, placements };
+    const patchCalls: Array<{ url: string; keys: string[] }> = [];
+    const putCalls: string[] = [];
+    const repository = new FirebaseRestBookAssemblyPublicationRepository({
+      env,
+      getAccessToken: async () => 'test-token',
+      fetchImpl: async (input, init) => {
+        const url = String(input);
+        const method = init?.method ?? 'GET';
+        if (method === 'GET') {
+          return new Response(JSON.stringify(null), { headers: { etag: '"e0"' } });
+        }
+        if (method === 'PATCH') {
+          const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+          patchCalls.push({ url, keys: Object.keys(body) });
+          return new Response(JSON.stringify(body), { status: 200 });
+        }
+        putCalls.push(`${method} ${url}`);
+        return new Response(String(init?.body ?? '{}'), { status: 200 });
+      },
+    });
+
+    await repository.transaction('book-1', () => ({
+      outcome: 'ok',
+      next: largeScope,
+      write: true,
+    }));
+
+    expect(patchCalls.length).toBeGreaterThanOrEqual(2);
+    expect(patchCalls.every((call) => call.url.endsWith('/book_assembly_publications/books/book-1.json'))).toBe(true);
+    expect(patchCalls.reduce((sum, call) => sum + call.keys.length, 0)).toBeGreaterThanOrEqual(280);
+    // Only the pointer CAS write uses PUT (plus the 2 markers); the 275 placements
+    // were written via batched PATCH instead of 275 serial PUTs.
+    expect(putCalls.length).toBeLessThanOrEqual(4);
+  });
 });

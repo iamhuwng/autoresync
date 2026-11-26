@@ -7,9 +7,9 @@ import type { BookRolloutWorkerEnvironment } from '../../book-rollout-gate.ts';
 
 export const BOOK_ACTIVITY_AUTHORING_ROOT = 'book_activity_authoring/owners';
 const MAX_RETRIES = 5;
-const MAX_ACTIVITIES_PER_OWNER = 128;
-const MAX_CANDIDATES_PER_OWNER = 128;
-const MAX_OPERATIONS_PER_OWNER = 256;
+export const MAX_ACTIVITIES_PER_OWNER = 1024;
+export const MAX_CANDIDATES_PER_OWNER = 1536;
+export const MAX_OPERATIONS_PER_OWNER = 512;
 const MAX_OWNER_ROOT_BYTES = 64 * 1024 * 1024;
 const SAFE_ID = /^[A-Za-z0-9_-]{1,160}$/u;
 

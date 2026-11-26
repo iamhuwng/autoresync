@@ -42,19 +42,34 @@ describe('Ticket #38 renderer registrations', () => {
     expect(activityRendererManifest.registrations.map(key).sort()).toEqual(
       activityRendererRegistrations.map(key).sort(),
     );
-    expect(bookActivityRendererRegistry.registrations()).toHaveLength(40);
+    expect(bookActivityRendererRegistry.registrations()).toHaveLength(50);
     expect(activityRendererRegistrations.filter((entry) =>
       entry.taskProfile === undefined
       && entry.family === 'choice'
       && ['single-select', 'multi-select'].includes(entry.variant),
     )).toHaveLength(4);
+    expect(activityRendererRegistrations.filter((entry) =>
+      entry.taskProfile === undefined
+      && entry.family === 'text-entry'
+      && ['short-text', 'sentence-completion'].includes(entry.variant),
+    )).toHaveLength(4);
+    expect(activityRendererRegistrations.filter((entry) =>
+      entry.taskProfile === undefined
+      && entry.family === 'matching'
+      && entry.variant === 'matching-pairs',
+    )).toHaveLength(2);
+    expect(activityRendererRegistrations.filter((entry) =>
+      entry.taskProfile === undefined
+      && entry.family === 'ordering'
+      && entry.variant === 'sequence',
+    )).toHaveLength(2);
     expect(activityRendererManifest.registrations.find((entry) =>
       entry.family === 'choice' && entry.variant === 'v1' && entry.profile === null)).toMatchObject({
       responseCodec: 'choice-single-v1',
       rendererId: 'choice-v1',
       codecId: 'choice-single-v1',
     });
-    expect(activityRendererRegistrations.filter((entry) => entry.family === 'long-response')).toHaveLength(2);
+    expect(activityRendererRegistrations.filter((entry) => entry.family === 'long-response')).toHaveLength(4);
     expect(activityRendererRegistrations.find((entry) => entry.family === 'long-response')?.taskProfile).toBeUndefined();
     expect(activityRendererManifest.registrations.find((entry) =>
       entry.family === 'long-response' && entry.variant === 'v1')).toMatchObject({

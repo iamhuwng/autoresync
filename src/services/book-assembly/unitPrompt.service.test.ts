@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { EditableActivity } from '../../types/bookActivity.types';
 import type { BookAssemblyManifestCandidate, TrustedBookSourceVersionProjection } from '../../types/bookAssembly.types';
+import { validateEditableActivity } from '../book-activity/activitySchema.service';
+import { normalizeActivity } from '../book-activity/activityCanonical.service';
+import { projectStudentActivity } from '../book-activity/activityProjection.service';
+import { bookActivityRendererRegistry } from '../book-activity/runtime/activityRendererRegistry';
 import {
   buildBulkUnitActivityImportPrompt,
   buildUnitActivityImportPrompt,
@@ -108,6 +112,12 @@ describe('buildUnitActivityImportPrompt', () => {
         "activitySlots": [
           {
             "activityKey": "activity-choice",
+            "allowedEvidenceRefs": [
+              "import:activity-choice",
+              "pageGroup:pages-full-2-3-activity",
+              "source:full:page:2",
+              "source:full:page:3",
+            ],
             "contextRequirement": "required",
             "order": 1,
             "pageGroupKeys": [
@@ -131,7 +141,7 @@ describe('buildUnitActivityImportPrompt', () => {
           {
             "family": "text-entry",
             "variants": [
-              "short-answer",
+              "short-text",
               "sentence-completion",
             ],
           },
@@ -151,17 +161,20 @@ describe('buildUnitActivityImportPrompt', () => {
             "family": "long-response",
             "variants": [
               "draft-response",
+              "v1",
             ],
           },
         ],
         "presentationExamples": [
           {
+            "contextRequirement": "mode "none" with acceptedKinds [], OR mode "optional" with acceptedKinds ["book-pages"]; omit interactions[].sourceAssisted",
             "presentationMode": "structured",
-            "useWhen": "standalone prompt can be answered without viewing mapped book pages",
+            "useWhen": "slot.contextRequirement is none or optional",
           },
           {
+            "contextRequirement": "mode "required" with acceptedKinds ["book-pages"]; every interaction MUST include sourceAssisted: { questionLabel, accessiblePrompt, responseShape, sourceExerciseLabel } with unique questionLabel values",
             "presentationMode": "source-assisted",
-            "useWhen": "student must use mapped pageGroup/source page evidence",
+            "useWhen": "slot.contextRequirement is required",
           },
         ],
         "promptVersion": "book-unit-json-v1",
@@ -273,4 +286,63 @@ describe('buildBulkUnitActivityImportPrompt', () => {
     expect(filteredPrompt).not.toContain('"unitKey": "unit-1"');
     expect(filteredPrompt).toContain('"unitKey": "unit-2"');
   });
+
+  it.each(['required', 'optional', 'none'] as const)(
+    'generates schema-valid and renderer-supported examples in both single-unit and bulk prompts for contextRequirement=%s',
+    (contextRequirement) => {
+      const testManifest: BookAssemblyManifestCandidate = {
+        ...manifest,
+        units: [{
+          unitKey: 'unit-1',
+          activitySlots: [{
+            activityKey: 'activity-slot-1',
+            order: 1,
+            contextRequirement,
+            pageGroupKeys: contextRequirement === 'none' ? [] : ['pages-full-2-3-activity'],
+          }],
+          pageGroups: contextRequirement === 'none'
+            ? []
+            : [{
+              pageGroupKey: 'pages-full-2-3-activity',
+              sourceKey: 'full',
+              pages: [2, 3],
+              defaultPhysicalPageNumber: 2,
+              activityKeys: ['activity-slot-1'],
+              mode: 'activity',
+            }],
+        }],
+      };
+      const mappedBookPageRefs = contextRequirement === 'none'
+        ? []
+        : ['source:full:page:2', 'source:full:page:3'];
+      const single = promptContract(buildUnitActivityImportPrompt({
+        bookTitle: 'Fixture Book',
+        manifest: testManifest,
+        unitKey: 'unit-1',
+        sourceVersions,
+      })) as { outputBundleShape: { slots: Array<{ content: unknown }> } };
+      const bulk = promptContract(buildBulkUnitActivityImportPrompt({
+        bookTitle: 'Fixture Book',
+        manifest: testManifest,
+        sourceVersions,
+      })) as { outputBundleShape: { units: Array<{ slots: Array<{ content: unknown }> }> } };
+
+      for (const content of [
+        single.outputBundleShape.slots[0]!.content,
+        bulk.outputBundleShape.units[0]!.slots[0]!.content,
+      ]) {
+        const validation = validateEditableActivity(content, { mappedBookPageRefs });
+        expect(validation.valid, JSON.stringify(validation.errors)).toBe(true);
+        if (!validation.valid) continue;
+        let seq = 0;
+        const normalized = normalizeActivity(validation.value, { createId: () => `id-${++seq}` }, undefined, { mappedBookPageRefs });
+        const resolution = bookActivityRendererRegistry.resolve(projectStudentActivity(normalized), {
+          surface: 'student-runtime',
+          mode: 'editable',
+          sourceContext: { available: true, description: 'Mapped page 2.' },
+        });
+        expect(resolution.supported).toBe(true);
+      }
+    },
+  );
 });

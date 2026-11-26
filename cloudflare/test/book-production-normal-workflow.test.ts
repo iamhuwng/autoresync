@@ -35,7 +35,7 @@ const sourceSafety = (version = sourceVersionId, purpose = 'book-source') => ({
     reasonCode: 'teacher-reviewed',
   },
 });
-const previewRegistryVersion = 'activity-renderer-manifest-v1@sha256:649910eeb4ce46bc89e246ec4bcb7df883a0aae5da4fdbf2bc66d3bc3f9f1831';
+const previewRegistryVersion = 'activity-renderer-manifest-v1@sha256:f5b4139e1883ee2d288933f0d168bd9c5a54fce7636668a99075ea208ac1274f';
 const operation = (suffix: string): string => `123e4567-e89b-42d3-a456-426614174${suffix}`;
 
 const activity: EditableActivity = {

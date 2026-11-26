@@ -240,6 +240,7 @@ export const createBookAssemblyWorkerHandlers = (options: {
   verifyDraftActivities?: (input: {
     readonly env: BookAssemblyRepositoryEnv;
     readonly candidate: BookAssemblyCandidateRecord;
+    readonly requestCache?: Map<string, Promise<unknown>>;
   }) => Promise<readonly string[]>;
 } = {}) => {
   const now = options.now ?? nowDefault;
@@ -567,13 +568,22 @@ export const createBookAssemblyWorkerHandlers = (options: {
         if (attachedAuthority?.ownerId === input.uid
           && attachedAuthority.bookMode === 'pdf'
           && attachedAuthority.sourceSet?.sourceStrategy === 'full_pdf') {
+          const requestCache = new Map<string, Promise<unknown>>();
+          for (const unitKey of unitKeys) id(unitKey, 'unit_key');
+          // Read all unit scopes in bounded parallel batches instead of serially.
+          const initialScopes = new Map<string, BookAssemblyScope>();
+          for (let offset = 0; offset < unitKeys.length; offset += 8) {
+            const slice = unitKeys.slice(offset, offset + 8);
+            const loaded = await Promise.all(slice.map(async (unitKey) => [unitKey, await repository.readScope(bookId, unitKey)] as const));
+            for (const [unitKey, scope] of loaded) initialScopes.set(unitKey, scope);
+          }
+          const matched: Array<{ readonly unitKey: string; readonly candidate: BookAssemblyCandidateRecord }> = [];
           for (const unitKey of unitKeys) {
-            id(unitKey, 'unit_key');
-            const scope = await repository.readScope(bookId, unitKey);
-            const candidate = scope.current ? scope.candidates?.[scope.current.candidateId] : undefined;
+            const scope = initialScopes.get(unitKey);
+            const candidate = scope?.current ? scope.candidates?.[scope.current.candidateId] : undefined;
             if (!candidate || candidate.ownerId !== input.uid || candidate.bookId !== bookId
               || candidate.unitKey !== unitKey || candidate.lifecycle !== 'validated'
-              || candidate.revision !== scope.current?.candidateRevision
+              || candidate.revision !== scope?.current?.candidateRevision
               || candidate.bookRevision !== attachedAuthority.bookRevision
               || candidate.sourceSetRevision !== attachedAuthority.sourceSetRevision
               || !candidate.manifest
@@ -581,22 +591,37 @@ export const createBookAssemblyWorkerHandlers = (options: {
               || !hasUnit(candidate.manifest, unitKey)) {
               continue;
             }
-            const savedKeys = await options.verifyDraftActivities?.({ env: input.env, candidate: clone(candidate) }) ?? [];
-            const [refreshedScope, refreshedAuthority] = await Promise.all([
-              repository.readScope(bookId, unitKey),
-              authorityFor(repository, bookId, input.env, input.uid),
-            ]);
+            matched.push({ unitKey, candidate });
+          }
+          for (let offset = 0; offset < matched.length; offset += 4) {
+            const slice = matched.slice(offset, offset + 4);
+            const verified = await Promise.all(slice.map(async ({ unitKey, candidate }) => {
+              const savedKeys = await options.verifyDraftActivities?.({
+                env: input.env,
+                candidate: clone(candidate),
+                requestCache,
+              }) ?? [];
+              const refreshedScope = await repository.readScope(bookId, unitKey);
+              return { unitKey, candidate, savedKeys, refreshedScope };
+            }));
+            for (const { unitKey, candidate, savedKeys, refreshedScope } of verified) {
+              if (refreshedScope.current?.candidateId !== candidate.candidateId
+                || refreshedScope.current?.candidateRevision !== candidate.revision) {
+                throw new BookAssemblyWorkerError('draft_discovery_divergent', 409);
+              }
+              const slots = candidate.manifest!.units.find((unit) => unit.unitKey === unitKey)!.activitySlots;
+              savedActivityKeysByUnit[unitKey] = slots.map((slot) => slot.activityKey).filter((key) => savedKeys.includes(key));
+              candidates.push(clone(candidate));
+            }
+          }
+          if (matched.length > 0) {
+            const refreshedAuthority = await authorityFor(repository, bookId, input.env, input.uid);
             if (!refreshedAuthority
               || refreshedAuthority.ownerId !== input.uid
               || refreshedAuthority.bookRevision !== attachedAuthority.bookRevision
-              || refreshedAuthority.sourceSetRevision !== attachedAuthority.sourceSetRevision
-              || refreshedScope.current?.candidateId !== candidate.candidateId
-              || refreshedScope.current?.candidateRevision !== candidate.revision) {
+              || refreshedAuthority.sourceSetRevision !== attachedAuthority.sourceSetRevision) {
               throw new BookAssemblyWorkerError('draft_discovery_divergent', 409);
             }
-            const slots = candidate.manifest.units.find((unit) => unit.unitKey === unitKey)!.activitySlots;
-            savedActivityKeysByUnit[unitKey] = slots.map((slot) => slot.activityKey).filter((key) => savedKeys.includes(key));
-            candidates.push(clone(candidate));
           }
           return {
             body: { status: 'loaded', drafts: candidates.map((candidate) => ({ candidate, savedActivityKeysByUnit })) },
