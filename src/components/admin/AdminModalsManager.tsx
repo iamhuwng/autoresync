@@ -32,23 +32,23 @@ export interface AdminModalsManagerProps {
     assignmentsByStudent: Record<string, any[]>;
     currentTeacherId: string | null;
     availableCourses: Array<{ value: string; label: string }>;
-    onConfirmRelease: (assignmentIds: string[], unenrollCourseIds?: string[]) => void;
+    onConfirmRelease: (assignmentIds: string[], unenrollCourseIds?: string[]) => void | Promise<void>;
 
     // Request Student Modal
     isRequestModalOpen: boolean;
     closeRequestModal: () => void;
-    onRequestStudent: (email: string) => void;
+    onRequestStudent: (email: string) => void | Promise<void>;
 
     // Add to Class Modal
     isAddToClassModalOpen: boolean;
     closeAddToClassModal: () => void;
     selectedStudentForClass: User | null;
     classes: Array<{ value: string; label: string }>;
-    onConfirmAddToClass: (classId: string) => void;
+    onConfirmAddToClass: (classId: string) => void | Promise<void>;
 
     // Loading states
     loading?: boolean;
-    loadAssignments?: () => void;
+    loadAssignments?: (options?: { force?: boolean }) => void | Promise<void>;
 }
 
 export const AdminModalsManager: React.FC<AdminModalsManagerProps> = ({
@@ -121,7 +121,7 @@ export const AdminModalsManager: React.FC<AdminModalsManagerProps> = ({
                     currentUserId={currentUserId || ''}
                     onSuccess={() => {
                         onAssignmentSuccess();
-                        loadAssignments?.(); // Reload assignments to update table
+                        void loadAssignments?.({ force: true }); // Reload assignments to update table
                     }}
                 />
             )}
@@ -135,7 +135,8 @@ export const AdminModalsManager: React.FC<AdminModalsManagerProps> = ({
                 currentTeacherId={currentTeacherId}
                 availableCourses={availableCourses}
                 onConfirm={async (assignmentIds, unenrollCourseIds = []) => {
-                    onConfirmRelease(assignmentIds, unenrollCourseIds);
+                    // Await so the modal keeps its loading state and can surface failures.
+                    await onConfirmRelease(assignmentIds, unenrollCourseIds);
                 }}
             />
 
@@ -144,7 +145,7 @@ export const AdminModalsManager: React.FC<AdminModalsManagerProps> = ({
                 opened={isRequestModalOpen}
                 onClose={closeRequestModal}
                 onSubmit={async (email) => {
-                    onRequestStudent(email);
+                    await onRequestStudent(email);
                 }}
             />
 
@@ -155,7 +156,7 @@ export const AdminModalsManager: React.FC<AdminModalsManagerProps> = ({
                 student={selectedStudentForClass as any}
                 classes={classes}
                 onConfirm={async (classId) => {
-                    onConfirmAddToClass(classId);
+                    await onConfirmAddToClass(classId);
                 }}
             />
         </>

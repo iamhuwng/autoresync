@@ -4,6 +4,7 @@ import { lazyWithRetry } from '../utils/lazyWithRetry.ts';
 import PrivateRoute from '../components/PrivateRoute.jsx';
 import { ErrorBoundary } from '../components/ErrorBoundary.tsx';
 import { buildRoute, ROUTES } from '../constants/routes.ts';
+import { FEATURE_IDS } from '../config/featureRegistry.ts';
 import {
   isMaterialBookEditorEnabled,
   isReadingV2TeacherRouteExposureAllowed,
@@ -101,7 +102,7 @@ export const createTeacherRoutes = (
   return [
   {
     path: '/teacher/students',
-    element: asTeacherPage(<TeacherStudentsPage />),
+    element: asTeacherPage(<TeacherStudentsPage />, FEATURE_IDS.teacherStudents),
   },
   {
     path: '/teacher/homework/student/:studentId',

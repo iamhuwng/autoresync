@@ -1,16 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import {
-    Modal,
-    Stack,
-    Select,
-    Button,
-    Group,
-    Text,
-    Alert
-} from '@mantine/core';
-import { IconSchool, IconAlertCircle } from '@tabler/icons-react';
+/**
+ * AddToClassModal Component
+ *
+ * Native <dialog> modal for enrolling a student into one of the teacher's classes.
+ * Marks already-enrolled classes so teachers can see current membership at a glance.
+ */
 
-interface AddToClassModalProps {
+import React, { useEffect, useId, useMemo, useState } from 'react';
+import { IconSchool, IconAlertCircle } from '@tabler/icons-react';
+import { NativeDialog } from './NativeDialog';
+
+export interface AddToClassModalProps {
     opened: boolean;
     onClose: () => void;
     student: {
@@ -19,6 +18,8 @@ interface AddToClassModalProps {
         email: string;
     } | null;
     classes: Array<{ value: string; label: string }>;
+    /** Optional list of class IDs the student is already actively enrolled in. */
+    enrolledClassIds?: string[];
     onConfirm: (classId: string) => Promise<void>;
 }
 
@@ -27,22 +28,30 @@ export const AddToClassModal: React.FC<AddToClassModalProps> = ({
     onClose,
     student,
     classes,
-    onConfirm
+    enrolledClassIds = [],
+    onConfirm,
 }) => {
-    const [selectedClass, setSelectedClass] = useState<string | null>(null);
+    const selectId = useId();
+    const [selectedClass, setSelectedClass] = useState<string>('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // Reset state when modal opens
+    const enrolledSet = useMemo(() => new Set(enrolledClassIds), [enrolledClassIds]);
+    const availableCount = useMemo(
+        () => classes.filter((cls) => !enrolledSet.has(cls.value)).length,
+        [classes, enrolledSet]
+    );
+
     useEffect(() => {
         if (opened) {
-            setSelectedClass(null);
+            setSelectedClass('');
             setError(null);
             setLoading(false);
         }
-    }, [opened]);
+    }, [opened, student?.uid]);
 
-    const handleSubmit = async () => {
+    const handleSubmit = async (event: React.FormEvent) => {
+        event.preventDefault();
         if (!selectedClass || !student) return;
 
         setLoading(true);
@@ -54,61 +63,93 @@ export const AddToClassModal: React.FC<AddToClassModalProps> = ({
         } catch (err) {
             console.error('Error in add to class modal:', err);
             setError(err instanceof Error ? err.message : 'Failed to add student to class');
-            setLoading(false); // Only stop loading on error
+            setLoading(false);
         }
     };
 
     return (
-        <Modal
+        <NativeDialog
             opened={opened}
             onClose={onClose}
-            title={
-                <Group gap="xs">
-                    <IconSchool size={20} />
-                    <Text fw={600}>Add Student to Class</Text>
-                </Group>
-            }
+            title="Add Student to Class"
+            icon={<IconSchool size={20} color="#0d9488" aria-hidden="true" />}
             size="sm"
-            centered
+            busy={loading}
         >
-            <Stack gap="md">
+            <form onSubmit={handleSubmit} className="assignment-dialog__field" style={{ gap: '1rem' }}>
                 {student && (
-                    <Text size="sm">
+                    <p className="assignment-dialog__text">
                         Add <strong>{student.displayName || student.email}</strong> to a class.
-                    </Text>
+                    </p>
                 )}
 
                 {error && (
-                    <Alert icon={<IconAlertCircle size={16} />} color="red" title="Error">
-                        {error}
-                    </Alert>
+                    <div className="assignment-dialog__alert assignment-dialog__alert--error" role="alert">
+                        <IconAlertCircle size={16} className="assignment-dialog__alert-icon" aria-hidden="true" />
+                        <span>{error}</span>
+                    </div>
                 )}
 
-                <Select
-                    label="Select Class"
-                    placeholder="Choose a class"
-                    data={classes}
-                    value={selectedClass}
-                    onChange={setSelectedClass}
-                    searchable
-                    required
-                    disabled={loading}
-                    nothingFoundMessage="No classes found"
-                />
+                {classes.length === 0 ? (
+                    <p className="assignment-dialog__empty-hint">
+                        You do not have any active classes yet. Create a class from the Classes tab first.
+                    </p>
+                ) : (
+                    <div className="assignment-dialog__field">
+                        <label htmlFor={selectId} className="assignment-dialog__label">
+                            Select Class
+                        </label>
+                        <select
+                            id={selectId}
+                            className="assignment-dialog__select"
+                            value={selectedClass}
+                            onChange={(e) => {
+                                setSelectedClass(e.target.value);
+                                if (error) setError(null);
+                            }}
+                            disabled={loading || availableCount === 0}
+                            autoFocus
+                            required
+                        >
+                            <option value="">
+                                {availableCount === 0
+                                    ? 'Already enrolled in all active classes'
+                                    : 'Choose a class'}
+                            </option>
+                            {classes.map((cls) => {
+                                const alreadyEnrolled = enrolledSet.has(cls.value);
+                                return (
+                                    <option
+                                        key={cls.value}
+                                        value={cls.value}
+                                        disabled={alreadyEnrolled}
+                                    >
+                                        {alreadyEnrolled ? `${cls.label} (Already enrolled)` : cls.label}
+                                    </option>
+                                );
+                            })}
+                        </select>
+                    </div>
+                )}
 
-                <Group justify="flex-end" mt="md">
-                    <Button variant="subtle" onClick={onClose} disabled={loading}>
-                        Cancel
-                    </Button>
-                    <Button
-                        onClick={handleSubmit}
-                        loading={loading}
-                        disabled={!selectedClass}
+                <div className="assignment-dialog__footer">
+                    <button
+                        type="button"
+                        className="assignment-dialog__btn assignment-dialog__btn--secondary"
+                        onClick={onClose}
+                        disabled={loading}
                     >
-                        Add to Class
-                    </Button>
-                </Group>
-            </Stack>
-        </Modal>
+                        Cancel
+                    </button>
+                    <button
+                        type="submit"
+                        className="assignment-dialog__btn assignment-dialog__btn--primary"
+                        disabled={!selectedClass || loading}
+                    >
+                        {loading ? 'Adding...' : 'Add to Class'}
+                    </button>
+                </div>
+            </form>
+        </NativeDialog>
     );
 };

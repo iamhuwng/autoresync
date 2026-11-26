@@ -183,6 +183,11 @@ export interface UseUserManagementReturn {
     clearMessages: () => void;
 }
 
+export interface LoadAssignmentsOptions {
+    /** Bypass the loaded-once cache (use after any assignment mutation). */
+    force?: boolean;
+}
+
 export interface UseAssignmentsReturn {
     // State
     assignments: StudentTeacherAssignment[];
@@ -191,7 +196,7 @@ export interface UseAssignmentsReturn {
     loading: boolean;
 
     // Actions
-    loadAssignments: () => Promise<void>;
+    loadAssignments: (options?: LoadAssignmentsOptions) => Promise<void>;
     removeAssignment: (assignmentId: string, reason?: string) => Promise<void>;
 
     // Helpers

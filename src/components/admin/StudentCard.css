@@ -1,0 +1,235 @@
+/* StudentCard - native replacement for the former Mantine card internals. */
+
+.student-card-item {
+  animation: student-card-enter 0.28s ease-out backwards;
+  min-width: 0;
+}
+
+@keyframes student-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .student-card-item {
+    animation: none;
+  }
+}
+
+.student-card.modern-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem;
+}
+
+.student-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  min-width: 0;
+}
+
+.student-card__avatar-wrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.student-card__avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  object-fit: cover;
+  display: block;
+}
+
+.student-card__avatar--initial {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  color: #fff;
+  font-weight: 800;
+  font-size: 1.25rem;
+}
+
+.student-card__status {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+}
+
+.student-card__status.is-active {
+  background: #4ade80;
+}
+
+.student-card__status.is-blocked {
+  background: #f87171;
+}
+
+.student-card__identity {
+  min-width: 0;
+}
+
+.student-card__name {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.2;
+  color: #1e293b;
+  overflow-wrap: anywhere;
+}
+
+.student-card__email {
+  margin: 0.125rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  overflow-wrap: anywhere;
+}
+
+.student-card__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.student-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.student-card__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+}
+
+.student-card__badge--class {
+  background: rgba(99, 102, 241, 0.12);
+  color: #4338ca;
+}
+
+.student-card__badge--role {
+  background: rgba(139, 92, 246, 0.12);
+  color: #6d28d9;
+}
+
+.student-card__badge--teacher {
+  background: #4f46e5;
+  color: #fff;
+  cursor: help;
+}
+
+.student-card__oversight {
+  background: rgba(255, 255, 255, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.student-card__oversight-label {
+  margin: 0 0 0.375rem;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+}
+
+.student-card__floating {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #ea580c;
+}
+
+.student-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: auto;
+}
+
+.student-card__primary-action,
+.student-card__icon-action {
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  transition: transform 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+
+.student-card__primary-action {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  min-height: 40px;
+  padding: 0 1rem;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.student-card__primary-action:hover {
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.35);
+}
+
+.student-card__icon-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.6);
+  color: #475569;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.student-card__icon-action:hover {
+  background: #fff;
+  transform: translateY(-1px);
+}
+
+.student-card__icon-action--indigo {
+  color: #4f46e5;
+}
+
+.student-card__icon-action--teal {
+  color: #0d9488;
+}
+
+.student-card__icon-action--danger {
+  color: #dc2626;
+}
+
+.student-card__primary-action:focus-visible,
+.student-card__icon-action:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}

@@ -14,6 +14,7 @@ import {
     subscribeToAssignments,
     createStudentRequest,
     getAllAssignmentRequests,
+    getAssignmentRequestsByTeacher,
     approveStudentRequest,
     denyStudentRequest
 } from './assignmentManager';
@@ -24,8 +25,11 @@ const mockSet = vi.fn();
 const mockGet = vi.fn();
 const mockUpdate = vi.fn();
 const mockOnValue = vi.fn();
-const mockRef = vi.fn();
+const mockRef = vi.fn((_db: any, path?: string) => ({ path }));
 const mockPush = vi.fn(() => ({ key: 'mock-id-123' }));
+const mockQuery = vi.fn((...args: any[]) => ({ args }));
+const mockOrderByChild = vi.fn((field: string) => ({ orderByChild: field }));
+const mockEqualTo = vi.fn((value: any) => ({ equalTo: value }));
 
 vi.mock('firebase/database', () => ({
     ref: (db: any, path: string) => mockRef(db, path),
@@ -34,6 +38,10 @@ vi.mock('firebase/database', () => ({
     update: (ref: any, value: any) => mockUpdate(ref, value),
     push: () => mockPush(),
     onValue: (ref: any, callback: any) => mockOnValue(ref, callback),
+    query: (...args: any[]) => mockQuery(...args),
+    orderByChild: (field: string) => mockOrderByChild(field),
+    equalTo: (value: any) => mockEqualTo(value),
+    serverTimestamp: () => 1234567890,
 }));
 
 vi.mock('firebase/auth', () => ({ getAuth: () => ({ currentUser: { uid: 'admin-1' } }) }));
@@ -734,6 +742,31 @@ describe('assignmentManager', () => {
 
                 const result = await getAllAssignmentRequests();
                 expect(result).toEqual([]);
+            });
+        });
+
+        describe('getAssignmentRequestsByTeacher', () => {
+            it('should query only the specified teacher requests sorted newest first', async () => {
+                const req1 = { ...mockRequest, id: 'r1', teacherId: 'teacher-1', requestedAt: 100 };
+                const req2 = { ...mockRequest, id: 'r2', teacherId: 'teacher-1', requestedAt: 300 };
+                const other = { ...mockRequest, id: 'r3', teacherId: 'teacher-2', requestedAt: 500 };
+
+                mockGet.mockResolvedValueOnce({
+                    exists: () => true,
+                    val: () => ({ r1: req1, r2: req2, r3: other }),
+                });
+
+                const result = await getAssignmentRequestsByTeacher('teacher-1');
+
+                expect(mockOrderByChild).toHaveBeenCalledWith('teacherId');
+                expect(mockEqualTo).toHaveBeenCalledWith('teacher-1');
+                expect(result.map((r) => r.id)).toEqual(['r2', 'r1']);
+            });
+
+            it('should return empty array when teacherId is empty', async () => {
+                const result = await getAssignmentRequestsByTeacher('');
+                expect(result).toEqual([]);
+                expect(mockGet).not.toHaveBeenCalled();
             });
         });
 

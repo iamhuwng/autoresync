@@ -559,6 +559,65 @@ export async function getClass(classId: string): Promise<ClassSession | null> {
   }
 }
 
+export interface TeacherClassWithMembers extends ClassSummary {
+  studentIds: string[];
+}
+
+/**
+ * Get all non-deleted classes for a teacher along with their active student UIDs
+ * in a single indexed RTDB query.
+ */
+export async function getTeacherClassesWithMembers(
+  teacherId: string
+): Promise<TeacherClassWithMembers[]> {
+  if (!teacherId) {
+    return [];
+  }
+
+  try {
+    const classesQuery = query(
+      ref(database, CLASSES_REF),
+      orderByChild('createdBy'),
+      equalTo(teacherId)
+    );
+    const snapshot = await get(classesQuery);
+
+    if (!snapshot.exists()) {
+      return [];
+    }
+
+    const classes: TeacherClassWithMembers[] = [];
+    const data = snapshot.val();
+
+    for (const [id, classData] of Object.entries(data)) {
+      const cls = classData as ClassSession;
+
+      if (cls.createdBy !== teacherId || cls.status === 'deleted') {
+        continue;
+      }
+
+      const normalized = normalizeClassSession(id, cls);
+      const studentIds = Array.from(new Set(
+        Object.entries(normalized.students || {})
+          .filter(([, student]) => student.status !== 'removed' && student.status !== 'pending_approval')
+          .map(([key, student]) => student.uid || key)
+          .filter(Boolean)
+      ));
+
+      classes.push({
+        ...buildClassSummary(id, cls),
+        studentIds,
+      });
+    }
+
+    classes.sort((a, b) => b.createdAt - a.createdAt);
+    return classes;
+  } catch (error) {
+    console.error('Error getting teacher classes with members:', error);
+    return [];
+  }
+}
+
 /**
  * Get all classes for a teacher
  */

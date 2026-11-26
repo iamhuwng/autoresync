@@ -8,7 +8,7 @@
  * - Real-time subscription to assignment changes
  */
 
-import { ref, get, set, update, push, onValue } from 'firebase/database';
+import { ref, get, set, update, push, onValue, query, orderByChild, equalTo } from 'firebase/database';
 import { getAuth } from 'firebase/auth';
 import { database } from './firebase';
 import type {
@@ -226,8 +226,11 @@ async function getActiveAssignment(
     teacherId: string
 ): Promise<StudentTeacherAssignment | null> {
     try {
-        const assignmentsRef = ref(database, ASSIGNMENTS_REF);
-        const snapshot = await get(assignmentsRef);
+        const snapshot = await get(query(
+            ref(database, ASSIGNMENTS_REF),
+            orderByChild('teacherId'),
+            equalTo(teacherId)
+        ));
 
         if (!snapshot.exists()) {
             return null;
@@ -266,8 +269,13 @@ export async function getAssignmentsByTeacher(
             return [];
         }
 
-        const assignmentsRef = ref(database, ASSIGNMENTS_REF);
-        const snapshot = await get(assignmentsRef);
+        // Indexed query (`.indexOn: teacherId`) instead of downloading every
+        // assignment in the system and filtering on the client.
+        const snapshot = await get(query(
+            ref(database, ASSIGNMENTS_REF),
+            orderByChild('teacherId'),
+            equalTo(teacherId)
+        ));
 
         if (!snapshot.exists()) {
             return [];
@@ -301,8 +309,12 @@ export async function getAssignmentsByStudent(
             return [];
         }
 
-        const assignmentsRef = ref(database, ASSIGNMENTS_REF);
-        const snapshot = await get(assignmentsRef);
+        // Indexed query (`.indexOn: studentId`).
+        const snapshot = await get(query(
+            ref(database, ASSIGNMENTS_REF),
+            orderByChild('studentId'),
+            equalTo(studentId)
+        ));
 
         if (!snapshot.exists()) {
             return [];
@@ -563,8 +575,12 @@ async function getPendingRequest(
     studentEmail: string
 ): Promise<AssignmentRequest | null> {
     try {
-        const requestsRef = ref(database, ASSIGNMENT_REQUESTS_REF);
-        const snapshot = await get(requestsRef);
+        const normalizedEmail = studentEmail.trim().toLowerCase();
+        const snapshot = await get(query(
+            ref(database, ASSIGNMENT_REQUESTS_REF),
+            orderByChild('teacherId'),
+            equalTo(teacherId)
+        ));
 
         if (!snapshot.exists()) {
             return null;
@@ -574,7 +590,8 @@ async function getPendingRequest(
         const pendingRequest = Object.values(requests).find(
             (request: any) =>
                 request.teacherId === teacherId &&
-                request.studentEmail === studentEmail &&
+                typeof request.studentEmail === 'string' &&
+                request.studentEmail.trim().toLowerCase() === normalizedEmail &&
                 request.status === 'pending'
         );
 
@@ -582,6 +599,37 @@ async function getPendingRequest(
     } catch (error) {
         console.error('Error getting pending request:', error);
         return null;
+    }
+}
+
+/**
+ * Get assignment requests submitted by a specific teacher (indexed query)
+ */
+export async function getAssignmentRequestsByTeacher(
+    teacherId: string
+): Promise<AssignmentRequest[]> {
+    try {
+        if (!teacherId) {
+            return [];
+        }
+
+        const snapshot = await get(query(
+            ref(database, ASSIGNMENT_REQUESTS_REF),
+            orderByChild('teacherId'),
+            equalTo(teacherId)
+        ));
+
+        if (!snapshot.exists()) {
+            return [];
+        }
+
+        const requests = snapshot.val();
+        return (Object.values(requests) as AssignmentRequest[])
+            .filter((request) => request.teacherId === teacherId)
+            .sort((a, b) => (b.requestedAt || 0) - (a.requestedAt || 0));
+    } catch (error) {
+        console.error('Error getting requests by teacher:', error);
+        return [];
     }
 }
 

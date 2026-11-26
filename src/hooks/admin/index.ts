@@ -18,6 +18,7 @@ export { useAssignments } from './useAssignments';
 export { useCourseTypes } from './useCourseTypes';
 export { useInvitations } from './useInvitations';
 export { useStudentRequests } from './useStudentRequests';
+export { useTeacherStudentRoster } from './useTeacherStudentRoster';
 export { useUserManagement } from './useUserManagement';
 
 // Re-export types for convenience
