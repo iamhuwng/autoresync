@@ -1,5 +1,9 @@
 # Result View FR Closure Matrix
 
+## 2026-11-26 Book PDF Unified Multi-Unit Authoring & Incremental Publication
+
+PR #336 registers Book PDF authoring and reconciliation actions in `src/config/featureRegistry.ts`. No PRD-0040/PRD-0041 FR closure status changes; all verified rows below remain verified. Coverage anchors for the Book PDF redesign include `BookPdfFlowWorkspace.test.tsx`, `BookAssemblyWorkspace.test.tsx`, `BookMode2EditorShell.test.tsx`, `bookStructureImport.service.test.ts`, `fullPdfPublication.adapter.test.ts`, `BookRuntimeShell.test.tsx`, `cloudflare/test/book-assembly-worker.test.ts`, and `cloudflare/test/book-assembly-production-composition.test.ts`; result-specific tests are N/A because no result surface or policy changes.
+
 ## 2026-11-25 Book PDF (PRD0062) V1 Academic Record & Homework Visibility
 
 PR #331 adds student Book activity result listing to `AcademicRecordPage.tsx` (`academicRecordBookResults.service.ts`), includes Book homework projections in `StudentHomeworkListPage.tsx` counters (`studentBookHomeworkSummary.service.ts`), and registers Book actions in `src/config/featureRegistry.ts`. No PRD-0040/PRD-0041 FR closure status changes; all verified rows below remain verified. Coverage anchors include `AcademicRecordPage.test.tsx`, `academicRecordBookResults.service.test.ts`, `StudentHomeworkListPage.test.tsx`, `studentBookHomeworkSummaryRules.test.ts`, and `cloudflare/test/student-book-homework-summary.test.ts`.

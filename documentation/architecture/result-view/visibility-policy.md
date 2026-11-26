@@ -1,5 +1,9 @@
 # Result View Visibility Policy
 
+## 2026-11-26 Book PDF Unified Multi-Unit Authoring & Incremental Publication
+
+PR #336 touches `src/config/featureRegistry.ts` only to register Book PDF authoring and reconciliation observability actions. It does not change saved-result reads/writes, `test_results/{resultId}` RTDB rules, the two-step teacher visibility gate, release-state gating, student result ownership, or any Firebase security rules.
+
 ## 2026-11-25 Book PDF (PRD0062) V1 Academic Record & Homework Visibility
 
 PR #331 surfaces a student's own submitted Book activity results on `AcademicRecordPage.tsx` and includes Book homework summary projections in `StudentHomeworkListPage.tsx` status counters. Book activity result reads remain strictly scoped to the authenticated student's own Book result/summary paths under Firebase rules (`studentBookHomeworkSummaryRules.test.ts`); RTDB `test_results/{resultId}` read rules, the two-step teacher visibility gate, release-state gating, and teacher ownership rules remain unchanged.

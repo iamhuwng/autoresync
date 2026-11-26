@@ -1,5 +1,9 @@
 # PRD-0040 Preflight Ledger
 
+## 2026-11-26 Book PDF Unified Multi-Unit Authoring & Incremental Publication change record
+
+PR #336 touches `src/config/featureRegistry.ts` only to register Book PDF authoring and reconciliation observability actions as part of the unified multi-unit Book PDF authoring workspace, textbook-native outline import, and incremental unit publication redesign. Canonical saved-result shells (`ResultSlidePanel`, `ResultDetailModal`, `LegacyResultDetailView`), `ResultDetailPage` dispatch, `AcademicRecordPage`, RTDB `test_results/{resultId}` rules, and teacher/student visibility boundaries remain unchanged. Verified by `BookPdfFlowWorkspace.test.tsx`, `BookAssemblyWorkspace.test.tsx`, `BookMode2EditorShell.test.tsx`, `bookStructureImport.service.test.ts`, `fullPdfPublication.adapter.test.ts`, `BookRuntimeShell.test.tsx`, real `workerd` Worker suites (`book-assembly-worker.test.ts`, `book-assembly-production-composition.test.ts`), and live browser QA on spare (`luyentap-pdf-qa-20261021`).
+
 ## 2026-11-25 Book PDF (PRD0062) V1 Academic Record & Homework Visibility change record
 
 PR #331 touches `AcademicRecordPage.tsx` (adding a `BOOK ACTIVITY RESULTS` section backed by `academicRecordBookResults.service.ts`), `StudentHomeworkListPage.tsx` (including Book homework summary projections in tab counters via `studentBookHomeworkSummary.service.ts`), and `src/config/featureRegistry.ts`. Canonical saved-result shells (`ResultSlidePanel`, `ResultDetailModal`, `LegacyResultDetailView`), `ResultDetailPage` dispatch, RTDB `test_results/{resultId}` rules, and teacher visibility/ownership boundaries remain unchanged. Verified by `AcademicRecordPage.test.tsx`, `academicRecordBookResults.service.test.ts`, `StudentHomeworkListPage.test.tsx`, `studentBookHomeworkSummaryRules.test.ts`, `cloudflare/test/student-book-homework-summary.test.ts`, and live browser E2E QA on spare (`luyentap-pdf-qa-20261021`).
