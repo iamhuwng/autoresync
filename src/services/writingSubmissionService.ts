@@ -1969,16 +1969,21 @@ export const autoSubmitFromRTDB = withRestoreGuard(
         // Generate resultId using Firebase push ID
         const resultId = existingResultId || push(ref(database, 'test_results')).key;
         if (!resultId) {
-            console.error('❌ Failed to generate resultId');
-            return;
+            throw new Error('Failed to generate writing submission resultId');
         }
 
         const submittedAt = typeof writingData.submittedAt === 'number'
             ? writingData.submittedAt
             : Date.now();
 
+        const formatTasks = (testData.tasks || []).filter((task) => {
+            if (testData.metadata.format === 'task1-only') return task.taskNumber === 1;
+            if (testData.metadata.format === 'task2-only') return task.taskNumber === 2;
+            return true;
+        });
+
         // Build submission tasks from test data + RTDB essay data
-        const submissionTasks = testData.tasks.map(task => {
+        const submissionTasks = formatTasks.map(task => {
             const rtdbTask = writingData[`task${task.taskNumber}`] || {};
             const essayText = rtdbTask.text || '';
             const wordCount = essayText.trim()
@@ -1993,9 +1998,20 @@ export const autoSubmitFromRTDB = withRestoreGuard(
                 wordMinimum: task.wordMinimum,
                 essayText,
                 wordCount,
-                activeTimeSeconds: rtdbTask.activeTimeSeconds || 0,
+                activeTimeSeconds: Number(rtdbTask.activeTimeSeconds) || 0,
             };
         });
+
+        const computedElapsedSeconds = typeof writingData.totalElapsedTime === 'number'
+            && Number.isFinite(writingData.totalElapsedTime)
+            && writingData.totalElapsedTime > 0
+            ? Math.round(writingData.totalElapsedTime)
+            : typeof sessionData?.startTime === 'number' && Number.isFinite(sessionData.startTime)
+                ? Math.max(
+                    0,
+                    Math.round((submittedAt - sessionData.startTime - (Number(sessionData?.pausedDuration) || 0)) / 1000),
+                )
+                : 0;
 
         // Create Firestore submission
         const submission: WritingSubmission = {
@@ -2026,7 +2042,7 @@ export const autoSubmitFromRTDB = withRestoreGuard(
             },
             tasks: submissionTasks,
             submittedAt,
-            totalElapsedTimeSeconds: writingData.totalElapsedTime || 0,
+            totalElapsedTimeSeconds: computedElapsedSeconds,
             pasteAttemptCount: writingData.pasteAttemptCount || 0,
             markingStatus: 'pending-review',
             annotations: [],
@@ -2037,8 +2053,7 @@ export const autoSubmitFromRTDB = withRestoreGuard(
         await setDoc(doc(db, SUBMISSIONS_COLLECTION, resultId), sanitized);
         const materializeResult = await materializeSubmissionResult(submission);
         if (!materializeResult.success) {
-            console.error('❌ Failed to materialize writing auto-submit result:', materializeResult.error);
-            return;
+            throw new Error(materializeResult.error || 'Failed to materialize writing auto-submit result');
         }
 
         const playerExists = Boolean(sessionData?.players?.[studentUid]);
@@ -2082,6 +2097,7 @@ export const autoSubmitFromRTDB = withRestoreGuard(
         }
     } catch (error) {
         console.error('❌ Failed to auto-submit writing:', error);
+        throw error;
     }
 });
 

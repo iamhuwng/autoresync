@@ -10,6 +10,7 @@
     display: flex;
     flex-direction: column;
     height: 100vh;
+    height: 100dvh;
     background: #f8fafc;
     overflow: hidden;
 }
@@ -196,6 +197,23 @@
     animation: wpv-savePulse 0.8s infinite;
 }
 
+.wpv-autosave-dot--error {
+    background: #ef4444;
+}
+
+.wpv-overlay-badge {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: #ede9fe;
+    color: #7c3aed;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    font-weight: 700;
+}
+
 @keyframes wpv-savePulse {
     50% {
         opacity: 0.3;
@@ -249,18 +267,26 @@
     background: #7c3aed;
 }
 
-/* ── Resume Modal (native, NO Mantine) ──────────────────────── */
+/* ── Resume Modal (native <dialog>, NO Mantine) ────────────── */
 
-.wpv-resume-overlay {
-    position: fixed;
-    inset: 0;
+.wpv-resume-dialog {
+    padding: 0;
+    border: none;
+    background: transparent;
+    max-width: 90vw;
+    margin: auto;
+    overflow: visible;
+}
+
+.wpv-resume-dialog:modal {
+    overscroll-behavior: contain;
+}
+
+.wpv-resume-dialog::backdrop {
     background: rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(4px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 500;
-    animation: stm-fadeIn 0.2s ease-out;
+    overflow: hidden;
+    overscroll-behavior: contain;
 }
 
 .wpv-resume-modal {
@@ -272,6 +298,7 @@
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
 }
 
+.wpv-resume-modal h1,
 .wpv-resume-modal h2 {
     margin: 0 0 0.75rem;
     font-size: 1.25rem;

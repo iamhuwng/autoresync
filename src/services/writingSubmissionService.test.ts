@@ -1251,6 +1251,79 @@ describe('writingSubmissionService', () => {
         expect(mockCreateTrustedNotification).not.toHaveBeenCalled();
     });
 
+    it('rethrows autoSubmitFromRTDB failures and computes elapsed seconds plus format-filtered tasks', async () => {
+        (push as any).mockReturnValue({ key: 'result-elapsed' });
+        const startTime = 1_000_000;
+        const submittedAt = startTime + 180_000;
+        (get as any).mockImplementation((path: string) => {
+            if (path.includes('/writing')) {
+                return Promise.resolve({
+                    exists: () => true,
+                    val: () => ({
+                        submittedAt,
+                        task1: { text: 'Task one essay text', activeTimeSeconds: 95 },
+                        task2: { text: 'Should be filtered out' },
+                    }),
+                });
+            }
+            if (path === 'game_sessions/SESSION-ELAPSED') {
+                return Promise.resolve({
+                    exists: () => true,
+                    val: () => ({
+                        startTime,
+                        pausedDuration: 30_000,
+                        players: { 'student-elapsed': {} },
+                    }),
+                });
+            }
+            return Promise.resolve({ exists: () => false, val: () => null });
+        });
+
+        await autoSubmitFromRTDB(
+            'SESSION-ELAPSED',
+            'student-elapsed',
+            'Student Elapsed',
+            {
+                id: 'test-elapsed',
+                testType: 'IELTS',
+                skill: 'Writing',
+                metadata: { title: 'Elapsed Writing', duration: 60, format: 'task1-only' },
+                tasks: [
+                    { taskNumber: 1, taskType: 'bar-chart', promptText: 'P1', wordMinimum: 150, showModelAnswerToStudent: false },
+                    { taskNumber: 2, taskType: 'opinion', promptText: 'P2', wordMinimum: 250, showModelAnswerToStudent: false },
+                ],
+                createdBy: 'teacher-1',
+                ownerId: 'teacher-1',
+            } as any,
+        );
+
+        expect(setDoc).toHaveBeenCalledWith(
+            expect.stringContaining('writing_submissions'),
+            expect.objectContaining({
+                totalElapsedTimeSeconds: 150,
+                tasks: [expect.objectContaining({ taskNumber: 1, activeTimeSeconds: 95 })],
+            }),
+        );
+
+        (setDoc as any).mockRejectedValueOnce(new Error('firestore unavailable'));
+        await expect(
+            autoSubmitFromRTDB(
+                'SESSION-ELAPSED',
+                'student-elapsed',
+                'Student Elapsed',
+                {
+                    id: 'test-elapsed',
+                    testType: 'IELTS',
+                    skill: 'Writing',
+                    metadata: { title: 'Elapsed Writing', duration: 60, format: 'task1-only' },
+                    tasks: [{ taskNumber: 1, taskType: 'bar-chart', promptText: 'P1', wordMinimum: 150, showModelAnswerToStudent: false }],
+                    createdBy: 'teacher-1',
+                    ownerId: 'teacher-1',
+                } as any,
+            ),
+        ).rejects.toThrow('firestore unavailable');
+    });
+
     it('blocks publish when a pending comment draft is still open', async () => {
         const submission = {
             id: 'submission-1',
