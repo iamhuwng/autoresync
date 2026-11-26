@@ -1488,4 +1488,211 @@ describe('BookAssemblyWorkspace', () => {
     expect(repo.replace).not.toHaveBeenCalled();
   });
 
+  it('supports per-unit tinkering and bulk multi-unit import with auto-detection on Unit activities', async () => {
+    const user = userEvent.setup();
+    const multiManifest: BookAssemblyManifestCandidate = {
+      bookId: 'book-1',
+      sourceSet: {
+        sourceStrategy: 'full_pdf',
+        sources: [{ sourceKey: 'full', sourceVersionId: 'source-v1', sourceOrder: 1 }],
+      },
+      nodes: [
+        { nodeKey: 'section-1', parentNodeKey: null, nodeType: 'section', order: 1 },
+        { nodeKey: 'unit-1', parentNodeKey: 'section-1', nodeType: 'unit', order: 1 },
+        { nodeKey: 'unit-2', parentNodeKey: 'section-1', nodeType: 'unit', order: 2 },
+      ],
+      units: [
+        {
+          unitKey: 'unit-1',
+          activitySlots: [{ activityKey: 'u1-a1', order: 1, contextRequirement: 'required', pageGroupKeys: ['u1-p1'] }],
+          pageGroups: [{ pageGroupKey: 'u1-p1', sourceKey: 'full', pages: [1], defaultPhysicalPageNumber: 1, activityKeys: ['u1-a1'], mode: 'activity' }],
+        },
+        {
+          unitKey: 'unit-2',
+          activitySlots: [{ activityKey: 'u2-a1', order: 1, contextRequirement: 'required', pageGroupKeys: ['u2-p2'] }],
+          pageGroups: [{ pageGroupKey: 'u2-p2', sourceKey: 'full', pages: [2], defaultPhysicalPageNumber: 2, activityKeys: ['u2-a1'], mode: 'activity' }],
+        },
+      ],
+    };
+    const repo: UnitAssemblyRepository = {
+      create: vi.fn(async (input) => ({
+        status: 'staged' as const,
+        candidate: {
+          candidateId: `cand-${input.unitKey}`,
+          bookId: input.bookId,
+          unitKey: input.unitKey,
+          ownerId: 'teacher-1',
+          bookRevision: input.expectedBookRevision,
+          sourceSetRevision: input.expectedSourceSetRevision,
+          revision: 1,
+          lifecycle: 'validated' as const,
+          manifest: input.manifest,
+          validation: { valid: true, errors: [] },
+          updatedAt: '2026-11-26T00:00:00.000Z',
+        },
+      })),
+      replace: vi.fn(async (input) => ({
+        status: 'replaced' as const,
+        candidate: {
+          candidateId: input.candidateId,
+          bookId: input.bookId,
+          unitKey: input.unitKey,
+          ownerId: 'teacher-1',
+          bookRevision: input.expectedBookRevision,
+          sourceSetRevision: input.expectedSourceSetRevision,
+          revision: input.expectedCandidateRevision + 1,
+          lifecycle: 'validated' as const,
+          manifest: input.manifest,
+          validation: { valid: true, errors: [] },
+          updatedAt: '2026-11-26T00:00:00.000Z',
+        },
+      })),
+      validate: vi.fn(),
+      discard: vi.fn(),
+      load: vi.fn(),
+    };
+    const activityAuthoring = {
+      stage: vi.fn(async (input: { targetActivityId: string; evidenceRefs?: readonly string[]; sourceEvidenceRefs?: readonly string[]; answerEvidenceRefs?: readonly string[] }) => ({
+        status: 'staged' as const,
+        candidateId: `act-${input.targetActivityId}`,
+        targetActivityId: input.targetActivityId,
+        revision: 1,
+        lifecycle: 'staged' as const,
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [...(input.evidenceRefs ?? [])],
+        sourceEvidenceRefs: [...(input.sourceEvidenceRefs ?? [])],
+        answerEvidenceRefs: [...(input.answerEvidenceRefs ?? [])],
+      })),
+      validate: vi.fn(async (input: { candidateId: string; expectedRevision: number }) => ({
+        status: 'validated' as const,
+        candidateId: input.candidateId,
+        revision: input.expectedRevision + 1,
+        lifecycle: 'validated' as const,
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [],
+        sourceEvidenceRefs: [],
+        answerEvidenceRefs: [],
+      })),
+      saveDraft: vi.fn(async (input: { candidateId: string; expectedRevision: number }) => ({
+        status: 'saved' as const,
+        activityId: input.candidateId.replace(/^act-/u, ''),
+        candidateId: input.candidateId,
+        candidateRevision: input.expectedRevision + 1,
+        revision: 1,
+        lifecycle: 'saved' as const,
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [],
+        sourceEvidenceRefs: [],
+        answerEvidenceRefs: [],
+      })),
+      discard: vi.fn(),
+      loadCandidate: vi.fn(),
+    };
+
+    render(
+      <BookAssemblyWorkspace
+        access="owner"
+        activityAuthoring={activityAuthoring as never}
+        bookId="book-1"
+        bookTitle="Multi-Unit Textbook"
+        bookRevision={1}
+        editingPanel="activity-json"
+        guided
+        guidedUiVariant="mockup"
+        initialCandidate={{
+          candidateId: 'cand-unit-1',
+          bookId: 'book-1',
+          unitKey: 'unit-1',
+          ownerId: 'teacher-1',
+          bookRevision: 1,
+          sourceSetRevision: 1,
+          revision: 1,
+          lifecycle: 'validated',
+          manifest: multiManifest,
+          validation: { valid: true, errors: [] },
+          updatedAt: '2026-11-26T00:00:00.000Z',
+        }}
+        initialSourceSet={multiManifest.sourceSet}
+        presentation="modal"
+        repository={repo}
+        sourceSetRevision={1}
+        sourceVersions={[sourceVersion('full', 'source-v1', 40, true)]}
+        suppressGuidedChrome
+        suppressModeChoice
+      />,
+    );
+
+    // Single-unit view shows Unit 1 prompt button + All units (Bulk) in sidebar
+    expect(screen.getByRole('button', { name: 'Copy Unit 1 prompt' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /All units \(Bulk\)/ })).toBeInTheDocument();
+
+    // Pasting a multi-unit bulk JSON while on Unit 1 auto-switches to Bulk import
+    const bulkPayload = JSON.stringify({
+      promptVersion: 'book-units-bulk-json-v1',
+      schemaVersion: 'prd0062.book_unit_activities_bulk_import.v1',
+      bookId: 'book-1',
+      units: [
+        {
+          unitKey: 'unit-1',
+          slots: [{
+            activityKey: 'u1-a1',
+            content: {
+              schemaVersion: 1,
+              title: 'Unit 1 Task',
+              taskProfile: null,
+              presentationMode: 'source-assisted',
+              contextRequirement: { mode: 'required', acceptedKinds: ['book-pages'] },
+              instructions: [{ text: 'Listen.' }],
+              stimulus: null,
+              assetRefs: [],
+              interaction: { family: 'choice', variant: 'single-select' },
+              answerRule: { defaultPoints: 1, normalization: 'exact', requiredSelectionCount: 1 },
+              interactions: [{ prompt: 'Q1', options: ['A', 'B'], acceptedOptionIndexes: [0] }],
+              scoring: { mode: 'auto-where-possible' },
+            },
+            evidenceRefs: ['import:u1-a1'],
+            sourceEvidenceRefs: ['source:full:page:1'],
+            answerEvidenceRefs: ['source:full:page:1'],
+          }],
+        },
+        {
+          unitKey: 'unit-2',
+          slots: [{
+            activityKey: 'u2-a1',
+            content: {
+              schemaVersion: 1,
+              title: 'Unit 2 Task',
+              taskProfile: null,
+              presentationMode: 'source-assisted',
+              contextRequirement: { mode: 'required', acceptedKinds: ['book-pages'] },
+              instructions: [{ text: 'Listen.' }],
+              stimulus: null,
+              assetRefs: [],
+              interaction: { family: 'choice', variant: 'single-select' },
+              answerRule: { defaultPoints: 1, normalization: 'exact', requiredSelectionCount: 1 },
+              interactions: [{ prompt: 'Q2', options: ['A', 'B'], acceptedOptionIndexes: [1] }],
+              scoring: { mode: 'auto-where-possible' },
+            },
+            evidenceRefs: ['import:u2-a1'],
+            sourceEvidenceRefs: ['source:full:page:2'],
+            answerEvidenceRefs: ['source:full:page:2'],
+          }],
+        },
+      ],
+    });
+
+    fireEvent.change(screen.getByLabelText('Paste Unit 1 JSON'), { target: { value: bulkPayload } });
+    expect(screen.getByRole('heading', { name: 'Bulk import' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Copy bulk prompt \(2\)/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Import all' }));
+    await waitFor(() => expect(activityAuthoring.saveDraft).toHaveBeenCalledTimes(2));
+    expect(screen.getByText('2 / 2 units ready')).toBeInTheDocument();
+    expect(screen.getByLabelText('Bulk import unit status')).toHaveTextContent('Unit 1 ✓');
+    expect(screen.getByLabelText('Bulk import unit status')).toHaveTextContent('Unit 2 ✓');
+  });
+
 });

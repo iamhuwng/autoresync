@@ -42,10 +42,22 @@
 .book-assembly-workspace__migration-impact dd { margin: 0; font-weight: 700; }
 .book-assembly-workspace__migration-errors { display: grid; gap: .35rem; margin: 0; padding-left: 1.25rem; color: #7c2d12; }
 .book-assembly-workspace__migration-errors code { overflow-wrap: anywhere; }
-.book-assembly-workspace__import-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
-.book-assembly-workspace__import-editor, .book-assembly-workspace__manual-copy { display: grid; gap: .35rem; color: #334155; font-weight: 700; min-width: 0; }
-.book-assembly-workspace__import-editor textarea, .book-assembly-workspace__manual-copy textarea { width: 100%; min-height: 9rem; border: 1px solid #697786; border-radius: .375rem; padding: .65rem; resize: vertical; color: inherit; background: #fff; font: inherit; }
-.book-assembly-workspace__manual-copy textarea { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .82rem; }
+.book-assembly-workspace__import-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.book-assembly-workspace__unit-import--compact { border: 0; padding: 0; border-radius: 0; margin-top: .75rem; }
+.book-assembly-workspace__import-editor, .book-assembly-workspace__manual-copy { display: grid; gap: .35rem; color: #334155; font-weight: 600; font-size: .85rem; min-width: 0; }
+.book-assembly-workspace__import-editor textarea, .book-assembly-workspace__manual-copy textarea, .book-assembly-workspace__json-textarea { width: 100%; min-height: 9rem; border: 1px solid #cbd5e1; border-radius: .45rem; padding: .7rem .8rem; resize: vertical; color: #1e293b; background: #fff; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .8125rem; font-weight: 400; line-height: 1.5; }
+.book-assembly-workspace__import-drop-wrap { position: relative; min-width: 0; }
+.book-assembly-workspace__import-drop-wrap.is-active textarea { border-color: #5146d9; background: #f5f4ff; box-shadow: 0 0 0 3px rgb(81 70 217 / 14%); }
+.book-assembly-workspace__import-status { margin: 0; color: #475569; font-size: .82rem; }
+.book-assembly-edit__sidebar-divider { border-top: 1px solid #e2e8f0; margin: .2rem 0; }
+.book-assembly-edit__scope-toggle { display: inline-flex; border: 1px solid #dfe2e9; border-radius: 7px; overflow: hidden; background: #f8fafc; }
+.book-assembly-edit__scope-toggle button { border: 0; border-radius: 0; padding: 6px 10px; min-height: 2.25rem; background: transparent; color: #475569; font-size: .78rem; font-weight: 500; }
+.book-assembly-edit__scope-toggle button.is-active { background: #efedff; color: #5146d9; font-weight: 600; }
+.book-assembly-edit__bulk-results { display: flex; flex-wrap: wrap; gap: 6px; margin-top: .5rem; }
+.book-assembly-edit__bulk-chip { display: inline-flex; align-items: center; gap: 5px; border: 1px solid #dfe2e9; border-radius: 999px; padding: 3px 9px; font-size: .74rem; background: #f8fafc; color: #475569; }
+.book-assembly-edit__bulk-chip.is-done { border-color: #bbf7d0; background: #e8f7ef; color: #1a7b50; }
+.book-assembly-edit__bulk-chip.is-importing { border-color: #c7c9fb; background: #efedff; color: #5146d9; }
+.book-assembly-edit__bulk-chip.is-conflict, .book-assembly-edit__bulk-chip.is-error { border-color: #fecaca; background: #fff0f1; color: #b33d4b; }
 .book-assembly-workspace__dropzone { border: 1px dashed #697786; border-radius: .375rem; padding: 1rem; color: #5d6b78; background: #f8fafc; text-align: center; }
 .book-assembly-workspace__dropzone.is-active { border-color: #1e5d8f; background: #e6f1f9; color: #123d5c; }
 .book-assembly-workspace__preview { display: grid; gap: .75rem; min-width: 0; }
@@ -83,7 +95,8 @@
 .book-assembly-workspace [role="alert"] { border: 1px solid #d97706; border-radius: .5rem; padding: .65rem; background: #fff7ed; color: #7c2d12; }
 @media (max-width: 700px) {
   .book-assembly-workspace { padding: .85rem; overflow-x: clip; }
-  .book-assembly-workspace button { min-height: 44px; }
+  .book-assembly-workspace button,
+  .book-assembly-edit__scope-toggle button { min-height: 44px; }
   .book-assembly-workspace__header, .book-assembly-workspace__section-heading { flex-direction: column; }
   .book-assembly-workspace__body { grid-template-columns: minmax(0, 1fr); }
   .book-assembly-workspace__sources article { align-items: stretch; flex-direction: column; }

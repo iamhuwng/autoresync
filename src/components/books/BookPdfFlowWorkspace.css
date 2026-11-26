@@ -60,6 +60,9 @@
 .pbf-progress-step.is-done { color: var(--pbf-success); }
 .pbf-progress-step.is-done span { background: var(--pbf-success-soft); }
 .pbf-main { min-height: 520px; padding: 30px 32px; background: var(--pbf-bg); }
+.pbf-window--focused { border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+.pbf-window--focused .pbf-main { min-height: 420px; padding: 14px 4px 16px; background: transparent; }
+.pbf-window--focused .pbf-view { max-width: 100%; }
 .pbf-view { max-width: 760px; margin: 0 auto; }
 .pbf-hero { max-width: 610px; margin: 0 auto 26px; text-align: center; }
 .pbf-hero h2 { font-size: 1.35rem; font-weight: 500; letter-spacing: -.02em; }

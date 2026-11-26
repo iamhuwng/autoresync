@@ -7,11 +7,20 @@ import type { EditableActivity } from '../../types/bookActivity.types';
 
 export const UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION = 'prd0062.unit_activity_import.v1' as const;
 export const UNIT_ACTIVITY_IMPORT_PROMPT_VERSION = 'book-unit-json-v1' as const;
+export const BULK_UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION = 'prd0062.book_unit_activities_bulk_import.v1' as const;
+export const BULK_UNIT_ACTIVITY_IMPORT_PROMPT_VERSION = 'book-units-bulk-json-v1' as const;
 
 export interface UnitPromptInput {
   readonly bookTitle: string;
   readonly manifest: BookAssemblyManifestCandidate;
   readonly unitKey: string;
+  readonly sourceVersions: readonly TrustedBookSourceVersionProjection[];
+}
+
+export interface BulkUnitPromptInput {
+  readonly bookTitle: string;
+  readonly manifest: BookAssemblyManifestCandidate;
+  readonly unitKeys?: readonly string[];
   readonly sourceVersions: readonly TrustedBookSourceVersionProjection[];
 }
 
@@ -44,6 +53,21 @@ const unitPath = (manifest: BookAssemblyManifestCandidate, unitKey: string): str
 const sourcePageRefs = (unit: BookUnitCandidate): string[] => {
   const refs = new Set<string>();
   for (const group of unit.pageGroups) {
+    refs.add(`pageGroup:${group.pageGroupKey}`);
+    for (const page of group.pages) refs.add(`source:${group.sourceKey}:page:${page}`);
+  }
+  return [...refs].sort();
+};
+
+const slotSourcePageRefs = (
+  unit: BookUnitCandidate,
+  slot: BookUnitCandidate['activitySlots'][number],
+): string[] => {
+  const groups = new Map(unit.pageGroups.map((group) => [group.pageGroupKey, group]));
+  const refs = new Set<string>([`import:${slot.activityKey}`]);
+  for (const pageGroupKey of slot.pageGroupKeys) {
+    const group = groups.get(pageGroupKey);
+    if (!group) continue;
     refs.add(`pageGroup:${group.pageGroupKey}`);
     for (const page of group.pages) refs.add(`source:${group.sourceKey}:page:${page}`);
   }
@@ -162,6 +186,111 @@ export const buildUnitActivityImportPrompt = ({
     '- Do not create Resource, Task Group, or Task Set objects. This import accepts Activity content only.',
     '- Use only allowed source/page evidence refs from the contract.',
     '- Do not include hidden IDs, editable IDs, sourceVersionId, provider object keys, provider URLs, credentials, private source authority, teacher notes, guessed offsets, unsupported visual approximation, or accepted answers from unrelated sources.',
+  ].join('\n');
+};
+
+export const buildBulkUnitActivityImportPrompt = ({
+  bookTitle,
+  manifest,
+  unitKeys,
+  sourceVersions,
+}: BulkUnitPromptInput): string => {
+  const requestedSet = unitKeys && unitKeys.length > 0 ? new Set(unitKeys) : null;
+  const targetUnits = manifest.units.filter((entry) => (
+    entry.activitySlots.length > 0 && (!requestedSet || requestedSet.has(entry.unitKey))
+  ));
+  if (targetUnits.length === 0) {
+    throw new Error('No Units with Activity slots are available for bulk import.');
+  }
+  const sourcePageCounts = new Map(sourceVersions.map((source) => [
+    source.sourceVersionId,
+    source.physicalPageCount,
+  ]));
+  const sourceSummary = manifest.sourceSet.sources.map((source) => ({
+    sourceKey: source.sourceKey,
+    sourceOrder: source.sourceOrder,
+    physicalPageCount: sourcePageCounts.get(source.sourceVersionId) ?? null,
+  }));
+  const exampleUnit = targetUnits[0]!;
+  const exampleSlot = exampleUnit.activitySlots[0]!;
+  const contract = {
+    promptVersion: BULK_UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
+    schemaVersion: BULK_UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION,
+    book: {
+      bookId: manifest.bookId,
+      title: bookTitle,
+      sourceStrategy: manifest.sourceSet.sourceStrategy,
+      sources: sourceSummary,
+    },
+    units: targetUnits.map((unit) => ({
+      unitKey: unit.unitKey,
+      hierarchy: unitPath(manifest, unit.unitKey),
+      sourceLocalPages: unit.pageGroups.map((group) => ({
+        pageGroupKey: group.pageGroupKey,
+        sourceKey: group.sourceKey,
+        pages: group.pages,
+        defaultPhysicalPageNumber: group.defaultPhysicalPageNumber ?? null,
+        mode: group.mode,
+      })),
+      activitySlots: unit.activitySlots.map((slot) => ({
+        activityKey: slot.activityKey,
+        order: slot.order,
+        contextRequirement: slot.contextRequirement,
+        pageGroupKeys: slot.pageGroupKeys,
+        allowedEvidenceRefs: slotSourcePageRefs(unit, slot),
+      })),
+    })),
+    supportedActivityContract,
+    outputBundleShape: {
+      promptVersion: BULK_UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
+      schemaVersion: BULK_UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION,
+      bookId: manifest.bookId,
+      units: [
+        {
+          unitKey: exampleUnit.unitKey,
+          slots: [
+            {
+              activityKey: exampleSlot.activityKey,
+              content: {
+                schemaVersion: 1,
+                title: 'Teacher-visible Activity title',
+                taskProfile: null,
+                presentationMode: exampleSlot.contextRequirement === 'none' ? 'structured' : 'source-assisted',
+                contextRequirement: {
+                  mode: exampleSlot.contextRequirement === 'none' ? 'none' : exampleSlot.contextRequirement,
+                  acceptedKinds: exampleSlot.contextRequirement === 'none' ? [] : ['book-pages'],
+                },
+                instructions: [{ text: 'Student instructions.' }],
+                stimulus: null,
+                assetRefs: [],
+                interaction: { family: 'choice', variant: 'single-select' },
+                answerRule: { defaultPoints: 1, normalization: 'exact', requiredSelectionCount: 1 },
+                interactions: [{ prompt: 'Question text.', options: ['A', 'B'], acceptedOptionIndexes: [0] }],
+                scoring: { mode: 'auto-where-possible' },
+              },
+              evidenceRefs: [`import:${exampleSlot.activityKey}`],
+              sourceEvidenceRefs: slotSourcePageRefs(exampleUnit, exampleSlot).filter((ref) => !ref.startsWith('import:')).slice(0, 1),
+              answerEvidenceRefs: slotSourcePageRefs(exampleUnit, exampleSlot).filter((ref) => !ref.startsWith('import:')).slice(0, 1),
+            },
+          ],
+        },
+      ],
+    },
+  };
+
+  return [
+    `Create bulk Activity JSON for ${targetUnits.length} PRD0062 Book Unit${targetUnits.length === 1 ? '' : 's'}.`,
+    '',
+    JSON.stringify(contract, null, 2),
+    '',
+    'Rules:',
+    '- Return one JSON object only. No Markdown, comments, React, TSX, or custom components.',
+    '- Keep promptVersion, schemaVersion, bookId, every unitKey, and every activityKey exact.',
+    '- You may return all requested units together or a partial batch (for example 5 units at a time); every included unit must contain all of its activitySlots.',
+    '- Every slot must use exactly one interaction family from supportedActivityContract.',
+    '- Keep answer rules inside editable Activity content only. Use review-required for long-response.',
+    '- Use only allowedEvidenceRefs belonging to that exact unit and slot.',
+    '- Do not include hidden IDs, sourceVersionId, provider URLs, credentials, teacher notes, or Resource/Task Group/Task Set objects.',
   ].join('\n');
 };
 

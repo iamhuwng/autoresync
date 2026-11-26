@@ -2,9 +2,15 @@ import type { ActivityAuthoringService } from '../book-activity/activityAuthorin
 import type { ActivityStageResult } from '../book-activity/activityAuthoring.repository';
 import { ActivityAuthoringHttpError } from '../book-activity/activityStorage.service';
 import type { BookAssemblyManifestCandidate, BookUnitCandidate } from '../../types/bookAssembly.types';
-import { UNIT_ACTIVITY_IMPORT_PROMPT_VERSION, UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION } from './unitPrompt.service';
+import {
+  BULK_UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
+  BULK_UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION,
+  UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
+  UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION,
+} from './unitPrompt.service';
 
 const MAX_IMPORT_BYTES = 512 * 1024;
+const MAX_BULK_IMPORT_BYTES = 4 * 1024 * 1024;
 const MAX_ACTIVITY_TARGET_ID_LENGTH = 160;
 const FORBIDDEN_KEYS = /^(activityId|candidateId|ownerId|ownerNodeKey|interactionId|itemId|sourceVersionId|providerObjectKey|providerUrl|objectKey|bucket|credential|credentials|token|privateKey|teacherNotes|react|tsx)$/iu;
 const FORBIDDEN_TEXT = /(https?:\/\/|b2:\/\/|backblaze|providerObjectKey|private_key|BEGIN PRIVATE KEY|tsx|<script|function\s+[A-Za-z0-9_]+\s*\()/iu;
@@ -180,6 +186,88 @@ const stripCodeFences = (value: string): string => {
   return match ? match[1]!.trim() : trimmed;
 };
 
+const validateAndNormalizeUnitSlots = (
+  rawSlots: unknown,
+  manifest: BookAssemblyManifestCandidate,
+  unitKey: string,
+  unitPrefix = '',
+): UnitActivityImportBundle => {
+  const unit = manifest.units.find((entry) => entry.unitKey === unitKey);
+  if (!unit) throw new UnitActivityImportError('missing-unit', `${unitPrefix}Unit "${unitKey}" has no Activity slot contract.`);
+  if (!Array.isArray(rawSlots)) {
+    throw new UnitActivityImportError('invalid-slots', `${unitPrefix}Import bundle slots must be an array.`);
+  }
+  const expected = unit.activitySlots.map((slot) => slot.activityKey).sort();
+  const expectedSet = new Set(expected);
+  const seen = new Set<string>();
+  const slots = rawSlots.map((entry, index): UnitActivityImportSlot => {
+    const slot = record(entry, 'invalid-slot');
+    exact(slot, ['activityKey', 'content'], ['evidenceRefs', 'sourceEvidenceRefs', 'answerEvidenceRefs'], 'unknown-field');
+    if (typeof slot.activityKey !== 'string') {
+      throw new UnitActivityImportError('invalid-slot-key', `${unitPrefix}Slot ${index + 1} activityKey is invalid.`);
+    }
+    if (seen.has(slot.activityKey)) {
+      throw new UnitActivityImportError('duplicate-slot', `${unitPrefix}Duplicate Activity slot ${slot.activityKey}.`);
+    }
+    if (!expectedSet.has(slot.activityKey)) {
+      throw new UnitActivityImportError('slot-mismatch', `${unitPrefix}Import bundle slots must exactly match the selected Unit Activity slots.`);
+    }
+    seen.add(slot.activityKey);
+    assertNoForbidden(slot.content, `${unitPrefix}slots[${index}].content`);
+    const evidenceRefs = stringArray(slot.evidenceRefs, 'evidenceRefs');
+    const sourceEvidenceRefs = stringArray(slot.sourceEvidenceRefs, 'sourceEvidenceRefs');
+    const answerEvidenceRefs = stringArray(slot.answerEvidenceRefs, 'answerEvidenceRefs');
+    const slotRefs = allowedEvidenceRefsForSlot(unit, slot.activityKey);
+    assertSourceRefs(evidenceRefs, slotRefs, 'evidenceRefs');
+    assertSourceRefs(sourceEvidenceRefs, slotRefs, 'sourceEvidenceRefs');
+    assertSourceRefs(answerEvidenceRefs, slotRefs, 'answerEvidenceRefs');
+    return {
+      activityKey: slot.activityKey,
+      content: slot.content,
+      evidenceRefs,
+      sourceEvidenceRefs,
+      answerEvidenceRefs,
+    };
+  });
+  const actual = [...seen].sort();
+  if (expected.length !== actual.length || expected.some((key, index) => key !== actual[index])) {
+    throw new UnitActivityImportError('slot-mismatch', `${unitPrefix}Import bundle slots must exactly match the selected Unit Activity slots.`);
+  }
+  return {
+    promptVersion: UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
+    schemaVersion: UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION,
+    bookId: manifest.bookId,
+    unitKey,
+    slots,
+  };
+};
+
+export const detectBulkUnitActivityPayload = (text: string): boolean => {
+  const normalized = stripCodeFences(text);
+  if (!normalized) return false;
+  try {
+    const parsed: unknown = JSON.parse(normalized);
+    if (Array.isArray(parsed)) {
+      return parsed.length > 0 && parsed.every((entry) => (
+        entry !== null && typeof entry === 'object' && !Array.isArray(entry)
+        && (('unitKey' in entry && 'slots' in entry) || ('units' in entry && Array.isArray((entry as Record<string, unknown>).units) && !('nodes' in entry)))
+      ));
+    }
+    if (parsed !== null && typeof parsed === 'object') {
+      const obj = parsed as Record<string, unknown>;
+      if (obj.schemaVersion === BULK_UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION) return true;
+      if (Array.isArray(obj.units) && !('nodes' in obj) && obj.units.some((entry) => (
+        entry !== null && typeof entry === 'object' && !Array.isArray(entry) && 'slots' in entry
+      ))) {
+        return true;
+      }
+    }
+  } catch {
+    return false;
+  }
+  return false;
+};
+
 export const parseUnitActivityImportBundle = (
   text: string,
   manifest: BookAssemblyManifestCandidate,
@@ -210,54 +298,117 @@ export const parseUnitActivityImportBundle = (
   if (bundle.bookId !== manifest.bookId || bundle.unitKey !== unitKey) {
     throw new UnitActivityImportError('foreign-unit', 'Import bundle does not target the selected Book Unit.');
   }
-  const unit = manifest.units.find((entry) => entry.unitKey === unitKey);
-  if (!unit) throw new UnitActivityImportError('missing-unit', 'Selected Unit has no Activity slot contract.');
-  if (!Array.isArray(bundle.slots)) {
-    throw new UnitActivityImportError('invalid-slots', 'Import bundle slots must be an array.');
+  return validateAndNormalizeUnitSlots(bundle.slots, manifest, unitKey);
+};
+
+const parseBulkEnvelopeUnits = (
+  root: Record<string, unknown>,
+  manifest: BookAssemblyManifestCandidate,
+): unknown[] => {
+  exact(root, ['promptVersion', 'schemaVersion', 'bookId', 'units']);
+  if (root.promptVersion !== BULK_UNIT_ACTIVITY_IMPORT_PROMPT_VERSION) {
+    throw new UnitActivityImportError('invalid-prompt-version', 'Bulk import prompt version is unsupported.');
   }
-  const expected = unit.activitySlots.map((slot) => slot.activityKey).sort();
-  const expectedSet = new Set(expected);
-  const seen = new Set<string>();
-  const slots = bundle.slots.map((entry, index): UnitActivityImportSlot => {
-    const slot = record(entry, 'invalid-slot');
-    exact(slot, ['activityKey', 'content'], ['evidenceRefs', 'sourceEvidenceRefs', 'answerEvidenceRefs'], 'unknown-field');
-    if (typeof slot.activityKey !== 'string') {
-      throw new UnitActivityImportError('invalid-slot-key', `Slot ${index + 1} activityKey is invalid.`);
-    }
-    if (seen.has(slot.activityKey)) {
-      throw new UnitActivityImportError('duplicate-slot', `Duplicate Activity slot ${slot.activityKey}.`);
-    }
-    if (!expectedSet.has(slot.activityKey)) {
-      throw new UnitActivityImportError('slot-mismatch', 'Import bundle slots must exactly match the selected Unit Activity slots.');
-    }
-    seen.add(slot.activityKey);
-    assertNoForbidden(slot.content, `slots[${index}].content`);
-    const evidenceRefs = stringArray(slot.evidenceRefs, 'evidenceRefs');
-    const sourceEvidenceRefs = stringArray(slot.sourceEvidenceRefs, 'sourceEvidenceRefs');
-    const answerEvidenceRefs = stringArray(slot.answerEvidenceRefs, 'answerEvidenceRefs');
-    const slotRefs = allowedEvidenceRefsForSlot(unit, slot.activityKey);
-    assertSourceRefs(evidenceRefs, slotRefs, 'evidenceRefs');
-    assertSourceRefs(sourceEvidenceRefs, slotRefs, 'sourceEvidenceRefs');
-    assertSourceRefs(answerEvidenceRefs, slotRefs, 'answerEvidenceRefs');
-    return {
-      activityKey: slot.activityKey,
-      content: slot.content,
-      evidenceRefs,
-      sourceEvidenceRefs,
-      answerEvidenceRefs,
-    };
-  });
-  const actual = [...seen].sort();
-  if (expected.length !== actual.length || expected.some((key, index) => key !== actual[index])) {
-    throw new UnitActivityImportError('slot-mismatch', 'Import bundle slots must exactly match the selected Unit Activity slots.');
+  if (root.schemaVersion !== BULK_UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION) {
+    throw new UnitActivityImportError('invalid-schema-version', 'Bulk import schema version is unsupported.');
   }
-  return {
-    promptVersion: UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
-    schemaVersion: UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION,
-    bookId: manifest.bookId,
-    unitKey,
-    slots,
-  };
+  if (root.bookId !== manifest.bookId) {
+    throw new UnitActivityImportError('foreign-unit', 'Bulk import does not target this Book.');
+  }
+  if (!Array.isArray(root.units) || root.units.length === 0) {
+    throw new UnitActivityImportError('empty-bulk', 'Bulk import must contain at least one Unit in "units".');
+  }
+  return root.units;
+};
+
+export const parseBulkUnitActivityImportBundles = (
+  text: string,
+  manifest: BookAssemblyManifestCandidate,
+): readonly UnitActivityImportBundle[] => {
+  const normalizedText = stripCodeFences(text);
+  if (byteLength(normalizedText) > MAX_BULK_IMPORT_BYTES) {
+    throw new UnitActivityImportError('payload-too-large', 'Bulk import JSON exceeds the 4 MB size limit.');
+  }
+  let parsed: unknown;
+  try { parsed = JSON.parse(normalizedText); } catch {
+    throw new UnitActivityImportError('invalid-json', 'That text is not valid JSON. Paste a valid bulk or unit JSON object/array.');
+  }
+
+  const rawUnits: Array<{ readonly item: Record<string, unknown>; readonly requireBundleMetadata: boolean }> = [];
+  if (Array.isArray(parsed)) {
+    if (parsed.length === 0) {
+      throw new UnitActivityImportError('empty-bulk', 'Bulk import array must contain at least one Unit.');
+    }
+    for (let index = 0; index < parsed.length; index += 1) {
+      const entry = record(parsed[index], 'invalid-unit');
+      if (Array.isArray(entry.nodes) && Array.isArray(entry.units) && !('slots' in entry)) {
+        throw new UnitActivityImportError(
+          'wrong-import-surface',
+          'This looks like Book Outline JSON, not Unit Activity JSON. Paste it in the Book outline tab instead.',
+        );
+      }
+      if ('units' in entry && !('unitKey' in entry)) {
+        for (const unitEntry of parseBulkEnvelopeUnits(entry, manifest)) {
+          rawUnits.push({ item: record(unitEntry, 'invalid-unit'), requireBundleMetadata: false });
+        }
+      } else {
+        rawUnits.push({ item: entry, requireBundleMetadata: true });
+      }
+    }
+  } else {
+    const root = record(parsed);
+    if (Array.isArray(root.nodes) && Array.isArray(root.units) && !('slots' in root)) {
+      throw new UnitActivityImportError(
+        'wrong-import-surface',
+        'This looks like Book Outline JSON, not Unit Activity JSON. Paste it in the Book outline tab instead.',
+      );
+    }
+    if ('unitKey' in root && 'slots' in root && !('units' in root)) {
+      if (typeof root.unitKey !== 'string' || !root.unitKey.trim()) {
+        throw new UnitActivityImportError('invalid-unit-key', 'Import bundle unitKey is invalid.');
+      }
+      if (!manifest.units.some((entry) => entry.unitKey === root.unitKey)) {
+        throw new UnitActivityImportError('unknown-unit', `Unit "${root.unitKey}" does not exist in this Book outline.`);
+      }
+      return [parseUnitActivityImportBundle(normalizedText, manifest, root.unitKey)];
+    }
+    for (const unitEntry of parseBulkEnvelopeUnits(root, manifest)) {
+      rawUnits.push({ item: record(unitEntry, 'invalid-unit'), requireBundleMetadata: false });
+    }
+  }
+
+  const seenUnits = new Set<string>();
+  const bundles: UnitActivityImportBundle[] = [];
+  for (let index = 0; index < rawUnits.length; index += 1) {
+    const { item, requireBundleMetadata } = rawUnits[index]!;
+    if (requireBundleMetadata) {
+      exact(item, ['promptVersion', 'schemaVersion', 'bookId', 'unitKey', 'slots']);
+    } else {
+      exact(item, ['unitKey', 'slots'], ['promptVersion', 'schemaVersion', 'bookId']);
+    }
+    if (typeof item.unitKey !== 'string' || !item.unitKey.trim()) {
+      throw new UnitActivityImportError('invalid-unit-key', `Unit entry ${index + 1} has an invalid unitKey.`);
+    }
+    const unitKey = item.unitKey.trim();
+    if ((requireBundleMetadata || item.promptVersion !== undefined) && item.promptVersion !== UNIT_ACTIVITY_IMPORT_PROMPT_VERSION) {
+      throw new UnitActivityImportError('invalid-prompt-version', `${unitKey}: unsupported promptVersion.`);
+    }
+    if ((requireBundleMetadata || item.schemaVersion !== undefined) && item.schemaVersion !== UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION) {
+      throw new UnitActivityImportError('invalid-schema-version', `${unitKey}: unsupported schemaVersion.`);
+    }
+    if ((requireBundleMetadata || item.bookId !== undefined) && item.bookId !== manifest.bookId) {
+      throw new UnitActivityImportError('foreign-unit', `${unitKey}: bundle belongs to a different Book.`);
+    }
+    if (seenUnits.has(unitKey)) {
+      throw new UnitActivityImportError('duplicate-unit', `Duplicate Unit "${unitKey}" in bulk import.`);
+    }
+    if (!manifest.units.some((entry) => entry.unitKey === unitKey)) {
+      throw new UnitActivityImportError('unknown-unit', `Unit "${unitKey}" does not exist in this Book outline.`);
+    }
+    seenUnits.add(unitKey);
+    bundles.push(validateAndNormalizeUnitSlots(item.slots, manifest, unitKey, `${unitKey}: `));
+  }
+  return bundles;
 };
 
 export const discardStagedUnitActivities = async (

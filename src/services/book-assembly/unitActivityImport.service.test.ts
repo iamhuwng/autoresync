@@ -5,13 +5,20 @@ import type { EditableActivity } from '../../types/bookActivity.types';
 import type { BookAssemblyManifestCandidate } from '../../types/bookAssembly.types';
 import {
   bookScopedActivityTargetId,
+  detectBulkUnitActivityPayload,
   discardStagedUnitActivities,
+  parseBulkUnitActivityImportBundles,
   parseUnitActivityImportBundle,
   stageUnitActivityImportBundle,
   UnitActivityImportConflictError,
   UnitActivityImportError,
 } from './unitActivityImport.service';
-import { UNIT_ACTIVITY_IMPORT_PROMPT_VERSION, UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION } from './unitPrompt.service';
+import {
+  BULK_UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
+  BULK_UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION,
+  UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
+  UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION,
+} from './unitPrompt.service';
 
 const manifest: BookAssemblyManifestCandidate = {
   bookId: 'book-1',
@@ -336,6 +343,138 @@ describe('unit Activity JSON import', () => {
     expect(service.discard).toHaveBeenCalledWith({
       candidateId: 'candidate-activity-a',
       expectedRevision: 2,
+    });
+  });
+
+  describe('bulk Unit Activity JSON import', () => {
+    const twoUnitManifest: BookAssemblyManifestCandidate = {
+      ...manifest,
+      nodes: [
+        { nodeKey: 'unit-1', parentNodeKey: null, nodeType: 'unit', order: 1 },
+        { nodeKey: 'unit-2', parentNodeKey: null, nodeType: 'unit', order: 2 },
+      ],
+      units: [
+        manifest.units[0]!,
+        {
+          unitKey: 'unit-2',
+          activitySlots: [{ activityKey: 'u2-a', order: 1, contextRequirement: 'required', pageGroupKeys: ['u2-p5'] }],
+          pageGroups: [{ pageGroupKey: 'u2-p5', sourceKey: 'full', pages: [5], defaultPhysicalPageNumber: 5, activityKeys: ['u2-a'], mode: 'activity' }],
+        },
+      ],
+    };
+
+    const bulkEnvelope = JSON.stringify({
+      promptVersion: BULK_UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
+      schemaVersion: BULK_UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION,
+      bookId: 'book-1',
+      units: [
+        {
+          unitKey: 'unit-1',
+          slots: [
+            { activityKey: 'activity-a', content: activity('U1 A'), sourceEvidenceRefs: ['source:full:page:2'] },
+            { activityKey: 'activity-b', content: activity('U1 B'), sourceEvidenceRefs: ['source:full:page:3'] },
+          ],
+        },
+        {
+          unitKey: 'unit-2',
+          slots: [
+            { activityKey: 'u2-a', content: activity('U2 A'), sourceEvidenceRefs: ['source:full:page:5'] },
+          ],
+        },
+      ],
+    });
+
+    it('detects bulk payloads and parses canonical bulk envelopes, fenced JSON, arrays of unit bundles, and single-unit bundles', () => {
+      expect(detectBulkUnitActivityPayload(bulkEnvelope)).toBe(true);
+      expect(detectBulkUnitActivityPayload(bundle())).toBe(false);
+
+      const fromEnvelope = parseBulkUnitActivityImportBundles(`\`\`\`json\n${bulkEnvelope}\n\`\`\``, twoUnitManifest);
+      expect(fromEnvelope.map((entry) => entry.unitKey)).toEqual(['unit-1', 'unit-2']);
+      expect(fromEnvelope[1]?.slots[0]?.activityKey).toBe('u2-a');
+
+      const fromArray = parseBulkUnitActivityImportBundles(JSON.stringify([
+        JSON.parse(bundle()),
+        {
+          promptVersion: UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
+          schemaVersion: UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION,
+          bookId: 'book-1',
+          unitKey: 'unit-2',
+          slots: [{ activityKey: 'u2-a', content: activity('U2 A'), sourceEvidenceRefs: ['source:full:page:5'] }],
+        },
+      ]), twoUnitManifest);
+      expect(fromArray.map((entry) => entry.unitKey)).toEqual(['unit-1', 'unit-2']);
+
+      const fromEnvelopeArray = parseBulkUnitActivityImportBundles(JSON.stringify([
+        {
+          promptVersion: BULK_UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
+          schemaVersion: BULK_UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION,
+          bookId: 'book-1',
+          units: [{
+            unitKey: 'unit-1',
+            slots: [
+              { activityKey: 'activity-a', content: activity('U1 A'), sourceEvidenceRefs: ['source:full:page:2'] },
+              { activityKey: 'activity-b', content: activity('U1 B'), sourceEvidenceRefs: ['source:full:page:3'] },
+            ],
+          }],
+        },
+        {
+          promptVersion: BULK_UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
+          schemaVersion: BULK_UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION,
+          bookId: 'book-1',
+          units: [{
+            unitKey: 'unit-2',
+            slots: [{ activityKey: 'u2-a', content: activity('U2 A'), sourceEvidenceRefs: ['source:full:page:5'] }],
+          }],
+        },
+      ]), twoUnitManifest);
+      expect(fromEnvelopeArray.map((entry) => entry.unitKey)).toEqual(['unit-1', 'unit-2']);
+
+      const fromSingle = parseBulkUnitActivityImportBundles(bundle(), twoUnitManifest);
+      expect(fromSingle.map((entry) => entry.unitKey)).toEqual(['unit-1']);
+    });
+
+    it('rejects duplicate units, unknown units, missing metadata, foreign-book bulk envelopes in arrays, and book outline JSON', () => {
+      expect(() => parseBulkUnitActivityImportBundles(JSON.stringify({
+        promptVersion: BULK_UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
+        schemaVersion: BULK_UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION,
+        bookId: 'book-1',
+        units: [
+          { unitKey: 'unit-2', slots: [{ activityKey: 'u2-a', content: activity('A') }] },
+          { unitKey: 'unit-2', slots: [{ activityKey: 'u2-a', content: activity('B') }] },
+        ],
+      }), twoUnitManifest)).toThrowError(expect.objectContaining({ code: 'duplicate-unit' }));
+
+      expect(() => parseBulkUnitActivityImportBundles(JSON.stringify({
+        promptVersion: BULK_UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
+        schemaVersion: BULK_UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION,
+        bookId: 'book-1',
+        units: [{ unitKey: 'unit-99', slots: [{ activityKey: 'x', content: activity('A') }] }],
+      }), twoUnitManifest)).toThrowError(expect.objectContaining({ code: 'unknown-unit' }));
+
+      // Missing root metadata on bulk envelope or array items MUST fail closed
+      expect(() => parseBulkUnitActivityImportBundles(JSON.stringify({
+        units: [{ unitKey: 'unit-2', slots: [{ activityKey: 'u2-a', content: activity('A') }] }],
+      }), twoUnitManifest)).toThrowError(expect.objectContaining({ code: 'missing-field' }));
+
+      expect(() => parseBulkUnitActivityImportBundles(JSON.stringify([
+        { unitKey: 'unit-2', slots: [{ activityKey: 'u2-a', content: activity('A') }] },
+      ]), twoUnitManifest)).toThrowError(expect.objectContaining({ code: 'missing-field' }));
+
+      // Foreign-book bulk envelope inside multi-file merged array MUST fail closed
+      expect(() => parseBulkUnitActivityImportBundles(JSON.stringify([
+        JSON.parse(bundle()),
+        {
+          promptVersion: BULK_UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
+          schemaVersion: BULK_UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION,
+          bookId: 'book-other',
+          units: [{ unitKey: 'unit-2', slots: [{ activityKey: 'u2-a', content: activity('A') }] }],
+        },
+      ]), twoUnitManifest)).toThrowError(expect.objectContaining({ code: 'foreign-unit' }));
+
+      expect(() => parseBulkUnitActivityImportBundles(JSON.stringify({
+        nodes: [{ nodeKey: 'unit-1', nodeType: 'unit', order: 1 }],
+        units: [{ unitKey: 'unit-1', activitySlots: [], pageGroups: [] }],
+      }), twoUnitManifest)).toThrowError(expect.objectContaining({ code: 'wrong-import-surface' }));
     });
   });
 });

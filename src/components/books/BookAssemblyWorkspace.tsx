@@ -23,8 +23,20 @@ import { fingerprintBookAssemblyOperation } from '../../services/book-assembly/p
 import type { CandidateUnitPreviewProjection } from '../../services/book-assembly/unitPreview.service';
 import { parsePhysicalPageList, reorderActivitySlot, upsertPageGroupMapping } from '../../services/book-assembly/pageGroup.service';
 import { missingRequiredSourceContext } from '../../services/book-assembly/sourceContextRequirement.service';
-import { bookScopedActivityTargetId, discardStagedUnitActivities, parseUnitActivityImportBundle, stageUnitActivityImportBundle, UnitActivityImportConflictError, UnitActivityImportError } from '../../services/book-assembly/unitActivityImport.service';
-import { buildUnitActivityImportPrompt } from '../../services/book-assembly/unitPrompt.service';
+import {
+  bookScopedActivityTargetId,
+  detectBulkUnitActivityPayload,
+  discardStagedUnitActivities,
+  parseBulkUnitActivityImportBundles,
+  parseUnitActivityImportBundle,
+  stageUnitActivityImportBundle,
+  UnitActivityImportConflictError,
+  UnitActivityImportError,
+} from '../../services/book-assembly/unitActivityImport.service';
+import {
+  buildBulkUnitActivityImportPrompt,
+  buildUnitActivityImportPrompt,
+} from '../../services/book-assembly/unitPrompt.service';
 import {
   buildBookStructurePrompt,
   parseAndNormalizeBookStructureJson,
@@ -456,6 +468,19 @@ const BookAssemblyWorkspace = ({
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'conflict' | 'error'>('idle');
   const [activationBusy, setActivationBusy] = useState(false);
   const [structureImportText, setStructureImportText] = useState('');
+  const [structureDropActive, setStructureDropActive] = useState(false);
+  const [activityScope, setActivityScope] = useState<'unit' | 'bulk'>('unit');
+  const [bulkPromptFilter, setBulkPromptFilter] = useState<'missing' | 'all'>('missing');
+  const [bulkImportText, setBulkImportText] = useState('');
+  const [bulkUnitResults, setBulkUnitResults] = useState<readonly {
+    readonly unitKey: string;
+    readonly label: string;
+    readonly status: 'pending' | 'importing' | 'done' | 'conflict' | 'error';
+    readonly slotCount?: number;
+    readonly message?: string;
+    readonly conflictActivityKey?: string;
+    readonly conflictRevision?: number;
+  }[]>([]);
   const [unitImportTextByUnit, setUnitImportTextByUnit] = useState<Readonly<Record<string, string>>>({});
   const [unitImportBusy, setUnitImportBusy] = useState(false);
   const [unitImportCancelable, setUnitImportCancelable] = useState(false);
@@ -665,6 +690,33 @@ const BookAssemblyWorkspace = ({
       return '';
     }
   }, [bookTitle, manifest, selectedUnitKey, sourceVersions]);
+  const unitsWithSlots = useMemo(
+    () => unitProgressList.filter((item) => item.totalSlots > 0),
+    [unitProgressList],
+  );
+  const missingUnitKeys = useMemo(
+    () => unitsWithSlots.filter((item) => !item.hasAllActivities).map((item) => item.unitKey),
+    [unitsWithSlots],
+  );
+  const bulkTargetUnitKeys = useMemo(
+    () => (bulkPromptFilter === 'missing' && missingUnitKeys.length > 0
+      ? missingUnitKeys
+      : unitsWithSlots.map((item) => item.unitKey)),
+    [bulkPromptFilter, missingUnitKeys, unitsWithSlots],
+  );
+  const bulkPromptText = useMemo(() => {
+    if (bulkTargetUnitKeys.length === 0) return '';
+    try {
+      return buildBulkUnitActivityImportPrompt({
+        bookTitle,
+        manifest: manifest as unknown as BookAssemblyManifestCandidate,
+        unitKeys: bulkTargetUnitKeys,
+        sourceVersions,
+      });
+    } catch {
+      return '';
+    }
+  }, [bookTitle, bulkTargetUnitKeys, manifest, sourceVersions]);
   const structurePromptContext = useMemo(() => {
     if (strategy !== 'full_pdf' || normalizedSources.length !== 1) return null;
     const source = normalizedSources[0]!;
@@ -1187,8 +1239,9 @@ const BookAssemblyWorkspace = ({
       bookRevision: effectiveBookRevision,
       sourceSetRevision: effectiveSourceSetRevision,
     },
+    unitCandidatesMap: Readonly<Record<string, BookAssemblyCandidateRecord>> = candidatesByUnit,
   ): Promise<BookAssemblyMutationResult> => {
-    const existingForUnit = candidatesByUnit[unitKey]
+    const existingForUnit = unitCandidatesMap[unitKey]
       ?? (candidate?.unitKey === unitKey ? candidate : null);
     return existingForUnit
       ? repository!.replace({
@@ -1214,18 +1267,26 @@ const BookAssemblyWorkspace = ({
   const persistAndValidateManifest = async (
     validManifest: BookAssemblyManifestCandidate,
     unitKey: string,
+    sessionContext?: {
+      authority: { bookRevision: number; sourceSetRevision: number };
+      attachedSourceSet: SourceSetCandidate | null;
+      candidatesByUnit: Record<string, BookAssemblyCandidateRecord>;
+    },
   ): Promise<Pick<BookAssemblyMutationResult, 'status' | 'candidate'> & Partial<Pick<BookAssemblyMutationResult, 'receipt'>>> => {
-    let authority = {
-      bookRevision: effectiveBookRevision,
-      sourceSetRevision: effectiveSourceSetRevision,
-    };
+    let authority = sessionContext
+      ? { ...sessionContext.authority }
+      : {
+          bookRevision: effectiveBookRevision,
+          sourceSetRevision: effectiveSourceSetRevision,
+        };
+    const currentAttachedSourceSet = sessionContext ? sessionContext.attachedSourceSet : attachedSourceSet;
     if (componentPdfActivationRecovery && (!componentPdfActivationClient || !matchingComponentPdfActivationRecovery)) {
       throw new Error('component_pdf_activation_recovery_invalid');
     }
     if (validManifest.sourceSet.sourceStrategy === 'component_pdfs'
       && componentPdfActivationClient
       && (componentPdfActivationRecovery
-        || (attachedSourceSet && authority.sourceSetRevision > 0 && componentStudentDocumentSourceVersionId))) {
+        || (currentAttachedSourceSet && authority.sourceSetRevision > 0 && componentStudentDocumentSourceVersionId))) {
       const recovery = matchingComponentPdfActivationRecovery;
       const activationHash = fingerprintBookAssemblyOperation({
         bookId,
@@ -1259,6 +1320,11 @@ const BookAssemblyWorkspace = ({
         throw new Error('component_pdf_activation_readback_mismatch');
       }
       authority = { bookRevision: receipt.bookRevision, sourceSetRevision: receipt.sourceSetRevision };
+      if (sessionContext) {
+        sessionContext.authority = authority;
+        sessionContext.attachedSourceSet = receipt.sourceSet;
+        sessionContext.candidatesByUnit[unitKey] = loaded.candidate;
+      }
       setEffectiveBookRevision(receipt.bookRevision);
       setEffectiveSourceSetRevision(receipt.sourceSetRevision);
       setAttachedSourceSet(receipt.sourceSet);
@@ -1278,7 +1344,7 @@ const BookAssemblyWorkspace = ({
     }
     if (sourceSetAttachmentClient
       && validManifest.sourceSet.sourceStrategy !== 'component_pdfs'
-      && JSON.stringify(attachedSourceSet) !== JSON.stringify(validManifest.sourceSet)) {
+      && JSON.stringify(currentAttachedSourceSet) !== JSON.stringify(validManifest.sourceSet)) {
       const attachment = await sourceSetAttachmentClient.attachSourceSet({
         bookId,
         operationId: operationId(),
@@ -1290,6 +1356,10 @@ const BookAssemblyWorkspace = ({
         bookRevision: attachment.bookRevision,
         sourceSetRevision: attachment.sourceSetRevision,
       };
+      if (sessionContext) {
+        sessionContext.authority = authority;
+        sessionContext.attachedSourceSet = attachment.sourceSet;
+      }
       setEffectiveBookRevision(attachment.bookRevision);
       setEffectiveSourceSetRevision(attachment.sourceSetRevision);
       setAttachedSourceSet(attachment.sourceSet);
@@ -1334,6 +1404,9 @@ const BookAssemblyWorkspace = ({
             expectedCandidateRevision: saved.candidate.revision,
           });
         }
+        if (saved.candidate && sessionContext) {
+          sessionContext.candidatesByUnit[key] = saved.candidate;
+        }
         return saved;
       };
       for (const unit of validManifest.units.filter((entry) => entry.unitKey !== unitKey)) {
@@ -1342,7 +1415,12 @@ const BookAssemblyWorkspace = ({
       }
       return saveUnit(unitKey);
     }
-    let result = await persistManifest(validManifest, unitKey, authority);
+    let result = await persistManifest(
+      validManifest,
+      unitKey,
+      authority,
+      sessionContext?.candidatesByUnit ?? candidatesByUnit,
+    );
     if (validateCandidateAfterSave && result.candidate && result.candidate.lifecycle !== 'validated') {
       result = await repository!.validate({
         operationId: operationId(),
@@ -1351,6 +1429,9 @@ const BookAssemblyWorkspace = ({
         candidateId: result.candidate.candidateId,
         expectedCandidateRevision: result.candidate.revision,
       });
+    }
+    if (result.candidate && sessionContext) {
+      sessionContext.candidatesByUnit[unitKey] = result.candidate;
     }
     return result;
   };
@@ -1563,12 +1644,31 @@ const BookAssemblyWorkspace = ({
     if (copied) {
       setManualCopyFallback(false);
       toast.success('Unit prompt copied.');
-      emit('teacher_materials_book_assembly_unit_prompt_copied', { unitKey: selectedUnitKey });
+      emit('teacher_materials_book_assembly_unit_prompt_copied', { unitKey: selectedUnitKey, scope: 'unit' });
       return;
     }
     setManualCopyFallback(true);
     toast.warning('Clipboard was blocked. Manual copy fallback is available.');
-    emit('teacher_materials_book_assembly_unit_prompt_manual_copy_shown', { unitKey: selectedUnitKey });
+    emit('teacher_materials_book_assembly_unit_prompt_manual_copy_shown', { unitKey: selectedUnitKey, scope: 'unit' });
+  };
+
+  const copyBulkPrompt = (copied: boolean) => {
+    if (copied) {
+      setManualCopyFallback(false);
+      toast.success(`Bulk prompt copied (${bulkTargetUnitKeys.length} ${bulkTargetUnitKeys.length === 1 ? 'unit' : 'units'}).`);
+      emit('teacher_materials_book_assembly_unit_prompt_copied', {
+        scope: 'bulk',
+        unitCount: bulkTargetUnitKeys.length,
+        filter: bulkPromptFilter,
+      });
+      return;
+    }
+    setManualCopyFallback(true);
+    toast.warning('Clipboard was blocked. Manual copy fallback is available.');
+    emit('teacher_materials_book_assembly_unit_prompt_manual_copy_shown', {
+      scope: 'bulk',
+      unitCount: bulkTargetUnitKeys.length,
+    });
   };
 
   const copyBookStructurePrompt = async () => {
@@ -1756,9 +1856,219 @@ const BookAssemblyWorkspace = ({
     }
   };
 
+  const importBulkJson = async (
+    expectedRevisionsByUnit: Readonly<Record<string, Readonly<Record<string, number>>>> = {},
+    skipCompletedUnitKeys: ReadonlySet<string> = new Set(),
+  ) => {
+    if (persistenceBusyRef.current) return;
+    if (!repository || !activityAuthoring) {
+      setValidationMessage('Unit import is unavailable until trusted routes are configured.');
+      setStatus('error');
+      toast.error('Unit Activity import route is unavailable.');
+      return;
+    }
+    const validation = validateBookAssemblyManifestCandidate(manifest, sourceAuthority);
+    if (!validation.valid) {
+      setValidationMessage(errorText(validation));
+      setStatus('error');
+      toast.error('Fix outline issues before importing Activities.');
+      return;
+    }
+    const controller = new AbortController();
+    unitImportAbortRef.current = controller;
+    setUnitImportBusy(true);
+    setUnitImportCancelable(true);
+    setUnitImportConflict(null);
+    setUnitImportStatus('Validating bulk JSON…');
+    setStatus('saving');
+    setValidationMessage(null);
+    setErrorMessage(null);
+    try {
+      const validManifest = manifest as unknown as BookAssemblyManifestCandidate;
+      const bundles = parseBulkUnitActivityImportBundles(bulkImportText, validManifest);
+      const pendingBundles = bundles.filter((entry) => !skipCompletedUnitKeys.has(entry.unitKey));
+      emit('teacher_materials_book_assembly_unit_import_started', {
+        scope: 'bulk',
+        unitCount: pendingBundles.length,
+      });
+      setBulkUnitResults((current) => bundles.map((entry) => {
+        const previous = current.find((item) => item.unitKey === entry.unitKey);
+        if (skipCompletedUnitKeys.has(entry.unitKey) && previous?.status === 'done') return previous;
+        return {
+          unitKey: entry.unitKey,
+          label: formatUnitLabel(units, entry.unitKey),
+          status: 'pending',
+        };
+      }));
+      const sessionContext = {
+        authority: {
+          bookRevision: effectiveBookRevision,
+          sourceSetRevision: effectiveSourceSetRevision,
+        },
+        attachedSourceSet,
+        candidatesByUnit: { ...candidatesByUnit },
+      };
+      let totalSlots = 0;
+      let importedUnits = 0;
+      for (let index = 0; index < pendingBundles.length; index += 1) {
+        const bundle = pendingBundles[index]!;
+        const unitLabel = formatUnitLabel(units, bundle.unitKey);
+        if (controller.signal.aborted) {
+          setStatus('idle');
+          setUnitImportStatus(`Canceled after ${importedUnits} of ${pendingBundles.length} units.`);
+          return;
+        }
+        setUnitImportStatus(`Importing ${unitLabel} (${index + 1}/${pendingBundles.length})…`);
+        setBulkUnitResults((current) => current.map((item) => (
+          item.unitKey === bundle.unitKey ? { ...item, status: 'importing' } : item
+        )));
+        setUnitImportCancelable(false);
+        const assemblyResult = await persistAndValidateManifest(validManifest, bundle.unitKey, sessionContext);
+        if (assemblyResult.status === 'conflict') {
+          setStatus('conflict');
+          const message = `${unitLabel}: Book changed elsewhere. Reload before retrying.`;
+          setBulkUnitResults((current) => current.map((item) => (
+            item.unitKey === bundle.unitKey ? { ...item, status: 'error', message } : item
+          )));
+          setUnitImportStatus(message);
+          toast.warning(message);
+          return;
+        }
+        if (!assemblyResult.candidate || (validManifest.sourceSet.sourceStrategy === 'component_pdfs'
+          && sessionContext.authority.bookRevision === 0 && sessionContext.authority.sourceSetRevision === 0
+          && (assemblyResult.candidate.lifecycle !== 'validated' || !['validated', 'replaced', 'replayed'].includes(assemblyResult.status)))) {
+          const message = mutationErrorMessage(assemblyResult);
+          setStatus('error');
+          setErrorMessage(message);
+          setBulkUnitResults((current) => current.map((item) => (
+            item.unitKey === bundle.unitKey ? { ...item, status: 'error', message } : item
+          )));
+          setUnitImportStatus(`${unitLabel}: ${message}`);
+          toast.error(message);
+          return;
+        }
+        setCandidate(assemblyResult.candidate);
+        setCandidatesByUnit((prev) => ({ ...prev, [assemblyResult.candidate!.unitKey]: assemblyResult.candidate! }));
+        setSavedSnapshot(draftSnapshot(validManifest.sourceSet.sourceStrategy, validManifest.nodes, validManifest.sourceSet.sources, validManifest.units));
+        onDirtyChange?.(false);
+        setUnitImportCancelable(true);
+        try {
+          const importResult = await stageUnitActivityImportBundle({
+            text: JSON.stringify(bundle),
+            manifest: validManifest,
+            unitKey: bundle.unitKey,
+            activityAuthoring,
+            expectedActivityRevisions: expectedRevisionsByUnit[bundle.unitKey] ?? {},
+            resolveActivityTargetId: (slot) => {
+              const unit = validManifest.units.find((entry) => entry.unitKey === bundle.unitKey);
+              return unit?.activitySlots.some((entry) => entry.activityKey === slot.activityKey)
+                ? bookScopedActivityTargetId(validManifest.bookId, slot.activityKey)
+                : null;
+            },
+            signal: controller.signal,
+          });
+          setUnitImportCancelable(false);
+          if (controller.signal.aborted) {
+            await discardStagedUnitActivities(activityAuthoring, importResult.staged);
+            setStatus('idle');
+            setUnitImportStatus(`Canceled after ${importedUnits} of ${pendingBundles.length} units.`);
+            return;
+          }
+          totalSlots += importResult.staged.length;
+          importedUnits += 1;
+          setImportedActivityKeysByUnit((current) => ({
+            ...current,
+            [bundle.unitKey]: importResult.bundle.slots.map((slot) => slot.activityKey),
+          }));
+          setBulkUnitResults((current) => current.map((item) => (
+            item.unitKey === bundle.unitKey
+              ? { ...item, status: 'done', slotCount: importResult.staged.length }
+              : item
+          )));
+        } catch (unitError) {
+          if (unitError instanceof UnitActivityImportConflictError) {
+            setStatus('saved');
+            setUnitImportConflict({
+              unitKey: bundle.unitKey,
+              activityKey: unitError.activityKey,
+              currentRevision: unitError.currentRevision,
+            });
+            setBulkUnitResults((current) => current.map((item) => (
+              item.unitKey === bundle.unitKey
+                ? {
+                    ...item,
+                    status: 'conflict',
+                    conflictActivityKey: unitError.activityKey,
+                    conflictRevision: unitError.currentRevision,
+                  }
+                : item
+            )));
+            setUnitImportStatus(`${unitLabel}: ${unitError.activityKey} already has a saved draft.`);
+            toast.warning(`${unitLabel} has an existing draft. Choose Replace to continue.`);
+            emit('teacher_materials_book_assembly_unit_import_conflict_detected', {
+              scope: 'bulk',
+              unitKey: bundle.unitKey,
+              activityKey: unitError.activityKey,
+              currentRevision: unitError.currentRevision,
+            });
+            return;
+          }
+          throw unitError;
+        }
+      }
+      setBulkImportText('');
+      setUnitImportConflict(null);
+      setUnitImportStatus(`Imported ${importedUnits} ${importedUnits === 1 ? 'unit' : 'units'} (${totalSlots} activities).`);
+      onDirtyChange?.(false);
+      setStatus('saved');
+      toast.success(`Imported ${importedUnits} ${importedUnits === 1 ? 'unit' : 'units'} (${totalSlots} activities).`);
+      emit('teacher_materials_book_assembly_unit_import_staged', {
+        scope: 'bulk',
+        unitCount: importedUnits,
+        slotCount: totalSlots,
+      });
+    } catch (error) {
+      if (controller.signal.aborted) {
+        setStatus('idle');
+        setUnitImportStatus('Import canceled.');
+        return;
+      }
+      const message = error instanceof UnitActivityImportError
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : 'Bulk Unit Activity import failed.';
+      setStatus('error');
+      setUnitImportStatus(message);
+      setErrorMessage(message);
+      toast.error(message);
+      emit('teacher_materials_book_assembly_unit_import_failed', {
+        scope: 'bulk',
+        code: error instanceof UnitActivityImportError ? error.code : 'unknown',
+      });
+    } finally {
+      if (unitImportAbortRef.current === controller) unitImportAbortRef.current = null;
+      setUnitImportCancelable(false);
+      setUnitImportBusy(false);
+    }
+  };
+
   const replaceConflictingUnitActivity = () => {
     const conflict = unitImportConflict;
-    if (!conflict || conflict.unitKey !== selectedUnitKey || unitImportBusy) return;
+    if (!conflict || unitImportBusy) return;
+    if (activityScope === 'bulk') {
+      emit('teacher_materials_book_assembly_unit_import_replacement_selected', {
+        scope: 'bulk',
+        unitKey: conflict.unitKey,
+        activityKey: conflict.activityKey,
+        currentRevision: conflict.currentRevision,
+      });
+      const completed = new Set(bulkUnitResults.filter((item) => item.status === 'done').map((item) => item.unitKey));
+      setUnitImportConflict(null);
+      void importBulkJson({ [conflict.unitKey]: { [conflict.activityKey]: conflict.currentRevision } }, completed);
+      return;
+    }
+    if (conflict.unitKey !== selectedUnitKey) return;
     emit('teacher_materials_book_assembly_unit_import_replacement_selected', {
       unitKey: conflict.unitKey,
       activityKey: conflict.activityKey,
@@ -1770,8 +2080,20 @@ const BookAssemblyWorkspace = ({
 
   const updateUnitImportText = (text: string) => {
     setUnitImportConflict(null);
+    if (units.length > 1 && detectBulkUnitActivityPayload(text)) {
+      setBulkImportText(text);
+      setActivityScope('bulk');
+      setUnitImportStatus('Multi-unit JSON detected — switched to Bulk import.');
+      return;
+    }
     const key = selectedUnitKey ?? '';
     setUnitImportTextByUnit((current) => ({ ...current, [key]: text }));
+  };
+
+  const updateBulkImportText = (text: string) => {
+    setUnitImportConflict(null);
+    setBulkUnitResults([]);
+    setBulkImportText(text);
   };
 
   const reload = async () => {
@@ -1904,8 +2226,31 @@ const BookAssemblyWorkspace = ({
     const feedback = (validationMessage || errorMessage) && (
       <p className="book-assembly-guided__error" role="alert">{validationMessage ?? errorMessage}</p>
     );
+    const readyUnitsCount = unitProgressList.filter((item) => item.hasAllActivities).length;
+    const isBulkActivityMode = editingPanel === 'activity-json' && activityScope === 'bulk' && units.length > 1;
     const unitNavigation = (
       <aside className="book-assembly-edit__sidebar" aria-label="Book Units">
+        {editingPanel === 'activity-json' && units.length > 1 && (
+          <>
+            <div className="book-assembly-edit__unit-list">
+              <button
+                type="button"
+                className={isBulkActivityMode ? 'is-selected' : undefined}
+                aria-pressed={isBulkActivityMode}
+                disabled={unitImportBusy}
+                onClick={() => {
+                  if (unitImportBusy) return;
+                  setActivityScope('bulk');
+                  setUnitImportConflict(null);
+                }}
+              >
+                <strong>All units (Bulk)</strong>
+                <small>{readyUnitsCount}/{unitProgressList.length} ready</small>
+              </button>
+            </div>
+            <div className="book-assembly-edit__sidebar-divider" />
+          </>
+        )}
         <div className="book-assembly-edit__sidebar-heading">
           <h3>Units</h3>
           <span>{unitProgressList.length}</span>
@@ -1913,23 +2258,34 @@ const BookAssemblyWorkspace = ({
         {unitProgressList.length > 0 ? (
           <div className="book-assembly-edit__unit-list">
             {unitProgressList.map((item) => {
-              const selected = item.unitKey === selectedUnitKey;
+              const selected = !isBulkActivityMode && item.unitKey === selectedUnitKey;
               const statusNote = item.isPublished
                 ? 'Published'
                 : item.totalSlots === 0
-                  ? 'No activities yet'
+                  ? 'No activities'
                   : item.hasAllActivities
                     ? `${item.savedSlots}/${item.totalSlots} ready`
-                    : `${item.savedSlots}/${item.totalSlots} activities`;
+                    : `${item.savedSlots}/${item.totalSlots}`;
               return (
-                <button key={item.unitKey} type="button" className={selected ? 'is-selected' : undefined} aria-pressed={selected} onClick={() => requestNodeFocus(item.unitKey)}>
+                <button
+                  key={item.unitKey}
+                  type="button"
+                  className={selected ? 'is-selected' : undefined}
+                  aria-pressed={selected}
+                  disabled={unitImportBusy}
+                  onClick={() => {
+                    if (unitImportBusy) return;
+                    if (editingPanel === 'activity-json') setActivityScope('unit');
+                    requestNodeFocus(item.unitKey);
+                  }}
+                >
                   <strong>{item.label}</strong>
                   <small>{statusNote}</small>
                 </button>
               );
             })}
           </div>
-        ) : <p className="book-assembly-edit__empty">Import or add a Unit in Book outline first.</p>}
+        ) : <p className="book-assembly-edit__empty">Add a Unit in Book outline.</p>}
       </aside>
     );
 
@@ -1946,7 +2302,7 @@ const BookAssemblyWorkspace = ({
                     return (
                       <div key={source.sourceVersionId} className="book-assembly-edit__source-summary is-selected">
                         <strong>{mockupSourceLabel(source.sourceKey)}</strong>
-                        <small>{units.length > 0 ? `${units.length} ${units.length === 1 ? 'Unit' : 'Units'} in outline` : 'Ready for Book outline'}</small>
+                        <small>{units.length > 0 ? `${units.length} ${units.length === 1 ? 'unit' : 'units'}` : 'No outline yet'}</small>
                       </div>
                     );
                   }
@@ -1954,7 +2310,7 @@ const BookAssemblyWorkspace = ({
                     <div key={source.sourceVersionId} className={ownerUnit?.unitKey === selectedUnitKey ? 'is-selected' : undefined}>
                       <button type="button" disabled={!ownerUnit} aria-pressed={ownerUnit?.unitKey === selectedUnitKey} onClick={() => ownerUnit && requestNodeFocus(ownerUnit.unitKey)}>
                         <strong>{mockupSourceLabel(source.sourceKey)}</strong>
-                        <small>{ownerUnit ? `Assigned to Unit ${units.findIndex((unit) => unit.unitKey === ownerUnit.unitKey) + 1}` : 'Not assigned'}</small>
+                        <small>{ownerUnit ? `Unit ${units.findIndex((unit) => unit.unitKey === ownerUnit.unitKey) + 1}` : 'Unassigned'}</small>
                       </button>
                       {strategy === 'component_pdfs' && !ownerUnit && <button type="button" className="pbf-button" onClick={() => addComponentStructure(source.sourceVersionId)}>Add structure</button>}
                     </div>
@@ -1964,16 +2320,13 @@ const BookAssemblyWorkspace = ({
             </aside>
             <div className="book-assembly-edit__main pbf-surface">
               <div className="pbf-row">
-                <div>
-                  <h3>Import Book outline with AI</h3>
-                  <p className="pbf-muted">Copy the prompt, generate the Book outline JSON with your PDF, then paste or upload it below.</p>
-                </div>
+                <h3>Outline JSON</h3>
                 <span className={`pbf-status${units.length > 0 ? ' is-good' : ''}`}>
-                  {units.length > 0 ? `${units.length} ${units.length === 1 ? 'unit' : 'units'}` : 'Not imported'}
+                  {units.length > 0 ? `${units.length} ${units.length === 1 ? 'unit' : 'units'}` : 'Empty'}
                 </span>
               </div>
               <input ref={structureImportInputRef} hidden type="file" accept="application/json,.json" aria-label="Book structure JSON file" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void importMockupStructure(file); }} />
-              <div className="pbf-actions" style={{ marginTop: 12 }}>
+              <div className="pbf-actions" style={{ marginTop: 10 }}>
                 {structurePromptContext && (
                   <button type="button" className="pbf-button" onClick={() => void copyBookStructurePrompt()}>
                     Copy structure prompt
@@ -1982,23 +2335,6 @@ const BookAssemblyWorkspace = ({
                 <button type="button" className="pbf-button" onClick={() => structureImportInputRef.current?.click()}>
                   Import structure JSON
                 </button>
-              </div>
-              {structurePromptManualFallback && structurePromptContext && (
-                <label className="book-assembly-workspace__manual-copy" style={{ marginTop: 12 }}>
-                  Manual copy Book structure prompt
-                  <textarea readOnly value={structurePromptContext.promptText} rows={6} />
-                </label>
-              )}
-              <label className="book-assembly-workspace__import-editor" style={{ marginTop: 12 }}>
-                Paste Book structure JSON
-                <textarea
-                  value={structureImportText}
-                  onChange={(event) => setStructureImportText(event.target.value)}
-                  placeholder='{"nodes":[...],"units":[...]}'
-                  rows={5}
-                />
-              </label>
-              <div className="pbf-actions" style={{ marginTop: 8 }}>
                 <button
                   type="button"
                   className="pbf-button pbf-button-primary"
@@ -2008,10 +2344,39 @@ const BookAssemblyWorkspace = ({
                   Apply pasted JSON
                 </button>
               </div>
+              {structurePromptManualFallback && structurePromptContext && (
+                <label className="book-assembly-workspace__manual-copy" style={{ marginTop: 10 }}>
+                  Manual copy Book structure prompt
+                  <textarea readOnly value={structurePromptContext.promptText} spellCheck={false} rows={6} />
+                </label>
+              )}
+              <div
+                className={`book-assembly-workspace__import-drop-wrap${structureDropActive ? ' is-active' : ''}`}
+                style={{ marginTop: 10 }}
+                onDragEnter={(event) => { event.preventDefault(); setStructureDropActive(true); }}
+                onDragOver={(event) => event.preventDefault()}
+                onDragLeave={() => setStructureDropActive(false)}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  setStructureDropActive(false);
+                  const file = event.dataTransfer.files[0];
+                  if (file) void importMockupStructure(file);
+                }}
+              >
+                <textarea
+                  aria-label="Paste Book structure JSON"
+                  className="book-assembly-workspace__json-textarea"
+                  value={structureImportText}
+                  onChange={(event) => setStructureImportText(event.target.value)}
+                  placeholder='Paste outline JSON or drop .json file…  {"nodes":[...],"units":[...]}'
+                  spellCheck={false}
+                  rows={5}
+                />
+              </div>
 
               <div className="pbf-divider" />
 
-              <div className="pbf-row"><div><h3>Book hierarchy</h3><p className="pbf-muted">Select an item to reorder or add sections, units, and activities.</p></div><span className="pbf-status">{visibleTreeItems.length} nodes</span></div>
+              <div className="pbf-row"><h3>Book hierarchy</h3><span className="pbf-status">{visibleTreeItems.length} nodes</span></div>
               {visibleTreeItems.length > 0 ? (
                 <ul className="book-assembly-edit__tree" role="tree" aria-label="Book hierarchy">
                   {visibleTreeItems.map(({ node, level }, index) => {
@@ -2033,7 +2398,7 @@ const BookAssemblyWorkspace = ({
                     );
                   })}
                 </ul>
-              ) : <p className="book-assembly-edit__empty">No outline yet. Paste or import a structure JSON above, or add a section manually.</p>}
+              ) : <p className="book-assembly-edit__empty">Paste outline JSON above or add a section.</p>}
               <div className="pbf-actions book-assembly-edit__actions">
                 <button type="button" className="pbf-button" onClick={() => addNode('section', null)}>Add section</button>
                 <button type="button" className="pbf-button" onClick={() => addNode('unit', unitParent)}>Add Unit</button>
@@ -2052,35 +2417,138 @@ const BookAssemblyWorkspace = ({
     }
 
     if (editingPanel === 'activity-json') {
+      const selectedLabel = formatUnitLabel(units, selectedUnitKey);
       return (
         <section className="book-assembly-edit" aria-label="Activity JSON editor">
           <div className="book-assembly-edit__layout">
             {unitNavigation}
             <div className="book-assembly-edit__main pbf-surface">
-              <div className="pbf-row">
-                <div>
-                  <h3>{selectedUnitKey ? `Activities for ${formatUnitLabel(units, selectedUnitKey)}` : 'Unit activities'}</h3>
-                  <p className="pbf-muted">Copy the Unit prompt, generate the activity questions with your AI tool, then paste or upload the JSON here.</p>
-                </div>
-                {selectedUnitProgress && (
-                  <span className={`pbf-status${selectedUnitProgress.hasAllActivities ? ' is-good' : ''}`}>
-                    {selectedUnitProgress.savedSlots} of {selectedUnitProgress.totalSlots} ready
-                  </span>
-                )}
-              </div>
-              {selectedUnitKey && selectedUnit && selectedUnit.activitySlots.length > 0 ? (
-                <UnitActivityImportControls guided busy={unitImportBusy} canCancel={unitImportCancelable} conflict={unitImportConflict?.unitKey === selectedUnitKey ? unitImportConflict : null} importText={unitImportText} manualCopyFallback={manualCopyFallback} onCancel={cancelUnitImport} onCopyPrompt={copyUnitPrompt} onFileReadError={handleUnitImportFileReadError} onImport={() => void importUnitJson()} onImportTextChange={updateUnitImportText} onReplaceExisting={replaceConflictingUnitActivity} promptText={unitPromptText} selectedUnitKey={selectedUnitKey} statusText={unitImportStatus} />
-              ) : selectedUnitKey ? (
-                <div className="pbf-callout is-warn" style={{ marginTop: 12 }}>
-                  <strong>This Unit has no activity slots yet</strong>
-                  <span>Import a Book outline or click Add activity in Book outline first.</span>
-                  {onNavigateSection && (
-                    <div className="pbf-actions" style={{ marginTop: 10 }}>
-                      <button type="button" className="pbf-button" onClick={() => onNavigateSection('content-tree')}>Go to Book outline</button>
+              {isBulkActivityMode ? (
+                <>
+                  <div className="pbf-row">
+                    <h3>Bulk import</h3>
+                    <span className={`pbf-status${readyUnitsCount === units.length && units.length > 0 ? ' is-good' : ''}`}>
+                      {readyUnitsCount} / {units.length} units ready
+                    </span>
+                  </div>
+                  {unitsWithSlots.length > 0 ? (
+                    <>
+                      <UnitActivityImportControls
+                        compact
+                        guided
+                        allowMultipleFiles
+                        canUsePromptOverride={Boolean(bulkPromptText)}
+                        copyLabel={`Copy bulk prompt (${bulkTargetUnitKeys.length})`}
+                        uploadLabel="Upload JSON(s)"
+                        importLabel="Import all"
+                        editorLabel="Paste bulk Unit Activity JSON"
+                        placeholder='Paste bulk JSON or drop one or more .json files…  {"units":[{"unitKey":"...","slots":[...]}]}'
+                        extraActions={missingUnitKeys.length > 0 && missingUnitKeys.length < unitsWithSlots.length ? (
+                          <div className="book-assembly-edit__scope-toggle" role="group" aria-label="Bulk prompt scope">
+                            <button
+                              type="button"
+                              className={bulkPromptFilter === 'missing' ? 'is-active' : undefined}
+                              aria-pressed={bulkPromptFilter === 'missing'}
+                              onClick={() => setBulkPromptFilter('missing')}
+                            >
+                              Missing ({missingUnitKeys.length})
+                            </button>
+                            <button
+                              type="button"
+                              className={bulkPromptFilter === 'all' ? 'is-active' : undefined}
+                              aria-pressed={bulkPromptFilter === 'all'}
+                              onClick={() => setBulkPromptFilter('all')}
+                            >
+                              All ({unitsWithSlots.length})
+                            </button>
+                          </div>
+                        ) : null}
+                        busy={unitImportBusy}
+                        canCancel={unitImportCancelable}
+                        conflict={unitImportConflict ? {
+                          activityKey: unitImportConflict.activityKey,
+                          unitLabel: formatUnitLabel(units, unitImportConflict.unitKey),
+                        } : null}
+                        importText={bulkImportText}
+                        manualCopyFallback={manualCopyFallback}
+                        onCancel={cancelUnitImport}
+                        onCopyPrompt={copyBulkPrompt}
+                        onFileReadError={handleUnitImportFileReadError}
+                        onImport={() => void importBulkJson()}
+                        onImportTextChange={updateBulkImportText}
+                        onReplaceExisting={replaceConflictingUnitActivity}
+                        promptText={bulkPromptText}
+                        selectedUnitKey={selectedUnitKey}
+                        statusText={unitImportStatus}
+                      />
+                      {bulkUnitResults.length > 0 && (
+                        <div className="book-assembly-edit__bulk-results" aria-label="Bulk import unit status">
+                          {bulkUnitResults.map((item) => (
+                            <span key={item.unitKey} className={`book-assembly-edit__bulk-chip is-${item.status}`}>
+                              {item.label}
+                              {item.status === 'done' ? ` ✓` : item.status === 'importing' ? ' …' : item.status === 'conflict' ? ' ⚠' : item.status === 'error' ? ' ✕' : ''}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="pbf-callout is-warn" style={{ marginTop: 12 }}>
+                      <strong>No activity slots yet</strong>
+                      {onNavigateSection && (
+                        <div className="pbf-actions" style={{ marginTop: 10 }}>
+                          <button type="button" className="pbf-button" onClick={() => onNavigateSection('content-tree')}>Go to Book outline</button>
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
-              ) : <p className="book-assembly-edit__empty">Import or add a Unit in Book outline first.</p>}
+                </>
+              ) : (
+                <>
+                  <div className="pbf-row">
+                    <h3>{selectedUnitKey ? selectedLabel : 'Unit activities'}</h3>
+                    {selectedUnitProgress && (
+                      <span className={`pbf-status${selectedUnitProgress.hasAllActivities ? ' is-good' : ''}`}>
+                        {selectedUnitProgress.savedSlots} / {selectedUnitProgress.totalSlots} ready
+                      </span>
+                    )}
+                  </div>
+                  {selectedUnitKey && selectedUnit && selectedUnit.activitySlots.length > 0 ? (
+                    <UnitActivityImportControls
+                      compact
+                      guided
+                      copyLabel={`Copy ${selectedLabel} prompt`}
+                      uploadLabel="Upload JSON"
+                      importLabel="Import"
+                      editorLabel={`Paste ${selectedLabel} JSON`}
+                      placeholder={`Paste ${selectedLabel} JSON or drop .json file…`}
+                      busy={unitImportBusy}
+                      canCancel={unitImportCancelable}
+                      conflict={unitImportConflict?.unitKey === selectedUnitKey ? unitImportConflict : null}
+                      importText={unitImportText}
+                      manualCopyFallback={manualCopyFallback}
+                      onCancel={cancelUnitImport}
+                      onCopyPrompt={copyUnitPrompt}
+                      onFileReadError={handleUnitImportFileReadError}
+                      onImport={() => void importUnitJson()}
+                      onImportTextChange={updateUnitImportText}
+                      onReplaceExisting={replaceConflictingUnitActivity}
+                      promptText={unitPromptText}
+                      selectedUnitKey={selectedUnitKey}
+                      statusText={unitImportStatus}
+                    />
+                  ) : selectedUnitKey ? (
+                    <div className="pbf-callout is-warn" style={{ marginTop: 12 }}>
+                      <strong>No activity slots in {selectedLabel}</strong>
+                      {onNavigateSection && (
+                        <div className="pbf-actions" style={{ marginTop: 10 }}>
+                          <button type="button" className="pbf-button" onClick={() => onNavigateSection('content-tree')}>Go to Book outline</button>
+                        </div>
+                      )}
+                    </div>
+                  ) : <p className="book-assembly-edit__empty">Add a Unit in Book outline.</p>}
+                </>
+              )}
             </div>
           </div>
           {reconciliationBlock}
@@ -2096,17 +2564,17 @@ const BookAssemblyWorkspace = ({
           <div className="book-assembly-edit__layout">
             {unitNavigation}
             <div className="book-assembly-edit__main pbf-surface">
-              <div className="pbf-row"><div><h3>Activity page connections</h3><p className="pbf-muted">Set which PDF pages students see for each activity in {formatUnitLabel(units, selectedUnitKey)}.</p></div><span className={`pbf-status${rows.length > 0 && missingMappings.length === 0 ? ' is-good' : ' is-warn'}`}>{rows.length - missingMappings.length} of {rows.length} mapped</span></div>
+              <div className="pbf-row"><h3>{formatUnitLabel(units, selectedUnitKey)}</h3><span className={`pbf-status${rows.length > 0 && missingMappings.length === 0 ? ' is-good' : ' is-warn'}`}>{rows.length - missingMappings.length} / {rows.length} mapped</span></div>
               {rows.length > 0 ? (
                 <div className="pbf-table-wrap"><table className="pbf-map"><thead><tr><th>Activity</th><th>PDF</th><th>Pages</th><th>Starts on</th><th>Action</th></tr></thead><tbody>{rows.map((slot) => {
                   const group = groupFor(slot);
                   const pages = group?.pages.join(', ') ?? '';
                   return <tr key={slot.activityKey} className={!group ? 'is-error' : undefined}><td translate="no">{slot.activityKey}</td><td>{group ? mockupSourceLabel(group.sourceKey) : 'Choose a PDF'}</td><td>{pages || 'Not mapped'}</td><td>{group?.defaultPhysicalPageNumber ?? group?.pages[0] ?? '—'}</td><td><button type="button" className="pbf-button" onClick={() => { setMappingMode('activity'); setMappingActivityKey(slot.activityKey); setMappingPages(pages); setMappingDefaultPage(String(group?.defaultPhysicalPageNumber ?? group?.pages[0] ?? 1)); setMappingSourceKey(group?.sourceKey ?? availableMappingSources[0]?.sourceKey ?? ''); setMockupPageToolsOpen(true); }}>{group ? 'Edit mapping' : 'Add mapping'}</button></td></tr>;
                 })}</tbody></table></div>
-              ) : <p className="book-assembly-edit__empty">This Unit has no activities to map.</p>}
+              ) : <p className="book-assembly-edit__empty">No activities in this Unit.</p>}
               {referenceGroups.length > 0 && (
                 <div style={{ marginTop: 14 }}>
-                  <h4>Reference pages (shown alongside this Unit)</h4>
+                  <h4>Reference pages</h4>
                   <ul className="pbf-tree" style={{ marginTop: 8 }}>
                     {referenceGroups.map((group) => (
                       <li key={group.pageGroupKey} className="pbf-row">
@@ -2118,10 +2586,10 @@ const BookAssemblyWorkspace = ({
                 </div>
               )}
               <div className="pbf-actions book-assembly-edit__actions"><button type="button" className="pbf-button" onClick={() => { setMappingMode('reference_only'); setMappingActivityKey(''); setMappingPages(''); setMockupPageToolsOpen(true); }}>Add reference pages</button>{mockupPageToolsOpen && <button type="button" className="pbf-button pbf-button-primary" disabled={!mappingSourceKey || (mappingMode === 'activity' && !mappingActivityKey)} onClick={() => { addMapping(); setMockupPageToolsOpen(false); }}>Apply page change</button>}</div>
-              {mockupPageToolsOpen && <div className="book-assembly-edit__mapping-form"><label><span>PDF</span><select value={mappingSourceKey} onChange={(event) => setMappingSourceKey(event.target.value)}><option value="">Choose PDF</option>{availableMappingSources.map((source) => <option key={source.sourceKey} value={source.sourceKey}>{mockupSourceLabel(source.sourceKey)}</option>)}</select></label><label><span>Pages</span><input value={mappingPages} onChange={(event) => setMappingPages(event.target.value)} placeholder="Example: 1, 2" /></label><label><span>Starts on</span><input value={mappingDefaultPage} onChange={(event) => setMappingDefaultPage(event.target.value)} inputMode="numeric" /></label>{mappingMode === 'activity' && <div><span>Activity</span><strong translate="no">{mappingActivityKey}</strong></div>}</div>}
+              {mockupPageToolsOpen && <div className="book-assembly-edit__mapping-form"><label><span>PDF</span><select value={mappingSourceKey} onChange={(event) => setMappingSourceKey(event.target.value)}><option value="">Choose PDF</option>{availableMappingSources.map((source) => <option key={source.sourceKey} value={source.sourceKey}>{mockupSourceLabel(source.sourceKey)}</option>)}</select></label><label><span>Pages</span><input value={mappingPages} onChange={(event) => setMappingPages(event.target.value)} placeholder="1, 2" /></label><label><span>Starts on</span><input value={mappingDefaultPage} onChange={(event) => setMappingDefaultPage(event.target.value)} inputMode="numeric" /></label>{mappingMode === 'activity' && <div><span>Activity</span><strong translate="no">{mappingActivityKey}</strong></div>}</div>}
               {advisoryIssues.length > 0 && !needsReconciliationAttention && (
                 <details className="pbf-details" style={{ marginTop: 12 }}>
-                  <summary>{advisoryIssues.length} page note{advisoryIssues.length === 1 ? '' : 's'} (informational — does not block saving)</summary>
+                  <summary>{advisoryIssues.length} page note{advisoryIssues.length === 1 ? '' : 's'}</summary>
                   <ul>
                     {advisoryIssues.slice(0, 12).map((issue, idx) => (
                       <li key={`${issue.code}-${idx}`}>{issue.message}</li>
@@ -2144,23 +2612,20 @@ const BookAssemblyWorkspace = ({
           {unitNavigation}
           <div className="book-assembly-edit__main pbf-surface">
             <div className="pbf-row">
-              <div>
-                <h3>{selectedUnitKey ? `${formatUnitLabel(units, selectedUnitKey)} readiness` : 'Book readiness'}</h3>
-                <p className="pbf-muted">Select a Unit on the left to save, preview as a student, and publish it.</p>
-              </div>
+              <h3>{selectedUnitKey ? formatUnitLabel(units, selectedUnitKey) : 'Book readiness'}</h3>
               <span className={`pbf-status${selectedUnitProgress?.isPublished ? ' is-good' : selectedUnitProgress?.hasAllActivities ? ' is-good' : ' is-warn'}`}>
                 {selectedUnitProgress?.isPublished
                   ? 'Published'
                   : selectedUnitProgress?.hasAllActivities
                     ? 'Ready to preview'
-                    : 'Needs Unit activities'}
+                    : 'Needs activities'}
               </span>
             </div>
             <div className="book-assembly-edit__readiness" style={{ marginTop: 12 }}>
-              <div><span>PDF files</span><strong>{normalizedSources.length}</strong></div>
+              <div><span>PDF</span><strong>{normalizedSources.length > 0 ? 'Ready' : 'Missing'}</strong></div>
               <div><span>Units</span><strong>{units.length}</strong></div>
-              <div><span>Activities ready</span><strong>{selectedUnitProgress ? `${selectedUnitProgress.savedSlots} / ${selectedUnitProgress.totalSlots}` : '0'}</strong></div>
-              <div><span>Draft saved</span><strong>{activeCandidate?.lifecycle === 'validated' && !hasUnsavedChanges ? 'Ready' : 'Save needed'}</strong></div>
+              <div><span>Activities</span><strong>{selectedUnitProgress ? `${selectedUnitProgress.savedSlots} / ${selectedUnitProgress.totalSlots}` : '0'}</strong></div>
+              <div><span>Draft</span><strong>{activeCandidate?.lifecycle === 'validated' && !hasUnsavedChanges ? 'Saved' : 'Save needed'}</strong></div>
             </div>
           </div>
         </div>
