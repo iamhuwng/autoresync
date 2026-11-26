@@ -189,7 +189,7 @@
       "$assignmentId": {
         ".read": "auth != null && (data.child('teacherId').val() === auth.uid || data.child('studentId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
         ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && newData.exists() && ((!data.exists() && newData.child('teacherId').val() === auth.uid && newData.child('assignedBy').val() === auth.uid && newData.child('status').val() === 'active') || (data.exists() && data.child('teacherId').val() === auth.uid))))",
-        ".validate": "!newData.exists() || (newData.hasChildren(['id', 'studentId', 'teacherId', 'assignedBy', 'assignedAt', 'status']) && newData.child('id').val() === $assignmentId && newData.child('studentId').isString() && newData.child('teacherId').isString() && newData.child('assignedBy').isString() && newData.child('assignedAt').isNumber() && (newData.child('status').val() === 'active' || newData.child('status').val() === 'removed') && (!data.exists() || (newData.child('id').val() === data.child('id').val() && newData.child('studentId').val() === data.child('studentId').val() && newData.child('teacherId').val() === data.child('teacherId').val() && newData.child('assignedBy').val() === data.child('assignedBy').val() && newData.child('assignedAt').val() === data.child('assignedAt').val())))"
+        ".validate": "!newData.exists() || (newData.hasChildren(['id', 'studentId', 'teacherId', 'status']) && newData.child('id').val() === $assignmentId && newData.child('studentId').isString() && newData.child('teacherId').isString() && (newData.child('status').val() === 'active' || newData.child('status').val() === 'removed') && (!data.exists() ? (newData.hasChildren(['assignedBy', 'assignedAt']) && newData.child('assignedBy').isString() && newData.child('assignedAt').isNumber()) : (newData.child('id').val() === data.child('id').val() && newData.child('studentId').val() === data.child('studentId').val() && newData.child('teacherId').val() === data.child('teacherId').val() && (!data.child('assignedBy').exists() || newData.child('assignedBy').val() === data.child('assignedBy').val()) && (!data.child('assignedAt').exists() || newData.child('assignedAt').val() === data.child('assignedAt').val()))))"
       },
       ".indexOn": [
         "teacherId",
@@ -2216,10 +2216,11 @@
     "classes": {
       ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (query.orderByChild === 'createdBy' && query.equalTo === auth.uid))",
       "$classId": {
-        ".read": "auth != null && (!data.exists() || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || data.child('createdBy').val() === auth.uid || data.child('students').child(auth.uid).exists() || (root.child('users').child(auth.uid).child('role').val() === 'student' && data.child('status').val() === 'active'))",
+        ".read": "auth != null && (!data.exists() || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || data.child('createdBy').val() === auth.uid || (!data.child('createdBy').exists() && (data.child('ownerId').val() === auth.uid || data.child('createdByUserId').val() === auth.uid || data.child('teacherId').val() === auth.uid)) || data.child('students').child(auth.uid).exists())",
         ".write": "auth != null && !data.exists() && !newData.child('book_locks').exists() && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && newData.child('createdBy').val() === auth.uid))",
         "students": {
           "$studentId": {
+            ".read": "auth != null && auth.uid === $studentId",
             ".write": "auth != null && ((auth.uid === $studentId && data.exists() && newData.exists() && newData.child('id').val() === data.child('id').val() && newData.child('uid').val() === data.child('uid').val() && newData.child('status').val() === data.child('status').val() && newData.child('joinedAt').val() === data.child('joinedAt').val() && newData.child('approvedAt').val() === data.child('approvedAt').val() && newData.child('approvedBy').val() === data.child('approvedBy').val()) || (auth.uid === $studentId && root.child('users').child(auth.uid).child('role').val() === 'student' && root.child('classes').child($classId).child('status').val() === 'active' && !data.exists() && newData.child('id').val() === $studentId && newData.child('uid').val() === $studentId && newData.child('status').val() === 'pending_approval' && newData.child('joinedAt').isNumber() && newData.child('joinedAt').val() <= now + 5000 && newData.child('lastActiveAt').val() === newData.child('joinedAt').val() && newData.child('isOnline').val() === true && !newData.child('approvedAt').exists() && !newData.child('approvedBy').exists() && !newData.child('assignments').hasChildren()) || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('classes').child($classId).child('createdBy').val() === auth.uid) || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (auth.token.notificationClassAction === true && auth.uid === 'notification-class-action:' + auth.token.actionId && auth.token.classId === $classId && auth.token.studentId === $studentId && (auth.token.actorUid === root.child('classes').child($classId).child('createdBy').val() || (auth.token.actionKind === 'join-pending' && auth.token.actorUid === $studentId) || root.child('users').child(auth.token.actorUid).child('role').val() === 'super_admin') && root.child('classes').child($classId).child('status').val() === 'active' && ((auth.token.actionKind === 'join-pending' && !data.exists() && newData.child('status').val() === 'pending_approval') || (auth.token.actionKind === 'direct-add' && !data.exists() && newData.child('status').val() === 'active') || (auth.token.actionKind === 'approve' && data.child('status').val() === 'pending_approval' && newData.child('status').val() === 'active') || (auth.token.actionKind === 'reject' && data.child('status').val() === 'pending_approval' && !newData.exists()))))",
             ".validate": "!newData.exists() || ((newData.child('id').val() === $studentId && (!newData.child('uid').exists() || newData.child('uid').val() === $studentId) && (!data.exists() ? (newData.child('status').val() !== 'pending_approval' || !root.child('classes').child($classId).child('membershipDecisions').child($studentId).exists() || newData.child('joinedAt').val() > root.child('classes').child($classId).child('membershipDecisions').child($studentId).child('joinedAt').val()) : newData.child('joinedAt').val() === data.child('joinedAt').val()) && (!data.child('approvedAt').exists() || newData.child('approvedAt').val() === data.child('approvedAt').val()) && (!newData.child('approvedAt').exists() || (newData.child('status').val() === 'active' && (newData.child('approvedBy').val() === root.child('classes').child($classId).child('createdBy').val() || root.child('users').child(newData.child('approvedBy').val()).child('role').val() === 'super_admin')))))"
           }
@@ -2235,6 +2236,7 @@
         ".validate": "!newData.exists() || (newData.child('createdBy').isString() && (!data.exists() || newData.child('createdBy').val() === data.child('createdBy').val()))",
         "membershipDecisions": {
           "$studentId": {
+            ".read": "auth != null && auth.uid === $studentId",
             ".validate": "newData.hasChildren(['status', 'studentId', 'joinedAt', 'decidedBy', 'decidedAt']) && newData.child('status').val() === 'rejected' && newData.child('studentId').val() === $studentId && newData.child('joinedAt').val() === data.parent().parent().child('students').child($studentId).child('joinedAt').val() && data.parent().parent().child('students').child($studentId).child('status').val() === 'pending_approval' && newData.child('decidedBy').val() === auth.uid && (auth.uid === data.parent().parent().child('createdBy').val() || root.child('users').child(auth.uid).child('role').val() === 'super_admin') && newData.child('decidedAt').isNumber() && newData.child('decidedAt').val() >= newData.child('joinedAt').val() && newData.child('decidedAt').val() <= now + 5000 && !newData.parent().parent().child('students').child($studentId).exists()",
             "status": {
               ".validate": "newData.val() === 'rejected'"
@@ -2264,10 +2266,14 @@
           ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('classes').child($classId).child('createdBy').val() === auth.uid))"
         },
         "status": {
+          ".read": "auth != null",
           ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('classes').child($classId).child('createdBy').val() === auth.uid))"
         },
         "settings": {
-          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('classes').child($classId).child('createdBy').val() === auth.uid))"
+          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('classes').child($classId).child('createdBy').val() === auth.uid))",
+          "maxStudents": {
+            ".read": "auth != null"
+          }
         },
         "updatedAt": {
           ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('classes').child($classId).child('createdBy').val() === auth.uid))"
@@ -2285,7 +2291,10 @@
           ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('classes').child($classId).child('createdBy').val() === auth.uid))"
         },
         "stats": {
-          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('classes').child($classId).child('createdBy').val() === auth.uid))"
+          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('classes').child($classId).child('createdBy').val() === auth.uid))",
+          "totalStudents": {
+            ".read": "auth != null"
+          }
         },
         "expiresAt": {
           ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && root.child('classes').child($classId).child('createdBy').val() === auth.uid))"

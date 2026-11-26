@@ -917,45 +917,84 @@ export async function enrollStudent(
   options: EnrollStudentOptions = {}
 ): Promise<{ success: boolean; classId?: string; error?: string }> {
   try {
-    // Verify class exists and is active
-    const classData = await getClass(classCode);
-
-    if (!classData) {
-      return { success: false, error: 'Class not found' };
-    }
-
-    if (classData.status !== 'active') {
-      return { success: false, error: 'Class is not active' };
-    }
-
-    // Check if student is already enrolled
-    const existingStudent = Object.values(classData.students || {}).find(
-      (s) => s.uid === studentUid
-    );
-
-    if (existingStudent) {
-      return { success: false, error: 'Already enrolled in this class' };
-    }
-
-    // Check max students limit
-    const currentStudentCount = Object.keys(classData.students || {}).length;
-    if (classData.settings?.maxStudents && currentStudentCount >= classData.settings.maxStudents) {
-      return { success: false, error: 'Class is full' };
-    }
-
     const approvalMode = options.approvalMode ?? 'pending';
     const actorUid = await getCurrentActorUid();
     if (approvalMode === 'pending' && actorUid !== studentUid) {
       return { success: false, error: 'Class membership action is not authorized' };
     }
-    if (approvalMode === 'active' && actorUid !== classData.createdBy) {
-      const role = actorUid ? (await get(ref(database, `users/${actorUid}/role`))).val() : null;
-      if (role !== 'super_admin') {
-        return { success: false, error: 'Class membership action is not authorized' };
+
+    let classData: ClassSession | null = null;
+    let previousJoinedAt: number | undefined;
+
+    if (approvalMode === 'pending') {
+      // Student self-join reads only non-PII class metadata plus the caller's own
+      // membership/decision rows so non-members never read the full class roster.
+      const [statusSnap, maxStudentsSnap, totalStudentsSnap, selfMemberSnap, selfDecisionSnap] =
+        await Promise.all([
+          get(ref(database, `${CLASSES_REF}/${classCode}/status`)),
+          get(ref(database, `${CLASSES_REF}/${classCode}/settings/maxStudents`)),
+          get(ref(database, `${CLASSES_REF}/${classCode}/stats/totalStudents`)),
+          get(ref(database, `${CLASSES_REF}/${classCode}/students/${studentUid}`)),
+          get(ref(database, `${CLASSES_REF}/${classCode}/membershipDecisions/${studentUid}`)),
+        ]);
+
+      if (!statusSnap.exists()) {
+        return { success: false, error: 'Class not found' };
       }
+
+      if (normalizeClassStatus(statusSnap.val()) !== 'active') {
+        return { success: false, error: 'Class is not active' };
+      }
+
+      if (selfMemberSnap.exists()) {
+        return { success: false, error: 'Already enrolled in this class' };
+      }
+
+      const maxStudents = maxStudentsSnap.exists() ? Number(maxStudentsSnap.val()) : 0;
+      const totalStudents = totalStudentsSnap.exists() ? Number(totalStudentsSnap.val()) : 0;
+      if (Number.isFinite(maxStudents) && maxStudents > 0 && Number.isFinite(totalStudents) && totalStudents >= maxStudents) {
+        return { success: false, error: 'Class is full' };
+      }
+
+      const decision = selfDecisionSnap.exists()
+        ? (selfDecisionSnap.val() as { joinedAt?: number } | null)
+        : null;
+      previousJoinedAt = decision?.joinedAt;
+    } else {
+      // Teacher/admin direct add already has full class read access.
+      classData = await getClass(classCode);
+
+      if (!classData) {
+        return { success: false, error: 'Class not found' };
+      }
+
+      if (classData.status !== 'active') {
+        return { success: false, error: 'Class is not active' };
+      }
+
+      const existingStudent = Object.values(classData.students || {}).find(
+        (s) => s.uid === studentUid
+      );
+      if (existingStudent) {
+        return { success: false, error: 'Already enrolled in this class' };
+      }
+
+      const currentStudentCount = Object.keys(classData.students || {}).length;
+      if (classData.settings?.maxStudents && currentStudentCount >= classData.settings.maxStudents) {
+        return { success: false, error: 'Class is full' };
+      }
+
+      if (actorUid !== classData.createdBy) {
+        const role = actorUid ? (await get(ref(database, `users/${actorUid}/role`))).val() : null;
+        if (role !== 'super_admin') {
+          return { success: false, error: 'Class membership action is not authorized' };
+        }
+      }
+
+      previousJoinedAt = (classData as ClassSession & { membershipDecisions?: Record<string, { joinedAt: number }> })
+        .membershipDecisions?.[studentUid]?.joinedAt;
     }
-    const previousJoinedAt = (classData as ClassSession & { membershipDecisions?: Record<string, { joinedAt: number }> })
-      .membershipDecisions?.[studentUid]?.joinedAt;
+
     const now = Math.max(Date.now(), typeof previousJoinedAt === 'number' && Number.isFinite(previousJoinedAt) ? previousJoinedAt + 1 : 0);
     if (now > Date.now() + 5000) {
       return { success: false, error: 'Please retry joining this class in a few seconds' };
@@ -986,11 +1025,13 @@ export async function enrollStudent(
       occurredAt: now,
     });
 
-    // Update class stats
-    try {
-      await updateEnrollmentStatsIfAuthorized(classCode, classData, Date.now());
-    } catch (statsError) {
-      console.warn('[ClassManager] Enrollment stats update failed after class action:', statsError);
+    // Update class stats (teacher/admin direct-add only; students cannot write stats).
+    if (classData) {
+      try {
+        await updateEnrollmentStatsIfAuthorized(classCode, classData, Date.now());
+      } catch (statsError) {
+        console.warn('[ClassManager] Enrollment stats update failed after class action:', statsError);
+      }
     }
 
     if (approvalMode === 'active') {
@@ -1043,10 +1084,18 @@ export async function approveClassStudent(
     }
 
     const approvedAt = Date.now();
+    const activeCountAfterApproval = Object.entries(classData.students || {}).filter(
+      ([id, entry]) =>
+        id === studentId || (!entry.status || entry.status === 'active')
+    ).length;
+
     await update(ref(database), {
       [`${CLASSES_REF}/${classCode}/students/${studentId}/status`]: 'active',
       [`${CLASSES_REF}/${classCode}/students/${studentId}/approvedAt`]: approvedAt,
       [`${CLASSES_REF}/${classCode}/students/${studentId}/approvedBy`]: classData.createdBy,
+      [`${CLASSES_REF}/${classCode}/stats/totalStudents`]: activeCountAfterApproval,
+      [`${CLASSES_REF}/${classCode}/stats/activeStudents`]: activeCountAfterApproval,
+      [`${CLASSES_REF}/${classCode}/updatedAt`]: approvedAt,
       [`${STUDENT_CLASSES_REF}/${studentId}/${classCode}`]: buildStudentClassMembershipRow({
         joinedAt: student.joinedAt,
         status: 'active',

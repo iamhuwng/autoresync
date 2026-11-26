@@ -73,9 +73,14 @@ export function useTeacherStudentRoster(teacherId: string | null | undefined): T
     const rosterRequestIdRef = useRef(0);
     const classesRequestIdRef = useRef(0);
     const requestsRequestIdRef = useRef(0);
+    const currentTeacherIdRef = useRef<string | null>(teacherId ?? null);
+    currentTeacherIdRef.current = teacherId ?? null;
     const hasLoadedRef = useRef(false);
 
     const reloadClasses = useCallback(async () => {
+        const expectedTeacherId = teacherId ?? null;
+        if (expectedTeacherId !== currentTeacherIdRef.current) return;
+
         const requestId = ++classesRequestIdRef.current;
 
         if (!teacherId) {
@@ -87,16 +92,19 @@ export function useTeacherStudentRoster(teacherId: string | null | undefined): T
         setClassesError(null);
         try {
             const fetchedClasses = await getTeacherClassesWithMembers(teacherId);
-            if (requestId !== classesRequestIdRef.current) return;
+            if (requestId !== classesRequestIdRef.current || expectedTeacherId !== currentTeacherIdRef.current) return;
             setClasses(fetchedClasses);
         } catch (err) {
             console.error('[useTeacherStudentRoster] Failed to load classes:', err);
-            if (requestId !== classesRequestIdRef.current) return;
+            if (requestId !== classesRequestIdRef.current || expectedTeacherId !== currentTeacherIdRef.current) return;
             setClassesError('Could not load your classes. Try again.');
         }
     }, [teacherId]);
 
     const reloadRequests = useCallback(async () => {
+        const expectedTeacherId = teacherId ?? null;
+        if (expectedTeacherId !== currentTeacherIdRef.current) return;
+
         const requestId = ++requestsRequestIdRef.current;
 
         if (!teacherId) {
@@ -108,16 +116,19 @@ export function useTeacherStudentRoster(teacherId: string | null | undefined): T
         setRequestsError(null);
         try {
             const fetchedRequests = await getAssignmentRequestsByTeacher(teacherId);
-            if (requestId !== requestsRequestIdRef.current) return;
+            if (requestId !== requestsRequestIdRef.current || expectedTeacherId !== currentTeacherIdRef.current) return;
             setRequests(fetchedRequests);
         } catch (err) {
             console.error('[useTeacherStudentRoster] Failed to load requests:', err);
-            if (requestId !== requestsRequestIdRef.current) return;
+            if (requestId !== requestsRequestIdRef.current || expectedTeacherId !== currentTeacherIdRef.current) return;
             setRequestsError('Could not load your student requests. Try again.');
         }
     }, [teacherId]);
 
     const reload = useCallback(async () => {
+        const expectedTeacherId = teacherId ?? null;
+        if (expectedTeacherId !== currentTeacherIdRef.current) return;
+
         const requestId = ++rosterRequestIdRef.current;
 
         if (!teacherId) {
@@ -149,16 +160,23 @@ export function useTeacherStudentRoster(teacherId: string | null | undefined): T
                 teacherAssignments.map((a) => a.studentId).filter(Boolean)
             ));
 
+            let failedProfileCount = 0;
             const profiles = await Promise.all(studentIds.map(async (studentId) => {
                 try {
                     return await getUserById(studentId);
                 } catch (profileError) {
+                    failedProfileCount += 1;
                     console.error(`[useTeacherStudentRoster] Failed to load profile ${studentId}:`, profileError);
                     return null;
                 }
             }));
 
-            if (requestId !== rosterRequestIdRef.current) return;
+            if (requestId !== rosterRequestIdRef.current || expectedTeacherId !== currentTeacherIdRef.current) return;
+
+            if (failedProfileCount > 0 && failedProfileCount === studentIds.length) {
+                setError('Could not load your students. Try Sync again.');
+                return;
+            }
 
             setAssignments(teacherAssignments);
             setStudents(
@@ -166,13 +184,16 @@ export function useTeacherStudentRoster(teacherId: string | null | undefined): T
                     .filter((profile): profile is UserProfile => profile !== null)
                     .sort(byNewestFirst)
             );
+            if (failedProfileCount > 0) {
+                setError(`Could not load ${failedProfileCount} student profile(s). Try Sync again.`);
+            }
             hasLoadedRef.current = true;
         } catch (loadError) {
             console.error('[useTeacherStudentRoster] Failed to load roster:', loadError);
-            if (requestId !== rosterRequestIdRef.current) return;
+            if (requestId !== rosterRequestIdRef.current || expectedTeacherId !== currentTeacherIdRef.current) return;
             setError('Could not load your students. Try Sync again.');
         } finally {
-            if (requestId === rosterRequestIdRef.current) {
+            if (requestId === rosterRequestIdRef.current && expectedTeacherId === currentTeacherIdRef.current) {
                 setLoading(false);
                 setRefreshing(false);
             }

@@ -52,6 +52,12 @@ beforeEach(async () => {
           status: 'active',
           coursesEnrolled: [],
         },
+        'assign-legacy-a': {
+          id: 'assign-legacy-a',
+          studentId: 'student-2',
+          teacherId: 'teacher-a',
+          status: 'active',
+        },
       },
       student_requests: {
         'req-a': {
@@ -86,9 +92,25 @@ beforeEach(async () => {
           name: 'Teacher B Class',
           createdBy: 'teacher-b',
           status: 'active',
+          settings: { maxStudents: 50 },
+          stats: { totalStudents: 1 },
           students: {
-            'student-2': { id: 'student-2', uid: 'student-2', status: 'active', joinedAt: 2000 },
+            'student-2': {
+              id: 'student-2',
+              uid: 'student-2',
+              email: 'student2@test.com',
+              status: 'active',
+              joinedAt: 2000,
+            },
           },
+        },
+        'class-legacy-owner': {
+          id: 'class-legacy-owner',
+          classCode: 'LEGCYA',
+          name: 'Legacy Teacher A Class',
+          teacherId: 'teacher-a',
+          status: 'active',
+          students: {},
         },
         'class-b-archived': {
           id: 'class-b-archived',
@@ -119,7 +141,7 @@ describe('RTDB Teacher Roster Isolation Rules', () => {
     const ownSnap = await assertSucceeds(
       teacherA.ref('student_teacher_assignments').orderByChild('teacherId').equalTo('teacher-a').get()
     );
-    expect(Object.keys(ownSnap.val() || {})).toEqual(['assign-a']);
+    expect(Object.keys(ownSnap.val() || {}).sort()).toEqual(['assign-a', 'assign-legacy-a']);
     await assertSucceeds(teacherA.ref('student_teacher_assignments/assign-a').get());
 
     // Denied unfiltered root read, cross-teacher query, and cross-teacher item read
@@ -145,11 +167,17 @@ describe('RTDB Teacher Roster Isolation Rules', () => {
     const teacherA = env.authenticatedContext('teacher-a').database();
     const admin = env.authenticatedContext('admin-1').database();
 
-    // Teacher A can soft-remove their own assignment
+    // Teacher A can soft-remove their own assignment (including legacy rows missing assignedBy/assignedAt)
     await assertSucceeds(
       teacherA.ref('student_teacher_assignments/assign-a').update({
         status: 'removed',
         unassignedAt: 5000,
+      })
+    );
+    await assertSucceeds(
+      teacherA.ref('student_teacher_assignments/assign-legacy-a').update({
+        status: 'removed',
+        unassignedAt: 5500,
       })
     );
 
@@ -270,10 +298,25 @@ describe('RTDB Teacher Roster Isolation Rules', () => {
     await assertFails(teacherA.ref('classes').orderByChild('createdBy').equalTo('teacher-b').get());
     await assertFails(teacherA.ref('classes/class-b').get());
 
-    // Student cannot scan all classes, but can look up an active class by code or read enrolled archived class
+    // Teacher A can read a legacy class owned via teacherId when createdBy is absent
+    await assertSucceeds(teacherA.ref('classes/class-legacy-owner').get());
+
+    // Unrelated student cannot scan all classes OR read another class's full record / roster PII
     await assertFails(student1.ref('classes').get());
-    await assertSucceeds(student1.ref('classes/class-b').get());
+    await assertFails(student1.ref('classes/class-b').get());
+    await assertFails(student1.ref('classes/class-b/students').get());
+    await assertFails(student1.ref('classes/class-b/students/student-2').get());
     await assertFails(student1.ref('classes/class-b-archived').get());
+
+    // Non-member student CAN read only narrow non-PII join-by-code metadata + own membership slot
+    await assertSucceeds(student1.ref('classes/class-b/status').get());
+    await assertSucceeds(student1.ref('classes/class-b/settings/maxStudents').get());
+    await assertSucceeds(student1.ref('classes/class-b/stats/totalStudents').get());
+    await assertSucceeds(student1.ref('classes/class-b/students/student-1').get());
+    await assertSucceeds(student1.ref('classes/class-b/membershipDecisions/student-1').get());
+
+    // Enrolled student can read their own class (even when archived)
+    await assertSucceeds(student1.ref('classes/class-a').get());
     await assertSucceeds(student2.ref('classes/class-b-archived').get());
 
     await assertSucceeds(admin.ref('classes').get());

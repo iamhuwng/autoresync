@@ -1,8 +1,8 @@
 /**
  * Integration Tests for Release Student Functionality
  *
- * Tests releasing a student from a teacher assignment, including
- * authenticated actor attribution in assignment history.
+ * Tests atomic assignment soft-removal, shared teacher-student link
+ * reconciliation, and authenticated actor attribution in assignment history.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -12,16 +12,23 @@ import type { StudentTeacherAssignment } from '../types/assignment.types';
 const mockSet = vi.fn();
 const mockGet = vi.fn();
 const mockUpdate = vi.fn();
-const mockRef = vi.fn((_db: any, path: string) => ({ path }));
+const mockRef = vi.fn((_db: any, path?: string) => ({ path }));
 const mockPush = vi.fn(() => ({ key: 'mock-id-123' }));
-const mockGetAuth = vi.fn(() => ({ currentUser: { uid: 'teacher-test-456' } }));
+const mockQuery = vi.fn((...args: any[]) => ({ args }));
+const mockOrderByChild = vi.fn((field: string) => ({ orderByChild: field }));
+const mockEqualTo = vi.fn((value: any) => ({ equalTo: value }));
+const mockGetAuth = vi.fn(() => ({ currentUser: { uid: 'teacher-test-456' } as { uid: string } | null }));
 
 vi.mock('firebase/database', () => ({
-    ref: (db: any, path: string) => mockRef(db, path),
-    set: (ref: any, value: any) => mockSet(ref, value),
-    get: (ref: any) => mockGet(ref),
-    update: (ref: any, value: any) => mockUpdate(ref, value),
+    ref: (db: any, path?: string) => mockRef(db, path),
+    set: (refArg: any, value: any) => mockSet(refArg, value),
+    get: (refArg: any) => mockGet(refArg),
+    update: (refArg: any, value: any) => mockUpdate(refArg, value),
     push: () => mockPush(),
+    query: (...args: any[]) => mockQuery(...args),
+    orderByChild: (field: string) => mockOrderByChild(field),
+    equalTo: (value: any) => mockEqualTo(value),
+    serverTimestamp: () => 1234567890,
 }));
 
 vi.mock('firebase/auth', () => ({
@@ -43,7 +50,7 @@ describe('Release Student Integration Tests', () => {
     });
 
     describe('Release Student Workflow', () => {
-        it('soft-deletes assignment, removes link, and records the authenticated actor in history', async () => {
+        it('atomically soft-deletes assignment and clears link when no other active assignment exists', async () => {
             const existingAssignment: StudentTeacherAssignment = {
                 id: 'assignment-123',
                 studentId: mockStudentId,
@@ -55,12 +62,13 @@ describe('Release Student Integration Tests', () => {
                 coursesEnrolled: ['course-1', 'course-2']
             };
 
-            mockGet.mockResolvedValueOnce({
-                exists: () => true,
-                val: () => existingAssignment
-            });
+            mockGet
+                .mockResolvedValueOnce({ exists: () => true, val: () => existingAssignment })
+                .mockResolvedValueOnce({
+                    exists: () => true,
+                    val: () => ({ 'assignment-123': existingAssignment }),
+                });
             mockUpdate.mockResolvedValueOnce(undefined);
-            mockSet.mockResolvedValueOnce(undefined);
             mockSet.mockResolvedValueOnce(undefined);
 
             const releaseResult = await removeAssignment('assignment-123', 'Released by teacher');
@@ -68,17 +76,15 @@ describe('Release Student Integration Tests', () => {
             expect(releaseResult.success).toBe(true);
 
             expect(mockUpdate).toHaveBeenCalledTimes(1);
-            const updateCall = mockUpdate.mock.calls[0][1];
-            expect(updateCall).toMatchObject({ status: 'removed' });
-            expect(updateCall.unassignedAt).toBeGreaterThan(0);
-
-            expect(mockSet).toHaveBeenCalledTimes(2);
-            expect(mockSet.mock.calls[0][0]).toEqual({
-                path: `student_teacher_links/${mockTeacherId}/${mockStudentId}`,
+            const patch = mockUpdate.mock.calls[0][1];
+            expect(patch).toMatchObject({
+                'student_teacher_assignments/assignment-123/status': 'removed',
+                [`student_teacher_links/${mockTeacherId}/${mockStudentId}`]: null,
             });
-            expect(mockSet.mock.calls[0][1]).toBeNull();
+            expect(patch['student_teacher_assignments/assignment-123/unassignedAt']).toBeGreaterThan(0);
 
-            const historyCall = mockSet.mock.calls[1][1];
+            expect(mockSet).toHaveBeenCalledTimes(1);
+            const historyCall = mockSet.mock.calls[0][1];
             expect(historyCall).toMatchObject({
                 studentId: mockStudentId,
                 teacherId: mockTeacherId,
@@ -87,6 +93,53 @@ describe('Release Student Integration Tests', () => {
                 reason: 'Released by teacher',
             });
             expect(historyCall.performedBy).not.toBe(mockAdminId);
+        });
+
+        it('retains the shared teacher-student link when another active assignment remains', async () => {
+            const assignmentOne: StudentTeacherAssignment = {
+                id: 'assignment-1',
+                studentId: mockStudentId,
+                teacherId: mockTeacherId,
+                assignedBy: mockAdminId,
+                assignedAt: Date.now() - 1000000,
+                unassignedAt: null,
+                status: 'active',
+                coursesEnrolled: [],
+            };
+            const assignmentTwo: StudentTeacherAssignment = {
+                ...assignmentOne,
+                id: 'assignment-2',
+            };
+
+            mockGet
+                .mockResolvedValueOnce({ exists: () => true, val: () => assignmentOne })
+                .mockResolvedValueOnce({
+                    exists: () => true,
+                    val: () => ({
+                        'assignment-1': assignmentOne,
+                        'assignment-2': assignmentTwo,
+                    }),
+                });
+            mockUpdate.mockResolvedValueOnce(undefined);
+            mockSet.mockResolvedValueOnce(undefined);
+
+            const releaseResult = await removeAssignment('assignment-1', 'Remove duplicate');
+
+            expect(releaseResult.success).toBe(true);
+            const patch = mockUpdate.mock.calls[0][1];
+            expect(patch['student_teacher_assignments/assignment-1/status']).toBe('removed');
+            expect(patch).not.toHaveProperty(`student_teacher_links/${mockTeacherId}/${mockStudentId}`);
+        });
+
+        it('rejects release when no authenticated user is signed in', async () => {
+            mockGetAuth.mockReturnValue({ currentUser: null });
+
+            const releaseResult = await removeAssignment('assignment-123', 'Unauthenticated');
+
+            expect(releaseResult.success).toBe(false);
+            expect(releaseResult.error).toContain('Authentication required');
+            expect(mockGet).not.toHaveBeenCalled();
+            expect(mockUpdate).not.toHaveBeenCalled();
         });
 
         it('defaults reason to Released when omitted', async () => {
@@ -101,18 +154,16 @@ describe('Release Student Integration Tests', () => {
                 coursesEnrolled: []
             };
 
-            mockGet.mockResolvedValueOnce({
-                exists: () => true,
-                val: () => existingAssignment
-            });
+            mockGet
+                .mockResolvedValueOnce({ exists: () => true, val: () => existingAssignment })
+                .mockResolvedValueOnce({ exists: () => false, val: () => null });
             mockUpdate.mockResolvedValueOnce(undefined);
-            mockSet.mockResolvedValueOnce(undefined);
             mockSet.mockResolvedValueOnce(undefined);
 
             const releaseResult = await removeAssignment('assignment-456');
 
             expect(releaseResult.success).toBe(true);
-            const historyCall = mockSet.mock.calls[1][1];
+            const historyCall = mockSet.mock.calls[0][1];
             expect(historyCall.reason).toBe('Released');
             expect(historyCall.performedBy).toBe(mockTeacherId);
         });

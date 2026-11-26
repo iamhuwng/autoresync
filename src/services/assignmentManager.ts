@@ -162,6 +162,14 @@ export async function removeAssignment(
             };
         }
 
+        const actorUid = getAuth().currentUser?.uid;
+        if (!actorUid) {
+            return {
+                success: false,
+                error: 'Authentication required to release assignment'
+            };
+        }
+
         // Get the assignment
         const assignmentRef = ref(database, `${ASSIGNMENTS_REF}/${assignmentId}`);
         const snapshot = await get(assignmentRef);
@@ -175,14 +183,36 @@ export async function removeAssignment(
 
         const assignment = snapshot.val() as StudentTeacherAssignment;
         const timestamp = now();
-        const actorUid = getAuth().currentUser?.uid || assignment.assignedBy;
 
-        // Soft-delete the assignment and remove the teacher-student link
-        await update(assignmentRef, {
-            unassignedAt: timestamp,
-            status: 'removed'
-        });
-        await setAssignmentLink(assignment.teacherId, assignment.studentId, false);
+        // Check whether another active assignment still binds this teacher-student
+        // pair so we only clear the shared link when the last active row is removed.
+        let hasOtherActiveAssignment = false;
+        const pairSnapshot = await get(query(
+            ref(database, ASSIGNMENTS_REF),
+            orderByChild('teacherId'),
+            equalTo(assignment.teacherId)
+        ));
+        if (pairSnapshot.exists()) {
+            const pairAssignments = pairSnapshot.val() as Record<string, StudentTeacherAssignment>;
+            hasOtherActiveAssignment = Object.entries(pairAssignments).some(
+                ([key, item]) =>
+                    (item?.id || key) !== assignmentId &&
+                    item?.studentId === assignment.studentId &&
+                    item?.teacherId === assignment.teacherId &&
+                    item?.status === 'active'
+            );
+        }
+
+        // Commit row status and shared link atomically so partial release cannot
+        // leave the assignment removed while the link write fails (or vice versa).
+        const patch: Record<string, unknown> = {
+            [`${ASSIGNMENTS_REF}/${assignmentId}/unassignedAt`]: timestamp,
+            [`${ASSIGNMENTS_REF}/${assignmentId}/status`]: 'removed',
+        };
+        if (!hasOtherActiveAssignment) {
+            patch[`${ASSIGNMENT_LINKS_REF}/${assignment.teacherId}/${assignment.studentId}`] = null;
+        }
+        await update(ref(database), patch);
 
         // Create history entry attributed to the authenticated actor
         await createHistoryEntry({

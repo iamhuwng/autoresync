@@ -648,9 +648,11 @@ describe('Class Manager - Student Enrollment', () => {
     );
     const limitedClassId = result.classId!;
 
-    // Enroll 2 students successfully
+    // Enroll and approve 2 students so class reaches maxStudents capacity
     await enrollAsStudent(limitedClassId, TEST_STUDENT_UID, 'Student 1', 'student1@test.com');
+    await approveAsTeacher(limitedClassId, TEST_STUDENT_UID, TEST_TEACHER_UID);
     await enrollAsStudent(limitedClassId, TEST_STUDENT_UID_2, 'Student 2', 'student2@test.com');
+    await approveAsTeacher(limitedClassId, TEST_STUDENT_UID_2, TEST_TEACHER_UID);
 
     // Try to enroll 3rd student
     const thirdResult = await enrollAsStudent(

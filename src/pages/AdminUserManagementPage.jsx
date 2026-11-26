@@ -142,6 +142,7 @@ const AdminUserManagementPage = () => {
 
   const handleConfirmRelease = async (assignmentIds) => {
     if (!modals.modals.studentToRelease) return;
+    const studentLabel = modals.modals.studentToRelease.displayName || modals.modals.studentToRelease.email || 'Student';
     modals.setReleaseLoading(true);
     try {
       const settled = await Promise.allSettled(assignmentIds.map(id =>
@@ -153,16 +154,16 @@ const AdminUserManagementPage = () => {
         await userManagement.loadUsers().then(() => assignments.loadAssignments({ force: true }));
       }
       if (failedCount > 0) {
-        userManagement.setError(
+        toast.error(
           succeededCount > 0
-            ? `Released ${succeededCount} of ${assignmentIds.length} assignments, but ${failedCount} failed`
-            : `Failed to release ${failedCount} assignment(s)`
+            ? `Released ${succeededCount} of ${assignmentIds.length} assignments for ${studentLabel}, but ${failedCount} failed.`
+            : `Failed to release ${failedCount} assignment(s) for ${studentLabel}.`
         );
       } else {
-        userManagement.setSuccessMessage(`Successfully released ${modals.modals.studentToRelease.displayName || modals.modals.studentToRelease.email}`);
+        toast.success(`Released ${studentLabel}.`);
       }
     } catch (err) {
-      userManagement.setError('Failed to release student. Please try again.');
+      toast.error('Failed to release student. Please try again.');
     } finally {
       modals.setReleaseLoading(false);
       modals.closeReleaseModal();

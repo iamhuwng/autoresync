@@ -207,4 +207,88 @@ describe('useTeacherStudentRoster', () => {
             expect(result.current.requests.map((r) => r.id)).toEqual(['teacher-2-req']);
         });
     });
+
+    it('surfaces roster error and retains previous roster when all profile reads fail', async () => {
+        const { result } = renderHook(() => useTeacherStudentRoster('teacher-1'));
+
+        await waitFor(() => {
+            expect(result.current.loading).toBe(false);
+            expect(result.current.students).toHaveLength(1);
+        });
+
+        mocks.getUserById.mockRejectedValueOnce(new Error('Profile read failed'));
+
+        await act(async () => {
+            await result.current.reload();
+        });
+
+        expect(result.current.error).toContain('Could not load your students');
+        expect(result.current.students).toHaveLength(1);
+    });
+
+    it('surfaces partial profile failure error while rendering loaded profiles', async () => {
+        const studentTwo: UserProfile = {
+            ...studentOne,
+            uid: 'student-2',
+            displayName: 'Bob',
+            email: 'bob@student.test',
+        };
+        mocks.getAssignmentsByTeacher.mockResolvedValue([
+            assignmentOne,
+            { ...assignmentOne, id: 'assign-2', studentId: 'student-2' },
+        ]);
+        mocks.getUserById
+            .mockResolvedValueOnce(studentOne)
+            .mockRejectedValueOnce(new Error('Profile 2 unavailable'));
+
+        const { result } = renderHook(() => useTeacherStudentRoster('teacher-1'));
+
+        await waitFor(() => {
+            expect(result.current.loading).toBe(false);
+        });
+
+        expect(result.current.students.map((s) => s.uid)).toEqual(['student-1']);
+        expect(result.current.error).toContain('Could not load 1 student profile(s)');
+    });
+
+    it('ignores stale reloadClasses and reloadRequests callbacks captured from a previous teacher', async () => {
+        const { result, rerender } = renderHook(
+            ({ tid }: { tid: string | null }) => useTeacherStudentRoster(tid),
+            { initialProps: { tid: 'teacher-1' as string | null } }
+        );
+
+        await waitFor(() => {
+            expect(result.current.loading).toBe(false);
+        });
+
+        const staleReloadClasses = result.current.reloadClasses;
+        const staleReloadRequests = result.current.reloadRequests;
+
+        mocks.getTeacherClassesWithMembers.mockResolvedValueOnce([
+            { ...classOne, id: 'teacher-2-class', name: 'Teacher 2 Class' },
+        ]);
+        mocks.getAssignmentRequestsByTeacher.mockResolvedValueOnce([
+            { ...requestOne, id: 'teacher-2-req', teacherId: 'teacher-2' },
+        ]);
+
+        rerender({ tid: 'teacher-2' });
+
+        await waitFor(() => {
+            expect(result.current.classes.map((c) => c.id)).toEqual(['teacher-2-class']);
+            expect(result.current.requests.map((r) => r.id)).toEqual(['teacher-2-req']);
+        });
+
+        mocks.getTeacherClassesWithMembers.mockClear();
+        mocks.getAssignmentRequestsByTeacher.mockClear();
+
+        await act(async () => {
+            await staleReloadClasses();
+            await staleReloadRequests();
+        });
+
+        expect(mocks.getTeacherClassesWithMembers).not.toHaveBeenCalled();
+        expect(mocks.getAssignmentRequestsByTeacher).not.toHaveBeenCalled();
+        expect(result.current.classes.map((c) => c.id)).toEqual(['teacher-2-class']);
+        expect(result.current.requests.map((r) => r.id)).toEqual(['teacher-2-req']);
+    });
 });

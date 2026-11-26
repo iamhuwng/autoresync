@@ -208,24 +208,28 @@ describe('assignmentManager', () => {
                 coursesEnrolled: []
             };
 
-            mockGet.mockResolvedValueOnce({
-                exists: () => true,
-                val: () => existingAssignment
-            });
+            mockGet
+                .mockResolvedValueOnce({
+                    exists: () => true,
+                    val: () => existingAssignment
+                })
+                .mockResolvedValueOnce({
+                    exists: () => true,
+                    val: () => ({ 'assignment-123': existingAssignment })
+                });
             mockUpdate.mockResolvedValueOnce(undefined);
-            mockSet.mockResolvedValueOnce(undefined);
             mockSet.mockResolvedValueOnce(undefined); // History
 
             const result = await removeAssignment('assignment-123', 'No longer needed');
 
             expect(result.success).toBe(true);
-            // Verify update was called with the correct data structure
             expect(mockUpdate).toHaveBeenCalled();
             const updateCall = mockUpdate.mock.calls[0][1];
             expect(updateCall).toMatchObject({
-                status: 'removed'
+                'student_teacher_assignments/assignment-123/status': 'removed',
+                'student_teacher_links/teacher-456/student-123': null,
             });
-            expect(updateCall.unassignedAt).toBeGreaterThan(0);
+            expect(updateCall['student_teacher_assignments/assignment-123/unassignedAt']).toBeGreaterThan(0);
         });
 
         it('should set unassignedAt timestamp', async () => {
@@ -240,12 +244,16 @@ describe('assignmentManager', () => {
                 coursesEnrolled: []
             };
 
-            mockGet.mockResolvedValueOnce({
-                exists: () => true,
-                val: () => existingAssignment
-            });
+            mockGet
+                .mockResolvedValueOnce({
+                    exists: () => true,
+                    val: () => existingAssignment
+                })
+                .mockResolvedValueOnce({
+                    exists: () => false,
+                    val: () => null
+                });
             mockUpdate.mockResolvedValueOnce(undefined);
-            mockSet.mockResolvedValueOnce(undefined);
             mockSet.mockResolvedValueOnce(undefined);
 
             const beforeTime = Date.now();
@@ -253,8 +261,8 @@ describe('assignmentManager', () => {
             const afterTime = Date.now();
 
             const updateCall = mockUpdate.mock.calls[0][1];
-            expect(updateCall.unassignedAt).toBeGreaterThanOrEqual(beforeTime);
-            expect(updateCall.unassignedAt).toBeLessThanOrEqual(afterTime);
+            expect(updateCall['student_teacher_assignments/assignment-123/unassignedAt']).toBeGreaterThanOrEqual(beforeTime);
+            expect(updateCall['student_teacher_assignments/assignment-123/unassignedAt']).toBeLessThanOrEqual(afterTime);
         });
 
         it('should validate assignment ID', async () => {
@@ -288,23 +296,28 @@ describe('assignmentManager', () => {
                 coursesEnrolled: []
             };
 
-            mockGet.mockResolvedValueOnce({
-                exists: () => true,
-                val: () => existingAssignment
-            });
+            mockGet
+                .mockResolvedValueOnce({
+                    exists: () => true,
+                    val: () => existingAssignment
+                })
+                .mockResolvedValueOnce({
+                    exists: () => false,
+                    val: () => null
+                });
             mockUpdate.mockResolvedValueOnce(undefined);
-            mockSet.mockResolvedValueOnce(undefined);
             mockSet.mockResolvedValueOnce(undefined);
 
             await removeAssignment('assignment-123', 'Test reason');
 
             // Verify history entry was created
-            expect(mockSet).toHaveBeenCalledTimes(2);
-            const historyCall = mockSet.mock.calls[1][1];
+            expect(mockSet).toHaveBeenCalledTimes(1);
+            const historyCall = mockSet.mock.calls[0][1];
             expect(historyCall).toMatchObject({
                 studentId: 'student-123',
                 teacherId: 'teacher-456',
                 action: 'unassigned',
+                performedBy: 'admin-1',
                 reason: 'Test reason'
             });
         });

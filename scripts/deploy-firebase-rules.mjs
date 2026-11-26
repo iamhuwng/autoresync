@@ -20,6 +20,7 @@ export const RTDB_SECURITY_TEST_FILES = Object.freeze([
   'src/__tests__/security/student-private-thcs-homework-current-rules.emulator.test.ts',
   'src/__tests__/security/externalAudioCredentialRules.emulator.test.ts',
   'src/__tests__/security/externalAudioPublishRules.emulator.test.ts',
+  'src/__tests__/security/teacherRosterIsolation.emulator.test.ts',
 ]);
 export const FIRESTORE_SECURITY_TEST_FILES = Object.freeze([
   'src/__tests__/security/homeworkFirestoreRules.test.ts',
