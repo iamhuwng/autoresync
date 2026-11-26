@@ -11,6 +11,7 @@
     display: flex;
     flex-direction: column;
     height: 100vh;
+    height: 100dvh;
     background: #f8fafc;
     overflow: hidden;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
@@ -23,6 +24,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
     padding: 0 24px;
     height: 56px;
     background: #fff;
@@ -34,6 +36,8 @@
     display: flex;
     align-items: center;
     gap: 12px;
+    min-width: 0;
+    flex: 1 1 auto;
 }
 
 .wtp-header-title {
@@ -41,6 +45,9 @@
     font-weight: 700;
     color: #0f172a;
     letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .wtp-header-badge {
@@ -228,7 +235,32 @@
     margin: 20px 0;
 }
 
+.wtp-prompt-image-btn {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: zoom-in;
+    position: relative;
+    text-align: left;
+}
+
+.wtp-prompt-image-zoom-hint {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff;
+    background: rgba(15, 23, 42, 0.72);
+    padding: 4px 8px;
+    border-radius: 6px;
+    pointer-events: none;
+}
+
 .wtp-prompt-image {
+    display: block;
     width: 100%;
     max-width: 100%;
     border-radius: 10px;
@@ -238,9 +270,73 @@
 
 .wtp-image-caption {
     font-size: 12px;
-    color: #94a3b8;
+    color: #64748b;
     margin-top: 8px;
     font-style: italic;
+    text-align: center;
+}
+
+.wtp-lightbox-dialog {
+    padding: 0;
+    border: none;
+    background: transparent;
+    max-width: 95vw;
+    max-height: 92vh;
+    margin: auto;
+    overflow: visible;
+}
+
+.wtp-lightbox-dialog:modal {
+    overscroll-behavior: contain;
+}
+
+.wtp-lightbox-dialog::backdrop {
+    background: rgba(15, 23, 42, 0.8);
+    overflow: hidden;
+    overscroll-behavior: contain;
+}
+
+.wtp-lightbox-content {
+    position: relative;
+    background: #fff;
+    border-radius: 12px;
+    padding: 16px;
+    max-width: 92vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.wtp-lightbox-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    color: #334155;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.wtp-lightbox-image {
+    max-width: 100%;
+    max-height: 80vh;
+    object-fit: contain;
+    border-radius: 8px;
+}
+
+.wtp-lightbox-caption {
+    font-size: 13px;
+    color: #475569;
+    margin: 0;
     text-align: center;
 }
 
@@ -267,54 +363,72 @@
 .wtp-prompt-mobile-btn {
     display: none;
     position: fixed;
-    bottom: 80px;
+    bottom: 20px;
     left: 16px;
+    min-height: 44px;
     padding: 10px 18px;
     border-radius: 24px;
     border: none;
     background: #3b82f6;
     color: #fff;
     font-size: 14px;
-    font-weight: 500;
+    font-weight: 600;
     cursor: pointer;
     box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
     z-index: 20;
 }
 
-.wtp-prompt-mobile-overlay {
-    position: fixed;
-    inset: 0;
+.wtp-prompt-mobile-dialog {
+    padding: 0;
+    border: none;
+    background: transparent;
+    width: 100%;
+    max-width: 100vw;
+    margin: auto 0 0 0;
+}
+
+.wtp-prompt-mobile-dialog:modal {
+    overscroll-behavior: contain;
+}
+
+.wtp-prompt-mobile-dialog::backdrop {
     background: rgba(0, 0, 0, 0.5);
-    z-index: 50;
-    display: flex;
-    align-items: flex-end;
+    overflow: hidden;
+    overscroll-behavior: contain;
 }
 
 .wtp-prompt-mobile-content {
     background: #fff;
     width: 100%;
-    max-height: 70vh;
+    max-height: 75vh;
     overflow-y: auto;
     border-radius: 16px 16px 0 0;
     padding: 24px;
     position: relative;
+    box-sizing: border-box;
 }
 
 .wtp-prompt-mobile-close {
     position: absolute;
     top: 12px;
     right: 16px;
+    width: 36px;
+    height: 36px;
     background: transparent;
     border: none;
     font-size: 20px;
     cursor: pointer;
-    color: #94a3b8;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* ── Editor (Right 60%) ──────────────────────────────────────── */
 
 .wtp-editor-wrapper {
     flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     padding: 24px;
@@ -324,7 +438,7 @@
 
 .wtp-editor-textarea {
     flex: 1;
-    min-height: 400px;
+    min-height: 220px;
     padding: 24px;
     border: 1px solid #e2e8f0;
     border-radius: 10px;
@@ -350,7 +464,7 @@
 
 .wtp-editor-textarea:disabled {
     background: #f1f5f9;
-    color: #94a3b8;
+    color: #64748b;
     cursor: not-allowed;
 }
 
@@ -358,27 +472,50 @@
     display: flex;
     justify-content: flex-end;
     padding: 10px 4px 0;
+    flex-shrink: 0;
 }
 
-/* PRD: "Words: 127" — normal text color, no red/green indicators */
 .wtp-word-count {
     font-size: 14px;
     font-weight: 500;
     color: #475569;
     padding: 4px 0;
+    font-variant-numeric: tabular-nums;
 }
 
-/* ── Submit Modal ───────────────────────────────────────────── */
+.wtp-word-count--low {
+    color: #b45309;
+}
 
-.wtp-submit-overlay {
-    position: fixed;
-    inset: 0;
+.wtp-word-count--met {
+    color: #047857;
+}
+
+.wtp-word-count-target {
+    color: #64748b;
+    font-weight: 400;
+}
+
+/* ── Submit Modal (native <dialog>) ─────────────────────────── */
+
+.wtp-submit-dialog {
+    padding: 0;
+    border: none;
+    background: transparent;
+    max-width: 90vw;
+    margin: auto;
+    overflow: visible;
+}
+
+.wtp-submit-dialog:modal {
+    overscroll-behavior: contain;
+}
+
+.wtp-submit-dialog::backdrop {
     background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
     backdrop-filter: blur(2px);
+    overflow: hidden;
+    overscroll-behavior: contain;
 }
 
 .wtp-submit-modal {
@@ -386,10 +523,12 @@
     border-radius: 16px;
     padding: 32px;
     max-width: 420px;
-    width: 90%;
+    width: 90vw;
+    box-sizing: border-box;
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
 }
 
+.wtp-submit-modal h1,
 .wtp-submit-modal h2 {
     font-size: 20px;
     font-weight: 600;
@@ -405,7 +544,7 @@
 }
 
 .wtp-submit-tasks {
-    margin-bottom: 20px;
+    margin-bottom: 16px;
 }
 
 .wtp-submit-task-row {
@@ -427,6 +566,26 @@
 .wtp-submit-task-words {
     font-weight: 600;
     color: #334155;
+    font-variant-numeric: tabular-nums;
+}
+
+.wtp-submit-task-words--low {
+    color: #d97706;
+}
+
+.wtp-submit-task-words--ok {
+    color: #059669;
+}
+
+.wtp-submit-warning {
+    margin: 0 0 20px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    color: #92400e;
+    font-size: 13px;
+    line-height: 1.5;
 }
 
 .wtp-submit-actions {
@@ -512,12 +671,54 @@
     background: #f5f3ff;
 }
 
+.wtp-autosave-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #64748b;
+    white-space: nowrap;
+}
+
+.wtp-autosave-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #10b981;
+}
+
+.wtp-autosave-indicator--saving .wtp-autosave-dot {
+    background: #f59e0b;
+    animation: wtp-pulse 1s ease-in-out infinite;
+}
+
+.wtp-autosave-indicator--error {
+    color: #dc2626;
+}
+
+.wtp-autosave-indicator--error .wtp-autosave-dot {
+    background: #ef4444;
+}
+
+.wtp-paused-banner {
+    background: #f5f3ff;
+    color: #5b21b6;
+    border-bottom: 1px solid #ddd6fe;
+    padding: 8px 24px;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: center;
+    flex-shrink: 0;
+}
+
 /* ── Responsive ─────────────────────────────────────────────── */
 
 @media (max-width: 768px) {
     .wtp-header {
         padding: 0 12px;
-        height: 48px;
+        height: 52px;
+        gap: 8px;
     }
 
     .wtp-header-title {
@@ -528,8 +729,16 @@
         display: none;
     }
 
+    .wtp-autosave-indicator {
+        display: none;
+    }
+
     .wtp-timer {
-        font-size: 18px;
+        font-size: 16px;
+    }
+
+    .wtp-timer-icon {
+        display: none;
     }
 
     .wtp-prompt-panel--desktop {
@@ -537,7 +746,9 @@
     }
 
     .wtp-prompt-mobile-btn {
-        display: block;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
     }
 
     .wtp-main {
@@ -545,11 +756,11 @@
     }
 
     .wtp-editor-wrapper {
-        padding: 12px;
+        padding: 12px 12px 76px;
     }
 
     .wtp-editor-textarea {
-        min-height: 300px;
+        min-height: 200px;
         font-size: 15px;
         padding: 16px;
     }
@@ -569,10 +780,9 @@
     .wtp-submit-btn-header {
         gap: 4px;
         padding: 8px 12px;
-    }
-
-    .wtp-submit-btn-header span {
-        display: none;
+        font-size: 13px;
+        white-space: nowrap;
+        flex-shrink: 0;
     }
 }
 

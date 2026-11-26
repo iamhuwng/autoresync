@@ -9,6 +9,7 @@ export interface SavedWritingPracticeState {
     activeTask: 1 | 2;
     startedAt: number;
     pasteAttemptCount?: number;
+    activeTimeSeconds?: { 1: number; 2: number };
 }
 
 interface WritingProgressKeyParams {

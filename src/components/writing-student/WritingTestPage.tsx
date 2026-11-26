@@ -8,14 +8,17 @@ import { useNavigate } from 'react-router-dom';
 import { ref, onValue, set } from 'firebase/database';
 // @ts-ignore - JS service file
 import { database } from '../../services/firebase';
+import { effectiveNow, normalizeServerTimeOffset } from '../../services/serverClock';
 import { useAuth } from '../../contexts/AuthContext';
 import { ROUTES } from '../../constants/routes';
+import { FEATURE_IDS } from '../../config/featureRegistry';
 import { useFeatureTracking } from '../../hooks/useFeatureTracking';
+import { toast } from '../modern/ToastNotification';
 import WritingPromptPanel from './WritingPromptPanel';
 import WritingEditor from './WritingEditor';
 import WritingSubmitModal from './WritingSubmitModal';
 import { useActiveTimeTracking } from '../../hooks/useActiveTimeTracking';
-import { useWritingAutoSave } from '../../hooks/useWritingAutoSave';
+import { useWritingAutoSave, type WritingAutoSaveStatus } from '../../hooks/useWritingAutoSave';
 import { useExternalPastePrevention } from '../../hooks/useExternalPastePrevention';
 import { autoSubmitFromRTDB } from '../../services/writingSubmissionService';
 import type { IELTSWritingTest } from '../../types/ielts-writing.types';
@@ -28,34 +31,97 @@ interface WritingTestPageProps {
 
 type SubmissionSource = 'manual' | 'timer-expiry' | 'teacher-ended';
 
+interface SessionTimingState {
+    status: string;
+    isPaused: boolean;
+    startTime: number | null;
+    pausedDuration: number;
+    pausedAt: number | null;
+    durationSeconds: number;
+}
+
+function getWordCount(text: string): number {
+    return text.trim() ? text.trim().split(/\s+/).filter((word) => word.length > 0).length : 0;
+}
+
+function computeSessionRemainingSeconds(
+    timing: SessionTimingState,
+    serverTimeOffsetMs: number,
+): number | null {
+    if (timing.status === 'completed') {
+        return 0;
+    }
+
+    if (timing.status !== 'in-progress' || timing.startTime === null) {
+        return null;
+    }
+
+    const now = effectiveNow(Date.now(), serverTimeOffsetMs);
+    const activePauseMs = timing.isPaused && timing.pausedAt !== null
+        ? Math.max(0, now - timing.pausedAt)
+        : 0;
+    const elapsedSeconds = Math.max(
+        0,
+        Math.floor((now - timing.startTime - timing.pausedDuration - activePauseMs) / 1000),
+    );
+    return Math.max(0, timing.durationSeconds - elapsedSeconds);
+}
+
 export default function WritingTestPage({ testData, sessionCode }: WritingTestPageProps) {
     const { user } = useAuth();
     const navigate = useNavigate();
-    const { trackAction } = useFeatureTracking('testTaking');
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.testTaking);
     const studentId = user?.uid || '';
     const studentName = user?.displayName || user?.email || 'Anonymous';
 
     const taskCount = testData.metadata.format === 'full-test' ? 2 : 1;
     const showTask1 = testData.metadata.format !== 'task2-only';
     const showTask2 = testData.metadata.format !== 'task1-only';
+    const defaultTask: 1 | 2 = showTask1 ? 1 : 2;
 
-    const [activeTask, setActiveTask] = useState<1 | 2>(showTask1 ? 1 : 2);
+    const clampTaskNumber = useCallback((candidate: number): 1 | 2 => {
+        if (candidate === 1 && showTask1) return 1;
+        if (candidate === 2 && showTask2) return 2;
+        return defaultTask;
+    }, [defaultTask, showTask1, showTask2]);
+
+    const [activeTask, setActiveTask] = useState<1 | 2>(defaultTask);
     const [essays, setEssays] = useState<{ 1: string; 2: string }>({ 1: '', 2: '' });
     const [submitted, setSubmitted] = useState(false);
     const [showSubmitModal, setShowSubmitModal] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [autoSaveStatus, setAutoSaveStatus] = useState<WritingAutoSaveStatus>('idle');
 
     const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
     const [sessionStatus, setSessionStatus] = useState<string>('waiting');
     const [isPaused, setIsPaused] = useState(false);
     const [detectCopyPaste, setDetectCopyPaste] = useState(false);
     const [pasteAttemptCountHydrated, setPasteAttemptCountHydrated] = useState(false);
+
     const hasAutoSubmittedRef = useRef(false);
+    const submissionInFlightRef = useRef(false);
+    const submittedRef = useRef(false);
+    submittedRef.current = submitted;
+
     const prevSessionStatusRef = useRef<string>('waiting');
     const savedStatePromiseRef = useRef<Promise<void> | null>(null);
+    const activeTimeSeededRef = useRef(false);
+    const serverTimeOffsetRef = useRef(0);
+    const sessionTimingRef = useRef<SessionTimingState>({
+        status: 'waiting',
+        isPaused: false,
+        startTime: null,
+        pausedDuration: 0,
+        pausedAt: null,
+        durationSeconds: (testData.metadata.duration || 60) * 60,
+    });
+    const pasteAttemptCountRef = useRef(0);
+    const handleSubmitRef = useRef<(source?: SubmissionSource) => Promise<void>>(async () => {});
 
     const activeTime = useActiveTimeTracking(taskCount as 1 | 2);
-    const autoSave = useWritingAutoSave(sessionCode, studentId);
+    const autoSave = useWritingAutoSave(sessionCode, studentId, {
+        onSaveStatusChange: setAutoSaveStatus,
+    });
     const {
         pasteAttemptCount,
         setPasteAttemptCount,
@@ -64,6 +130,84 @@ export default function WritingTestPage({ testData, sessionCode }: WritingTestPa
         enabled: detectCopyPaste,
         initialPasteAttemptCount: 0,
     });
+    pasteAttemptCountRef.current = pasteAttemptCount;
+
+    const handleSubmit = useCallback(async (submissionSource: SubmissionSource = 'manual') => {
+        if (submissionInFlightRef.current || submittedRef.current) {
+            return;
+        }
+
+        submissionInFlightRef.current = true;
+        setSubmitting(true);
+        setShowSubmitModal(false);
+
+        try {
+            await savedStatePromiseRef.current;
+            activeTime.pause?.();
+            await autoSave.flushPendingSave();
+
+            const activeTimesPayload = {
+                1: activeTime.getActiveTime?.(1) ?? 0,
+                2: activeTime.getActiveTime?.(2) ?? 0,
+            };
+            await autoSave.saveActiveTimes?.(activeTimesPayload);
+
+            if (studentId && sessionCode) {
+                await set(
+                    ref(database, `game_sessions/${sessionCode}/students/${studentId}/writing/pasteAttemptCount`),
+                    pasteAttemptCountRef.current,
+                );
+            }
+
+            await autoSubmitFromRTDB(sessionCode, studentId, studentName, testData);
+            submittedRef.current = true;
+            setSubmitted(true);
+
+            trackAction('finishTest', {
+                testSkill: 'Writing',
+                submissionSource,
+                outcome: 'submitted',
+            });
+
+            console.log('[WritingTestPage] Redirecting to submission-complete after writing submission.');
+            navigate(ROUTES.SUBMISSION_COMPLETE, {
+                replace: true,
+                state: {
+                    sessionCode,
+                    testId: testData.id,
+                    studentName,
+                },
+            });
+        } catch (err) {
+            console.error('Submit failed:', err);
+            hasAutoSubmittedRef.current = false;
+            toast.error('Failed to submit your writing test. Your draft is preserved — please try again.');
+        } finally {
+            submissionInFlightRef.current = false;
+            setSubmitting(false);
+        }
+    }, [activeTime, autoSave, navigate, sessionCode, studentId, studentName, testData, trackAction]);
+
+    handleSubmitRef.current = handleSubmit;
+
+    // Sync server clock offset so student device clock skew cannot corrupt exam timer
+    useEffect(() => {
+        if (!sessionCode) return;
+
+        const offsetRef = ref(database, '.info/serverTimeOffset');
+        const unsub = onValue(offsetRef, (snap: any) => {
+            serverTimeOffsetRef.current = normalizeServerTimeOffset(snap?.val?.());
+            const updatedRemaining = computeSessionRemainingSeconds(
+                sessionTimingRef.current,
+                serverTimeOffsetRef.current,
+            );
+            if (updatedRemaining !== null) {
+                setTimeRemaining(updatedRemaining);
+            }
+        });
+
+        return () => unsub();
+    }, [sessionCode]);
 
     useEffect(() => {
         if (!sessionCode) return;
@@ -73,42 +217,71 @@ export default function WritingTestPage({ testData, sessionCode }: WritingTestPa
             if (!snap.exists()) return;
 
             const data = snap.val();
-            setSessionStatus(data.status || 'waiting');
-            setIsPaused(data.isPaused || false);
+            const nextStatus = data.status || 'waiting';
+            const nextPaused = Boolean(data.isPaused);
+            const sessionDurationMinutes = typeof data.duration === 'number' && data.duration > 0
+                ? data.duration
+                : (testData.metadata.duration || 60);
+
+            sessionTimingRef.current = {
+                status: nextStatus,
+                isPaused: nextPaused,
+                startTime: typeof data.startTime === 'number' && Number.isFinite(data.startTime)
+                    ? data.startTime
+                    : null,
+                pausedDuration: typeof data.pausedDuration === 'number' && Number.isFinite(data.pausedDuration)
+                    ? data.pausedDuration
+                    : 0,
+                pausedAt: typeof data.pausedAt === 'number' && Number.isFinite(data.pausedAt) && !data.resumedAt
+                    ? data.pausedAt
+                    : null,
+                durationSeconds: sessionDurationMinutes * 60,
+            };
+
+            setSessionStatus(nextStatus);
+            setIsPaused(nextPaused);
             setDetectCopyPaste(Boolean(data.antiCheatConfig?.detectCopyPaste));
 
-            if (data.status === 'in-progress' && data.startTime && !data.isPaused) {
-                const duration = (testData.metadata.duration || 60) * 60;
-                const pausedDur = data.pausedDuration || 0;
-                const elapsed = Math.floor((Date.now() - data.startTime - pausedDur) / 1000);
-                const remaining = Math.max(0, duration - elapsed);
+            const remaining = computeSessionRemainingSeconds(
+                sessionTimingRef.current,
+                serverTimeOffsetRef.current,
+            );
+            if (remaining !== null) {
                 setTimeRemaining(remaining);
-            } else if (data.status === 'completed') {
-                setTimeRemaining(0);
             }
         });
 
         return () => unsub();
     }, [sessionCode, testData.metadata.duration]);
 
+    // Pause active time tracking whenever session is paused or not actively in-progress
+    useEffect(() => {
+        if (isPaused || sessionStatus !== 'in-progress' || submitted) {
+            activeTime.pause?.();
+        }
+    }, [activeTime, isPaused, sessionStatus, submitted]);
+
+    // Authoritative wall-clock countdown with server time offset (immune to background-tab drift)
     useEffect(() => {
         if (sessionStatus !== 'in-progress' || isPaused || submitted) return;
 
-        const interval = setInterval(() => {
-            setTimeRemaining((prev) => {
-                if (prev === null || prev <= 0) return prev;
+        const checkTimer = () => {
+            const remaining = computeSessionRemainingSeconds(
+                sessionTimingRef.current,
+                serverTimeOffsetRef.current,
+            );
+            if (remaining === null) return;
 
-                const next = prev - 1;
-                if (next <= 0 && !hasAutoSubmittedRef.current) {
-                    hasAutoSubmittedRef.current = true;
-                    void handleSubmit('timer-expiry');
-                }
-                return next;
-            });
-        }, 1000);
+            setTimeRemaining(remaining);
+            if (remaining <= 0 && !hasAutoSubmittedRef.current && !submissionInFlightRef.current) {
+                hasAutoSubmittedRef.current = true;
+                void handleSubmitRef.current('timer-expiry');
+            }
+        };
 
+        checkTimer();
+        const interval = setInterval(checkTimer, 1000);
         return () => clearInterval(interval);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [sessionStatus, isPaused, submitted]);
 
     useEffect(() => {
@@ -121,11 +294,11 @@ export default function WritingTestPage({ testData, sessionCode }: WritingTestPa
         if (wasInProgress && hasEnded && !submitted && !hasAutoSubmittedRef.current) {
             console.log('[WritingTestPage] Teacher ended test early; auto-submitting writing.');
             hasAutoSubmittedRef.current = true;
-            void handleSubmit('teacher-ended');
+            void handleSubmitRef.current('teacher-ended');
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [sessionStatus, submitted]);
 
+    // Hydrate saved essays, active task, active times, and paste attempts on load/reconnect
     useEffect(() => {
         let cancelled = false;
 
@@ -141,11 +314,21 @@ export default function WritingTestPage({ testData, sessionCode }: WritingTestPa
                 });
 
                 if (saved.activeTask === 1 || saved.activeTask === 2) {
-                    setActiveTask(saved.activeTask as 1 | 2);
+                    setActiveTask(clampTaskNumber(saved.activeTask));
                 }
 
                 if (typeof saved.pasteAttemptCount === 'number') {
                     setPasteAttemptCount(saved.pasteAttemptCount);
+                }
+
+                if (!activeTimeSeededRef.current && saved.activeTimeSeconds) {
+                    activeTimeSeededRef.current = true;
+                    activeTime.seedActiveTimes?.(saved.activeTimeSeconds);
+                }
+
+                if (saved.submitted && !saved.reopened) {
+                    submittedRef.current = true;
+                    setSubmitted(true);
                 }
             }
 
@@ -156,7 +339,7 @@ export default function WritingTestPage({ testData, sessionCode }: WritingTestPa
         return () => {
             cancelled = true;
         };
-    }, [autoSave, setPasteAttemptCount]);
+    }, [activeTime, autoSave, clampTaskNumber, setPasteAttemptCount]);
 
     useEffect(() => {
         if (!pasteAttemptCountHydrated || !studentId || !sessionCode) {
@@ -180,23 +363,64 @@ export default function WritingTestPage({ testData, sessionCode }: WritingTestPa
         );
         const unsub = onValue(reopenRef, (snap: any) => {
             if (snap.val() === true) {
+                const wasSubmitted = submittedRef.current;
+                submittedRef.current = false;
+                hasAutoSubmittedRef.current = false;
                 setSubmitted(false);
+                if (wasSubmitted) {
+                    toast.info('Your teacher reopened this writing test. You can continue editing.');
+                }
             }
         });
 
         return () => unsub();
     }, [sessionCode, studentId]);
 
+    // Flush unsaved text & active time when the tab goes hidden or page closes
+    useEffect(() => {
+        const flushDraft = () => {
+            if (submittedRef.current) return;
+            void autoSave.flushPendingSave().catch((err) => {
+                console.error('Failed to flush writing draft:', err);
+            });
+            void autoSave.saveActiveTimes?.({
+                1: activeTime.getActiveTime?.(1) ?? 0,
+                2: activeTime.getActiveTime?.(2) ?? 0,
+            })?.catch((err) => {
+                console.error('Failed to persist active writing times:', err);
+            });
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'hidden') {
+                activeTime.pause?.();
+                flushDraft();
+            }
+        };
+
+        const handlePageHide = () => {
+            activeTime.pause?.();
+            flushDraft();
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('pagehide', handlePageHide);
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('pagehide', handlePageHide);
+        };
+    }, [activeTime, autoSave]);
+
     useEffect(() => {
         const handler = (event: BeforeUnloadEvent) => {
-            if (essays[1] || essays[2]) {
+            if (!submitted && (essays[1] || essays[2])) {
                 event.preventDefault();
             }
         };
 
         window.addEventListener('beforeunload', handler);
         return () => window.removeEventListener('beforeunload', handler);
-    }, [essays]);
+    }, [essays, submitted]);
 
     const handleEssayChange = useCallback((text: string) => {
         setEssays((prev) => ({ ...prev, [activeTask]: text }));
@@ -205,51 +429,15 @@ export default function WritingTestPage({ testData, sessionCode }: WritingTestPa
     }, [activeTask, activeTime, autoSave]);
 
     const handleTabSwitch = useCallback((taskNum: 1 | 2) => {
-        autoSave.flushPendingSave();
+        void autoSave.flushPendingSave();
         autoSave.saveActiveTab(taskNum);
+        void autoSave.saveActiveTimes?.({
+            1: activeTime.getActiveTime?.(1) ?? 0,
+            2: activeTime.getActiveTime?.(2) ?? 0,
+        })?.catch(() => {});
         activeTime.switchTask(taskNum);
         setActiveTask(taskNum);
     }, [autoSave, activeTime]);
-
-    const getWordCount = (text: string) =>
-        text.trim() ? text.trim().split(/\s+/).filter((word) => word.length > 0).length : 0;
-
-    const handleSubmit = async (submissionSource: SubmissionSource = 'manual') => {
-        setSubmitting(true);
-        setShowSubmitModal(false);
-
-        try {
-            await savedStatePromiseRef.current;
-            autoSave.flushPendingSave();
-            await set(
-                ref(database, `game_sessions/${sessionCode}/students/${studentId}/writing/pasteAttemptCount`),
-                pasteAttemptCount,
-            );
-            await autoSubmitFromRTDB(sessionCode, studentId, studentName, testData);
-            setSubmitted(true);
-
-            trackAction('finishTest', {
-                testSkill: 'Writing',
-                submissionSource,
-                outcome: 'submitted',
-            });
-
-            console.log('[WritingTestPage] Redirecting to submission-complete after writing submission.');
-            navigate(ROUTES.SUBMISSION_COMPLETE, {
-                replace: true,
-                state: {
-                    sessionCode,
-                    testId: testData.id,
-                    studentName,
-                },
-            });
-        } catch (err) {
-            console.error('Submit failed:', err);
-            alert('Failed to submit. Please try again.');
-        } finally {
-            setSubmitting(false);
-        }
-    };
 
     const currentTestTask = (testData.tasks.find((task) => task.taskNumber === activeTask) || testData.tasks[0])!;
 
@@ -262,6 +450,7 @@ export default function WritingTestPage({ testData, sessionCode }: WritingTestPa
         .map((task) => ({
             taskNumber: task.taskNumber,
             wordCount: getWordCount(essays[task.taskNumber as 1 | 2] || ''),
+            wordMinimum: task.wordMinimum,
         }));
 
     const formatTime = (seconds: number | null): string => {
@@ -278,11 +467,19 @@ export default function WritingTestPage({ testData, sessionCode }: WritingTestPa
         return 'wtp-timer';
     };
 
+    const autoSaveLabel = autoSaveStatus === 'saving'
+        ? 'Saving...'
+        : autoSaveStatus === 'error'
+            ? 'Save failed — retrying'
+            : autoSaveStatus === 'saved'
+                ? 'Saved'
+                : null;
+
     return (
         <div className="wtp-page">
             <div className="wtp-header">
                 <div className="wtp-header-left">
-                    <span className="wtp-header-title">
+                    <span className="wtp-header-title" title={testData.metadata.title || 'IELTS Writing Test'}>
                         {testData.metadata.title || 'IELTS Writing Test'}
                     </span>
                     <span className="wtp-header-badge">Writing</span>
@@ -300,7 +497,7 @@ export default function WritingTestPage({ testData, sessionCode }: WritingTestPa
                         </span>
                     )}
                     {sessionStatus === 'in-progress' && (
-                        <div className={timerClass()}>
+                        <div className={timerClass()} aria-label={`Time remaining ${formatTime(timeRemaining)}`}>
                             <span className="wtp-timer-icon">Time</span>
                             <span>{formatTime(timeRemaining)}</span>
                         </div>
@@ -308,19 +505,39 @@ export default function WritingTestPage({ testData, sessionCode }: WritingTestPa
                 </div>
 
                 <div className="wtp-header-right">
+                    {autoSaveLabel && (
+                        <span
+                            className={`wtp-autosave-indicator wtp-autosave-indicator--${autoSaveStatus}`}
+                            role="status"
+                            aria-live="polite"
+                        >
+                            <span className="wtp-autosave-dot" aria-hidden="true" />
+                            <span>{autoSaveLabel}</span>
+                        </span>
+                    )}
                     <button
+                        type="button"
                         className="wtp-submit-btn-header"
                         onClick={() => setShowSubmitModal(true)}
-                        disabled={submitting}
+                        disabled={submitting || submitted}
                     >
-                        <span>{submitting ? 'Submitting...' : 'Submit Test'}</span>
+                        <span>{submitting ? 'Submitting...' : submitted ? 'Submitted' : 'Submit Test'}</span>
                     </button>
                 </div>
             </div>
 
-            <div className="wtp-tab-bar">
+            {isPaused && (
+                <div className="wtp-paused-banner" role="status" aria-live="polite">
+                    Test paused by your teacher. Your draft is saved and editing will resume when the teacher continues.
+                </div>
+            )}
+
+            <div className="wtp-tab-bar" role="tablist" aria-label="Writing tasks">
                 {showTask1 && (
                     <button
+                        type="button"
+                        role="tab"
+                        aria-selected={activeTask === 1}
                         className={`wtp-tab ${activeTask === 1 ? 'wtp-tab--active' : ''}`}
                         onClick={() => handleTabSwitch(1)}
                     >
@@ -329,6 +546,9 @@ export default function WritingTestPage({ testData, sessionCode }: WritingTestPa
                 )}
                 {showTask2 && (
                     <button
+                        type="button"
+                        role="tab"
+                        aria-selected={activeTask === 2}
                         className={`wtp-tab ${activeTask === 2 ? 'wtp-tab--active' : ''}`}
                         onClick={() => handleTabSwitch(2)}
                     >
@@ -342,8 +562,10 @@ export default function WritingTestPage({ testData, sessionCode }: WritingTestPa
                 <WritingEditor
                     value={essays[activeTask]}
                     onChange={handleEssayChange}
-                    disabled={submitted || submitting}
+                    disabled={submitted || submitting || isPaused}
                     attachToTextarea={attachToTextarea}
+                    wordMinimum={currentTestTask?.wordMinimum}
+                    taskNumber={activeTask}
                 />
             </div>
 
@@ -354,6 +576,7 @@ export default function WritingTestPage({ testData, sessionCode }: WritingTestPa
                     void handleSubmit('manual');
                 }}
                 tasks={submitTasks}
+                isSubmitting={submitting}
             />
         </div>
     );

@@ -172,6 +172,8 @@ describe('WritingPracticeView', () => {
             getActiveTime: vi.fn(() => 120),
             switchTask: vi.fn(),
             onKeystroke: vi.fn(),
+            pause: vi.fn(),
+            seedActiveTimes: vi.fn(),
         });
     });
 
@@ -662,5 +664,49 @@ describe('WritingPracticeView', () => {
         });
         fireEvent.click(screen.getByRole('button', { name: /back to homework/i }));
         expect(mockNavigate).toHaveBeenCalledWith('/student/homework');
+    });
+
+    it('flushes unsaved local progress when navigating back before the debounce fires', async () => {
+        render(
+            <WritingPracticeView
+                materialId="material-flush"
+                testData={{
+                    id: 'test-flush',
+                    metadata: {
+                        title: 'Flush Test',
+                        format: 'task1-only',
+                        duration: 60,
+                    },
+                    tasks: [
+                        {
+                            taskNumber: 1,
+                            taskType: 'bar-chart',
+                            promptText: 'Write about the chart',
+                            wordMinimum: 150,
+                        },
+                    ],
+                } as any}
+            />,
+        );
+
+        await waitFor(() => expect(screen.getByRole('button', { name: /submit/i })).toBeEnabled());
+        fireEvent.change(screen.getByTestId('writing-editor'), {
+            target: { value: 'Unsaved essay right before leaving.' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: /back/i }));
+
+        const storageKey = buildWritingProgressStorageKey({
+            materialId: 'material-flush',
+            studentId: 'student-1',
+            scopeContext: { mode: 'self_study' },
+        });
+        await waitFor(() => {
+            const savedRaw = window.localStorage.getItem(storageKey);
+            expect(savedRaw).toBeTruthy();
+            expect(JSON.parse(savedRaw!)).toMatchObject({
+                essays: { 1: 'Unsaved essay right before leaving.', 2: '' },
+                activeTimeSeconds: { 1: 120, 2: 120 },
+            });
+        });
     });
 });

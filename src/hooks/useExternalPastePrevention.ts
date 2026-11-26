@@ -4,8 +4,9 @@
  * Internal copy/cut is tracked and allowed within 60 seconds.
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
+import { toast } from '../components/modern/ToastNotification';
 
 interface UseExternalPastePreventionOptions {
     enabled: boolean;
@@ -18,25 +19,20 @@ interface PastePreventionResult {
     attachToTextarea: (textarea: HTMLTextAreaElement) => () => void;
 }
 
-function showBlockingToast(message: string, background: string) {
-    const toast = document.createElement('div');
-    toast.textContent = message;
-    Object.assign(toast.style, {
-        position: 'fixed',
-        bottom: '24px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        padding: '12px 24px',
-        background,
-        color: '#fff',
-        borderRadius: '8px',
-        fontSize: '14px',
-        fontWeight: '500',
-        zIndex: '9999',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-    });
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
+const INTERNAL_COPY_TTL_MS = 60_000;
+const ALLOWED_BULK_INPUT_TYPES = new Set(['historyUndo', 'historyRedo', 'insertReplacementText']);
+
+function setTextareaValueForReact(textarea: HTMLTextAreaElement, nextValue: string) {
+    const prototypeSetter = Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        'value',
+    )?.set;
+
+    if (prototypeSetter) {
+        prototypeSetter.call(textarea, nextValue);
+    } else {
+        textarea.value = nextValue;
+    }
 }
 
 export function useExternalPastePrevention({
@@ -44,6 +40,7 @@ export function useExternalPastePrevention({
     initialPasteAttemptCount = 0,
 }: UseExternalPastePreventionOptions): PastePreventionResult {
     const [pasteAttemptCount, setPasteAttemptCount] = useState(initialPasteAttemptCount);
+    const lastInternalCopyRef = useRef<{ text: string; timestamp: number } | null>(null);
 
     const attachToTextarea = useCallback((textarea: HTMLTextAreaElement): () => void => {
         if (!enabled) {
@@ -51,10 +48,16 @@ export function useExternalPastePrevention({
         }
 
         let previousValue = textarea.value;
-        let lastInternalCopy: { text: string; timestamp: number } | null = null;
+        let isComposing = false;
+        let lastInputType: string | null = null;
+        let suppressingSyntheticInput = false;
 
         const incrementAttemptCount = () => {
             setPasteAttemptCount((current) => current + 1);
+        };
+
+        const handleFocus = () => {
+            previousValue = textarea.value;
         };
 
         const handleCopy = () => {
@@ -64,7 +67,7 @@ export function useExternalPastePrevention({
             );
 
             if (selection) {
-                lastInternalCopy = {
+                lastInternalCopyRef.current = {
                     text: selection,
                     timestamp: Date.now(),
                 };
@@ -75,12 +78,23 @@ export function useExternalPastePrevention({
             handleCopy();
         };
 
+        const handleCompositionStart = () => {
+            isComposing = true;
+            previousValue = textarea.value;
+        };
+
+        const handleCompositionEnd = () => {
+            isComposing = false;
+            previousValue = textarea.value;
+        };
+
         const handlePaste = (event: ClipboardEvent) => {
             const pastedText = event.clipboardData?.getData('text/plain') || '';
+            const lastInternalCopy = lastInternalCopyRef.current;
             const isRecentInternalCopy = Boolean(
                 lastInternalCopy
                 && lastInternalCopy.text === pastedText
-                && Date.now() - lastInternalCopy.timestamp < 60_000,
+                && Date.now() - lastInternalCopy.timestamp < INTERNAL_COPY_TTL_MS,
             );
 
             if (isRecentInternalCopy) {
@@ -89,60 +103,81 @@ export function useExternalPastePrevention({
                 const end = textarea.selectionEnd;
                 const before = textarea.value.substring(0, start);
                 const after = textarea.value.substring(end);
-                textarea.value = before + pastedText + after;
+                const nextValue = before + pastedText + after;
+                previousValue = nextValue;
+                suppressingSyntheticInput = true;
+                setTextareaValueForReact(textarea, nextValue);
                 textarea.selectionStart = textarea.selectionEnd = start + pastedText.length;
                 textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                suppressingSyntheticInput = false;
                 return;
             }
 
             event.preventDefault();
             incrementAttemptCount();
-            showBlockingToast(
-                'External paste is not allowed during the writing test.',
-                '#ef4444',
-            );
+            toast.warning('External paste is not allowed during the writing test.');
         };
 
         const handleDrop = (event: DragEvent) => {
             event.preventDefault();
             incrementAttemptCount();
-            showBlockingToast(
-                'Drag and drop is not allowed during the writing test.',
-                '#f59e0b',
-            );
+            toast.warning('Drag and drop is not allowed during the writing test.');
         };
 
         const handleDragOver = (event: DragEvent) => {
             event.preventDefault();
         };
 
-        const handleBeforeInput = () => {
+        const handleBeforeInput = (event: Event) => {
             previousValue = textarea.value;
+            lastInputType = 'inputType' in event && typeof (event as InputEvent).inputType === 'string'
+                ? (event as InputEvent).inputType
+                : null;
         };
 
-        const handleInput = () => {
+        const handleInput = (event: Event) => {
             const currentValue = textarea.value;
+
+            if (suppressingSyntheticInput || isComposing || (event as InputEvent).isComposing) {
+                previousValue = currentValue;
+                lastInputType = null;
+                return;
+            }
+
+            const inputType = ('inputType' in event && typeof (event as InputEvent).inputType === 'string'
+                ? (event as InputEvent).inputType
+                : null) ?? lastInputType;
+            lastInputType = null;
+
+            if (inputType && ALLOWED_BULK_INPUT_TYPES.has(inputType)) {
+                previousValue = currentValue;
+                return;
+            }
+
             const delta = currentValue.length - previousValue.length;
+            const lastInternalCopy = lastInternalCopyRef.current;
             const hasRecentInternalCopy = Boolean(
-                lastInternalCopy && Date.now() - lastInternalCopy.timestamp < 60_000,
+                lastInternalCopy && Date.now() - lastInternalCopy.timestamp < INTERNAL_COPY_TTL_MS,
             );
 
             if (delta > 10 && !hasRecentInternalCopy) {
-                textarea.value = previousValue;
+                suppressingSyntheticInput = true;
+                setTextareaValueForReact(textarea, previousValue);
                 textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                suppressingSyntheticInput = false;
                 incrementAttemptCount();
-                showBlockingToast(
-                    'Bulk text insertion is not allowed during the writing test.',
-                    '#ef4444',
-                );
+                toast.warning('Bulk text insertion is not allowed during the writing test.');
                 return;
             }
 
             previousValue = currentValue;
         };
 
+        textarea.addEventListener('focus', handleFocus);
         textarea.addEventListener('copy', handleCopy);
         textarea.addEventListener('cut', handleCut);
+        textarea.addEventListener('compositionstart', handleCompositionStart);
+        textarea.addEventListener('compositionend', handleCompositionEnd);
         textarea.addEventListener('paste', handlePaste);
         textarea.addEventListener('drop', handleDrop);
         textarea.addEventListener('dragover', handleDragOver);
@@ -150,8 +185,11 @@ export function useExternalPastePrevention({
         textarea.addEventListener('input', handleInput);
 
         return () => {
+            textarea.removeEventListener('focus', handleFocus);
             textarea.removeEventListener('copy', handleCopy);
             textarea.removeEventListener('cut', handleCut);
+            textarea.removeEventListener('compositionstart', handleCompositionStart);
+            textarea.removeEventListener('compositionend', handleCompositionEnd);
             textarea.removeEventListener('paste', handlePaste);
             textarea.removeEventListener('drop', handleDrop);
             textarea.removeEventListener('dragover', handleDragOver);

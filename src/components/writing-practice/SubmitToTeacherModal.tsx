@@ -18,7 +18,7 @@
  * NO MANTINE.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useId, useRef } from 'react';
 import './SubmitToTeacherModal.css';
 
 // ── Types ──────────────────────────────────────────────────
@@ -27,8 +27,18 @@ interface SubmitToTeacherModalProps {
     onClose: () => void;
     onSubmit: (data: { teacherId: string | null; note: string }) => void;
     studentTeachers: Array<{ id: string; name: string }>;
-    tasks: Array<{ taskNumber: number; wordCount: number }>;
+    tasks: Array<{ taskNumber: number; wordCount: number; wordMinimum?: number }>;
     isSubmitting?: boolean;
+}
+
+function isPointerOutsideDialog(event: PointerEvent, dialog: HTMLDialogElement): boolean {
+    const rect = dialog.getBoundingClientRect();
+    return (
+        event.clientX < rect.left
+        || event.clientX > rect.right
+        || event.clientY < rect.top
+        || event.clientY > rect.bottom
+    );
 }
 
 // ── Component ──────────────────────────────────────────────
@@ -42,6 +52,8 @@ export default function SubmitToTeacherModal({
 }: SubmitToTeacherModalProps) {
     const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
     const [note, setNote] = useState('');
+    const dialogRef = useRef<HTMLDialogElement>(null);
+    const titleId = useId();
 
     // Auto-select if single teacher
     useEffect(() => {
@@ -64,6 +76,56 @@ export default function SubmitToTeacherModal({
         }
     }, [isOpen, studentTeachers]);
 
+    useEffect(() => {
+        const dialog = dialogRef.current;
+        if (!dialog) return;
+
+        if (isOpen && !dialog.open) {
+            if (typeof dialog.showModal === 'function') {
+                dialog.showModal();
+            } else {
+                dialog.setAttribute('open', '');
+            }
+        } else if (!isOpen && dialog.open) {
+            if (typeof dialog.close === 'function') {
+                dialog.close();
+            } else {
+                dialog.removeAttribute('open');
+            }
+        }
+    }, [isOpen]);
+
+    // Light-dismiss fallback when <dialog closedby="any"> is unsupported
+    useEffect(() => {
+        const dialog = dialogRef.current;
+        if (
+            !isOpen
+            || isSubmitting
+            || !dialog
+            || (typeof HTMLDialogElement !== 'undefined' && 'closedBy' in HTMLDialogElement.prototype)
+        ) {
+            return undefined;
+        }
+
+        let pressedOutside = false;
+        const handlePointerDown = (event: PointerEvent) => {
+            pressedOutside = isPointerOutsideDialog(event, dialog);
+        };
+        const handlePointerUp = (event: PointerEvent) => {
+            if (pressedOutside && isPointerOutsideDialog(event, dialog)) {
+                onClose();
+            }
+            pressedOutside = false;
+        };
+
+        dialog.addEventListener('pointerdown', handlePointerDown);
+        dialog.addEventListener('pointerup', handlePointerUp);
+        return () => {
+            dialog.removeEventListener('pointerdown', handlePointerDown);
+            dialog.removeEventListener('pointerup', handlePointerUp);
+        };
+    }, [isOpen, isSubmitting, onClose]);
+
     if (!isOpen) return null;
 
     const hasTeachers = studentTeachers.length > 0;
@@ -77,16 +139,36 @@ export default function SubmitToTeacherModal({
         onSubmit({ teacherId: null, note: note.trim() });
     };
 
-    // Word minimum thresholds (Task 1: 150, Task 2: 250)
-    const getWordThreshold = (taskNumber: number) => (taskNumber === 1 ? 150 : 250);
+    const getWordThreshold = (taskNumber: number, wordMinimum?: number) => {
+        if (typeof wordMinimum === 'number' && Number.isFinite(wordMinimum) && wordMinimum > 0) {
+            return wordMinimum;
+        }
+        return taskNumber === 1 ? 150 : 250;
+    };
 
     return (
-        <div className="stm-overlay" onClick={onClose}>
-            <div className="stm-modal" onClick={(e) => e.stopPropagation()}>
+        <dialog
+            ref={dialogRef}
+            className="stm-dialog"
+            aria-labelledby={titleId}
+            {...({ closedby: isSubmitting ? 'none' : 'any' } as Record<string, string>)}
+            onCancel={(event) => {
+                event.preventDefault();
+                if (!isSubmitting) {
+                    onClose();
+                }
+            }}
+            onClose={() => {
+                if (!isSubmitting) {
+                    onClose();
+                }
+            }}
+        >
+            <div className="stm-modal">
                 {/* Header */}
-                <h2>
-                    {hasTeachers ? '📤 Submit to Teacher' : '💾 Save for Self-Review'}
-                </h2>
+                <h1 id={titleId}>
+                    {hasTeachers ? 'Submit to Teacher' : 'Save for Self-Review'}
+                </h1>
                 <p className="stm-subtitle">
                     {hasTeachers
                         ? 'Your essay will be sent to your teacher for grading. You can add an optional note.'
@@ -118,7 +200,6 @@ export default function SubmitToTeacherModal({
                 {/* No-teacher info */}
                 {!hasTeachers && (
                     <div className="stm-no-teachers">
-                        <span>💡</span>
                         <span>
                             Join a class with a teacher to get your writing graded.
                             For now, your essay will be saved so you can review it later.
@@ -130,7 +211,7 @@ export default function SubmitToTeacherModal({
                 <div className="stm-word-summary">
                     <div className="stm-word-summary-header">Word Count</div>
                     {tasks.map((task) => {
-                        const threshold = getWordThreshold(task.taskNumber);
+                        const threshold = getWordThreshold(task.taskNumber, task.wordMinimum);
                         const isLow = task.wordCount < threshold;
                         return (
                             <div key={task.taskNumber} className="stm-word-row">
@@ -168,32 +249,36 @@ export default function SubmitToTeacherModal({
                 {/* Actions */}
                 <div className="stm-actions">
                     <button
+                        type="button"
                         className="stm-btn stm-btn--cancel"
                         onClick={onClose}
                         disabled={isSubmitting}
+                        autoFocus
                     >
                         Cancel
                     </button>
 
                     {hasTeachers ? (
                         <button
+                            type="button"
                             className="stm-btn stm-btn--submit"
                             onClick={handleSubmit}
                             disabled={!selectedTeacherId || isSubmitting}
                         >
-                            {isSubmitting ? 'Submitting...' : '📤 Submit'}
+                            {isSubmitting ? 'Submitting...' : 'Submit'}
                         </button>
                     ) : (
                         <button
+                            type="button"
                             className="stm-btn stm-btn--self-review"
                             onClick={handleSelfReview}
                             disabled={isSubmitting}
                         >
-                            {isSubmitting ? 'Saving...' : '💾 Save for Review'}
+                            {isSubmitting ? 'Saving...' : 'Save for Review'}
                         </button>
                     )}
                 </div>
             </div>
-        </div>
+        </dialog>
     );
 }

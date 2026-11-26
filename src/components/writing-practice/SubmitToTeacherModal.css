@@ -4,17 +4,25 @@
  * NO MANTINE.
  */
 
-/* ── Overlay ─────────────────────────────────────────────── */
-.stm-overlay {
-    position: fixed;
-    inset: 0;
+/* ── Native Dialog Overlay ───────────────────────────────── */
+.stm-dialog {
+    padding: 0;
+    border: none;
+    background: transparent;
+    max-width: 90vw;
+    margin: auto;
+    overflow: visible;
+}
+
+.stm-dialog:modal {
+    overscroll-behavior: contain;
+}
+
+.stm-dialog::backdrop {
     background: rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(4px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    animation: stm-fadeIn 0.2s ease-out;
+    overflow: hidden;
+    overscroll-behavior: contain;
 }
 
 @keyframes stm-fadeIn {
@@ -52,6 +60,7 @@
     }
 }
 
+.stm-modal h1,
 .stm-modal h2 {
     margin: 0 0 0.5rem;
     font-size: 1.375rem;
