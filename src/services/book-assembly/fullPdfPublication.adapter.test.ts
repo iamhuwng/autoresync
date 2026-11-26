@@ -522,4 +522,97 @@ describe('full-PDF publication adapter', () => {
       allocateId: (kind, key) => `pub5:${kind}:${key}`,
     })).toThrow('full_pdf_predecessor_unit_topology_changed');
   });
+
+  it('strips teacher_only pageGroups from studentSafeProjection and unitProjections while preserving them in manifest across incremental publication', async () => {
+    const manifestWithAnswerKeys: BookAssemblyManifestCandidate = {
+      bookId: 'book-1',
+      sourceSet: {
+        sourceStrategy: 'full_pdf',
+        sources: [{ sourceKey: 'full', sourceVersionId: 'source-v1', sourceOrder: 1 }],
+      },
+      nodes: [
+        { nodeKey: 'section-1', parentNodeKey: null, nodeType: 'section', order: 1 },
+        { nodeKey: 'unit-1', parentNodeKey: 'section-1', nodeType: 'unit', order: 1 },
+        { nodeKey: 'unit-2', parentNodeKey: 'section-1', nodeType: 'unit', order: 2 },
+      ],
+      units: [
+        {
+          unitKey: 'unit-1',
+          activitySlots: [{ activityKey: 'slot-a', order: 1, contextRequirement: 'required', pageGroupKeys: ['pages-a'] }],
+          pageGroups: [
+            { pageGroupKey: 'pages-a', sourceKey: 'full', pages: [1, 2], activityKeys: ['slot-a'], mode: 'activity' },
+            { pageGroupKey: 'pages-a-answer-key', sourceKey: 'full', pages: [9], activityKeys: [], mode: 'teacher_only' },
+          ],
+        },
+        {
+          unitKey: 'unit-2',
+          activitySlots: [{ activityKey: 'slot-b', order: 1, contextRequirement: 'required', pageGroupKeys: ['pages-b'] }],
+          pageGroups: [
+            { pageGroupKey: 'pages-b', sourceKey: 'full', pages: [4, 5], activityKeys: ['slot-b'], mode: 'activity' },
+            { pageGroupKey: 'pages-b-transcript', sourceKey: 'full', pages: [10], activityKeys: [], mode: 'reference_only' },
+            { pageGroupKey: 'pages-b-answer-key', sourceKey: 'full', pages: [11], activityKeys: [], mode: 'teacher_only' },
+          ],
+        },
+      ],
+    };
+    const repository = new InMemoryBookAssemblyPublicationRepository();
+    const canonicalWriter = new InMemoryCanonicalActivityVersionRepository();
+    const service = createCanonicalBookAssemblyPublicationService(repository, canonicalWriter);
+
+    const op1 = '66666666-6666-4666-8666-666666666666';
+    const first = createFullPdfPublicationCommandOutput({
+      ...adapterInput({
+        operationId: op1,
+        candidate: candidate(manifestWithAnswerKeys),
+        authority: authority(manifestWithAnswerKeys),
+      }),
+      allocateId: (kind, key) => `tk1:${kind}:${key}`,
+    });
+    expect(first.plan.manifest.units[0]!.pageGroups.map((g) => g.pageGroupKey)).toEqual(['pages-a', 'pages-a-answer-key']);
+    expect(first.plan.studentSafeProjection.units[0]!.pageGroups.map((g) => g.pageGroupKey)).toEqual(['pages-a']);
+    expect(first.plan.atomicWrites.unitProjections[0]!.sourcePages.map((p) => p.physicalPageNumber)).toEqual([1, 2]);
+
+    const pub1 = await service.publish({
+      operationId: op1,
+      expectedCurrentPublicationId: null,
+      manifestVersionId: first.plan.atomicWrites.deliveryPlans[0]!.manifestVersionId,
+      publicationId: first.plan.studentSafeProjection.publicationId,
+      publicationRevision: first.plan.studentSafeProjection.publicationRevision,
+      plan: first.plan,
+      canonicalActivityVersions: first.canonicalActivityVersions,
+      now,
+    });
+    expect(pub1.status).toBe('published');
+
+    // Incremental Unit 2 publish carries Unit 1 forward cleanly even though Unit 1 has teacher_only pageGroups
+    const op2 = '77777777-7777-4777-8777-777777777777';
+    const scopeAfterFirst = await repository.readScope('book-1');
+    const second = createFullPdfPublicationCommandOutput({
+      ...adapterInput({
+        operationId: op2,
+        unitKey: 'unit-2',
+        candidate: { ...candidate(manifestWithAnswerKeys), candidateId: 'candidate-2', unitKey: 'unit-2', revision: 1 },
+        authority: authority(manifestWithAnswerKeys),
+        expectedCandidateRevision: 1,
+        activitiesByKey: {
+          'slot-b': {
+            activityKey: 'slot-b',
+            ownerId: 'teacher-1',
+            revision: 1,
+            lifecycle: 'draft',
+            activity: adapterInput().activitiesByKey['slot-a']!.activity,
+          },
+        },
+      }),
+      predecessor: pub1.version!,
+      predecessorScope: scopeAfterFirst,
+      allocateId: (kind, key) => `tk2:${kind}:${key}`,
+    });
+    expect(second.plan.manifest.units.flatMap((u) => u.pageGroups.map((g) => g.pageGroupKey)))
+      .toEqual(['pages-a', 'pages-a-answer-key', 'pages-b', 'pages-b-transcript', 'pages-b-answer-key']);
+    expect(second.plan.studentSafeProjection.units.flatMap((u) => u.pageGroups.map((g) => g.pageGroupKey)))
+      .toEqual(['pages-a', 'pages-b', 'pages-b-transcript']);
+    const unit2Proj = second.plan.atomicWrites.unitProjections.find((p) => p.unitKey === 'unit-2');
+    expect(unit2Proj?.sourcePages.map((p) => p.physicalPageNumber)).toEqual([4, 5, 10]);
+  });
 });

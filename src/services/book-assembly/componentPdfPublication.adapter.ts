@@ -469,7 +469,7 @@ export const createComponentPdfPublicationAdapter = (
         publicationRevision: input.ids.publicationRevision,
         sourceStrategy: 'component_pdfs',
         sourceSet: publicationManifest.sourceSet,
-        units: [unit],
+        units: [{ ...unit, pageGroups: unit.pageGroups.filter((group) => group.mode !== 'teacher_only') }],
       },
       atomicWrites: records.atomicWrites,
       previewApproval: input.previewApproval,
@@ -555,7 +555,10 @@ export const createComponentPdfMultiUnitPublicationOutput = (
       manifest: selectedManifest,
       studentSafeProjection: {
         ...first.plan.studentSafeProjection,
-        units: selectedManifest.units,
+        units: selectedManifest.units.map((entry) => ({
+          ...entry,
+          pageGroups: entry.pageGroups.filter((group) => group.mode !== 'teacher_only'),
+        })),
       },
       atomicWrites: {
         ...atomicWrites,

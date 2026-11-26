@@ -928,7 +928,7 @@ describe('Book Activity authoring Worker boundary', () => {
     const evidenceCandidate = (
       excessEvidence.state['teacher-1'].candidates as Record<string, Record<string, unknown>>
     )[evidenceCandidateId]!;
-    evidenceCandidate.evidenceRefs = Array.from({ length: 33 }, (_, index) => `source:${index}`);
+    evidenceCandidate.evidenceRefs = Array.from({ length: 65 }, (_, index) => `source:${index}`);
     await expect(excessEvidence.handlers.loadCandidate({
       env: {},
       uid: 'teacher-1',

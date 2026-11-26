@@ -60,7 +60,7 @@ export const upsertPageGroupMapping = (input: AddPageGroupInput): BookUnitCandid
   };
   const activityKey = input.activityKey ?? 'activity-1';
   const existingGroup = current.pageGroups.find((candidate) => candidate.pageGroupKey === input.pageGroupKey);
-  const activityKeys = input.mode === 'reference_only'
+  const activityKeys = input.mode !== 'activity'
     ? []
     : Array.from(new Set([...(existingGroup?.activityKeys ?? []), activityKey]));
   const group: BookPageGroupCandidate = {
@@ -77,7 +77,7 @@ export const upsertPageGroupMapping = (input: AddPageGroupInput): BookUnitCandid
     ...current.pageGroups.filter((candidate) => candidate.pageGroupKey !== input.pageGroupKey),
     group,
   ];
-  if (group.mode === 'reference_only') {
+  if (group.mode !== 'activity') {
     return { ...current, pageGroups };
   }
   const existing = current.activitySlots.find((slot) => slot.activityKey === activityKey);

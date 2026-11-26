@@ -380,4 +380,28 @@ describe('createCandidateUnitPreview', () => {
       expect(resolution.supported).toBe(true);
     });
   });
+
+  it('strips teacher_only pageGroups from student preview projections while preserving activity and reference_only groups', () => {
+    const baseCandidate = candidate();
+    const unit = baseCandidate.manifest!.units[0]!;
+    const candidateWithTeacherOnly: BookAssemblyCandidateRecord = {
+      ...baseCandidate,
+      manifest: {
+        ...baseCandidate.manifest!,
+        units: [{
+          ...unit,
+          pageGroups: [
+            ...unit.pageGroups,
+            { pageGroupKey: 'pages-transcript', sourceKey: 'full', pages: [3], activityKeys: [], mode: 'reference_only' },
+            { pageGroupKey: 'pages-answer-key', sourceKey: 'full', pages: [4], activityKeys: [], mode: 'teacher_only' },
+          ],
+        }],
+      },
+    };
+    const preview = createCandidateUnitPreview({
+      ...input(),
+      candidate: candidateWithTeacherOnly,
+    });
+    expect(preview.runtime.pageGroups.map((group) => group.pageGroupKey)).toEqual(['pages-1', 'pages-transcript']);
+  });
 });

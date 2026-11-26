@@ -427,7 +427,10 @@ export const createSourceStrategySuccessorPublicationPlan = (
       publicationRevision: input.ids.publicationRevision,
       sourceStrategy: migration.targetManifest.sourceSet.sourceStrategy,
       sourceSet: clone(migration.targetManifest.sourceSet),
-      units: clone(migration.targetManifest.units),
+      units: clone(migration.targetManifest.units.map((unit) => ({
+        ...unit,
+        pageGroups: unit.pageGroups.filter((group) => group.mode !== 'teacher_only'),
+      }))),
     },
     atomicWrites,
     ...(input.previewApproval ? { previewApproval: clone(input.previewApproval) } : {}),

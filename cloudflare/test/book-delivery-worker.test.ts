@@ -8,7 +8,9 @@ import {
   BookDeliveryWorkerError,
   createBookDeliveryWorkerHandlers,
   createTrustedBookDeliveryPublication,
+  resolveScopedComponentStudentPageGroups,
 } from '../src/upload-worker/book-delivery/worker';
+import { createComponentStudentDocument } from '../../src/services/book-assembly/componentStudentDocument.types';
 import {
   makeBookAssemblyPublicationScope,
   makeBookDeliveryIssuanceIntent,
@@ -736,5 +738,106 @@ describe('Book Delivery Worker contract', () => {
       body: { code: 'book-delivery-not-found' },
       init: { status: 404 },
     });
+  });
+
+  it('scopes Component-PDF student pageGroups strictly to assigned placements and excludes unassigned units, reference_only, and teacher_only groups', () => {
+    const descriptor = createComponentStudentDocument({
+      sourceVersionId: 'student-doc-v1',
+      descriptorRevision: 1,
+      sha256Hex: 'a'.repeat(64),
+      byteSize: 1024,
+      physicalPageCount: 6,
+      compositionFingerprint: 'comp-fp-1',
+      components: [
+        { sourceKey: 'component-a', sourceVersionId: 'source-a-v1', sourceOrder: 1, ownerNodeKey: 'unit-1', localPageCount: 3, combinedStartPage: 1, combinedEndPage: 3 },
+        { sourceKey: 'component-b', sourceVersionId: 'source-b-v1', sourceOrder: 2, ownerNodeKey: 'unit-2', localPageCount: 3, combinedStartPage: 4, combinedEndPage: 6 },
+      ],
+    });
+    const activation = {
+      unitCandidates: [
+        { unitKey: 'unit-1', candidateId: 'cand-u1', candidateRevision: 1, manifestFingerprint: 'fp-u1' },
+        { unitKey: 'unit-2', candidateId: 'cand-u2', candidateRevision: 1, manifestFingerprint: 'fp-u2' },
+      ],
+      activities: [
+        { unitKey: 'unit-1', activityKey: 'u1-a1', activityId: 'act-u1-a1', activityCandidateId: 'ac-1', activityCandidateRevision: 1, activityPayloadFingerprint: 'ap-1' },
+        { unitKey: 'unit-1', activityKey: 'u1-a2', activityId: 'act-u1-a2', activityCandidateId: 'ac-2', activityCandidateRevision: 1, activityPayloadFingerprint: 'ap-2' },
+        { unitKey: 'unit-2', activityKey: 'u2-a1', activityId: 'act-u2-a1', activityCandidateId: 'ac-3', activityCandidateRevision: 1, activityPayloadFingerprint: 'ap-3' },
+      ],
+    } as any;
+    const candidatesByUnit = new Map<string, any>([
+      ['unit-1', {
+        candidateId: 'cand-u1',
+        manifest: {
+          units: [{
+            unitKey: 'unit-1',
+            activitySlots: [
+              { activityKey: 'u1-a1', order: 1, contextRequirement: 'required', pageGroupKeys: ['u1-g1'] },
+              { activityKey: 'u1-a2', order: 2, contextRequirement: 'required', pageGroupKeys: ['u1-g2'] },
+            ],
+            pageGroups: [
+              { pageGroupKey: 'u1-g1', sourceKey: 'component-a', pages: [1], activityKeys: ['u1-a1'], mode: 'activity' },
+              { pageGroupKey: 'u1-g2', sourceKey: 'component-a', pages: [2], activityKeys: ['u1-a2'], mode: 'activity' },
+              { pageGroupKey: 'u1-ref', sourceKey: 'component-a', pages: [3], activityKeys: [], mode: 'reference_only' },
+              { pageGroupKey: 'u1-answer-key', sourceKey: 'component-a', pages: [3], activityKeys: [], mode: 'teacher_only' },
+            ],
+          }],
+        },
+      }],
+      ['unit-2', {
+        candidateId: 'cand-u2',
+        manifest: {
+          units: [{
+            unitKey: 'unit-2',
+            activitySlots: [
+              { activityKey: 'u2-a1', order: 1, contextRequirement: 'required', pageGroupKeys: ['u2-g1'] },
+            ],
+            pageGroups: [
+              { pageGroupKey: 'u2-g1', sourceKey: 'component-b', pages: [2], activityKeys: ['u2-a1'], mode: 'activity' },
+            ],
+          }],
+        },
+      }],
+    ]);
+    const assignedBinding = {
+      ...makeBookDeliveryTestBinding(),
+      sourceSet: {
+        strategy: 'component_pdfs' as const,
+        sources: [{ sourceKey: 'component-a', sourceVersionId: 'source-a-v1', sourceOrder: 1, ownerNodeKey: 'unit-1', lifecycle: 'verified-usable' as const, localPageScope: { kind: 'all' as const, pages: [] } }],
+      },
+      placements: [{
+        placementId: 'placement-u1-a1',
+        activityId: 'act-u1-a1',
+        activityVersionId: 'act-u1-a1-v1',
+        activityVersion: 1,
+        nodeKey: 'unit-1',
+        order: 1,
+        contextMode: 'required' as const,
+        pageGroupKeys: ['u1-g1'],
+        sourcePageScopes: [{ sourceKey: 'component-a', pages: [1] }],
+      }],
+    };
+    const projected = resolveScopedComponentStudentPageGroups({
+      binding: assignedBinding as any,
+      activation,
+      descriptor,
+      candidatesByUnit,
+    });
+    expect(projected).toEqual([{ pageGroupKey: 'u1-g1', combinedPhysicalPages: [1] }]);
+
+    // Rejects any placement referencing a teacher_only pageGroup
+    const tampered = {
+      ...assignedBinding,
+      placements: [{
+        ...assignedBinding.placements[0]!,
+        pageGroupKeys: ['u1-answer-key'],
+        sourcePageScopes: [{ sourceKey: 'component-a', pages: [3] }],
+      }],
+    };
+    expect(resolveScopedComponentStudentPageGroups({
+      binding: tampered as any,
+      activation,
+      descriptor,
+      candidatesByUnit,
+    })).toBeNull();
   });
 });

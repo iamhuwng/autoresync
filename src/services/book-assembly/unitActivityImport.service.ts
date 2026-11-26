@@ -1,9 +1,12 @@
+import { BOOK_ACTIVITY_MAX_EVIDENCE_REFS } from '../book-activity/activityCandidate.service';
 import type { ActivityAuthoringService } from '../book-activity/activityAuthoring.service';
 import type { ActivityStageResult } from '../book-activity/activityAuthoring.repository';
 import { ActivityAuthoringHttpError } from '../book-activity/activityStorage.service';
 import type { BookAssemblyManifestCandidate, BookUnitCandidate } from '../../types/bookAssembly.types';
 import {
+  allowedActivitySlotAnswerEvidenceRefs,
   allowedActivitySlotEvidenceRefs,
+  allowedActivitySlotSourceEvidenceRefs,
   BULK_UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
   BULK_UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION,
   UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
@@ -164,9 +167,25 @@ const stageOrSurfaceRevisionConflict = async (
   }
 };
 const assertSourceRefs = (refs: readonly string[], allowed: Set<string>, label: string): void => {
+  if (refs.length > BOOK_ACTIVITY_MAX_EVIDENCE_REFS) {
+    throw new UnitActivityImportError(
+      'evidence-limit-exceeded',
+      `${label} exceeds the maximum of ${BOOK_ACTIVITY_MAX_EVIDENCE_REFS} evidence references per activity.`,
+    );
+  }
+  const seen = new Set<string>();
   for (const ref of refs) {
+    if (seen.has(ref)) {
+      throw new UnitActivityImportError('invalid-evidence', `${label} contains duplicate evidence reference ${ref}.`);
+    }
+    seen.add(ref);
     if (!allowed.has(ref)) {
-      throw new UnitActivityImportError('cross-source-evidence', `${label} references ${ref}, which is not mapped to this activity or Unit reference pages.`);
+      throw new UnitActivityImportError(
+        'cross-source-evidence',
+        label === 'sourceEvidenceRefs'
+          ? `${label} references ${ref}, which is not mapped to this activity or student-safe Unit reference pages (teacher_only pages may only be cited in answerEvidenceRefs).`
+          : `${label} references ${ref}, which is not mapped to this activity or Unit reference pages.`,
+      );
     }
   }
 };
@@ -208,10 +227,12 @@ const validateAndNormalizeUnitSlots = (
     const evidenceRefs = stringArray(slot.evidenceRefs, 'evidenceRefs');
     const sourceEvidenceRefs = stringArray(slot.sourceEvidenceRefs, 'sourceEvidenceRefs');
     const answerEvidenceRefs = stringArray(slot.answerEvidenceRefs, 'answerEvidenceRefs');
-    const slotRefs = allowedEvidenceRefsForSlot(unit, slot.activityKey);
-    assertSourceRefs(evidenceRefs, slotRefs, 'evidenceRefs');
-    assertSourceRefs(sourceEvidenceRefs, slotRefs, 'sourceEvidenceRefs');
-    assertSourceRefs(answerEvidenceRefs, slotRefs, 'answerEvidenceRefs');
+    const allowedEvidence = allowedEvidenceRefsForSlot(unit, slot.activityKey);
+    const allowedSource = new Set(allowedActivitySlotSourceEvidenceRefs(unit, slot.activityKey));
+    const allowedAnswer = new Set(allowedActivitySlotAnswerEvidenceRefs(unit, slot.activityKey));
+    assertSourceRefs(evidenceRefs, allowedEvidence, 'evidenceRefs');
+    assertSourceRefs(sourceEvidenceRefs, allowedSource, 'sourceEvidenceRefs');
+    assertSourceRefs(answerEvidenceRefs, allowedAnswer, 'answerEvidenceRefs');
     return {
       activityKey: slot.activityKey,
       content: slot.content,

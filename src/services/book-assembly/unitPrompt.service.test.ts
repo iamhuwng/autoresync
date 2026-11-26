@@ -112,7 +112,19 @@ describe('buildUnitActivityImportPrompt', () => {
         "activitySlots": [
           {
             "activityKey": "activity-choice",
+            "allowedAnswerEvidenceRefs": [
+              "import:activity-choice",
+              "pageGroup:pages-full-2-3-activity",
+              "source:full:page:2",
+              "source:full:page:3",
+            ],
             "allowedEvidenceRefs": [
+              "import:activity-choice",
+              "pageGroup:pages-full-2-3-activity",
+              "source:full:page:2",
+              "source:full:page:3",
+            ],
+            "allowedSourceEvidenceRefs": [
               "import:activity-choice",
               "pageGroup:pages-full-2-3-activity",
               "source:full:page:2",
@@ -345,4 +357,46 @@ describe('buildBulkUnitActivityImportPrompt', () => {
       }
     },
   );
+
+  it('documents the 64-ref evidence cap and separates teacher_only refs from allowedSourceEvidenceRefs in single and bulk prompts', () => {
+    const manifestWithTeacherOnly: BookAssemblyManifestCandidate = {
+      ...manifest,
+      units: [{
+        ...manifest.units[0]!,
+        pageGroups: [
+          ...manifest.units[0]!.pageGroups,
+          { pageGroupKey: 'u1-transcript', sourceKey: 'full', pages: [4], defaultPhysicalPageNumber: 4, activityKeys: [], mode: 'reference_only' },
+          { pageGroupKey: 'u1-answer-key', sourceKey: 'full', pages: [5], defaultPhysicalPageNumber: 5, activityKeys: [], mode: 'teacher_only' },
+        ],
+      }],
+    };
+    const singlePrompt = buildUnitActivityImportPrompt({
+      bookTitle: 'Fixture Book',
+      manifest: manifestWithTeacherOnly,
+      unitKey: 'unit-1',
+      sourceVersions,
+    });
+    const bulkPrompt = buildBulkUnitActivityImportPrompt({
+      bookTitle: 'Fixture Book',
+      manifest: manifestWithTeacherOnly,
+      sourceVersions,
+    });
+
+    for (const promptText of [singlePrompt, bulkPrompt]) {
+      expect(promptText).toContain('at most 64 unique entries');
+      expect(promptText).toContain('teacher_only');
+      const parsed = promptContract(promptText) as {
+        supportedActivityContract: { maxEvidenceRefsPerField: number };
+        unit?: { activitySlots: Array<{ allowedSourceEvidenceRefs: string[]; allowedAnswerEvidenceRefs: string[] }> };
+        units?: Array<{ activitySlots: Array<{ allowedSourceEvidenceRefs: string[]; allowedAnswerEvidenceRefs: string[] }> }>;
+      };
+      expect(parsed.supportedActivityContract.maxEvidenceRefsPerField).toBe(64);
+      const slot = parsed.unit?.activitySlots[0] ?? parsed.units?.[0]?.activitySlots[0];
+      expect(slot?.allowedSourceEvidenceRefs).toContain('pageGroup:u1-transcript');
+      expect(slot?.allowedSourceEvidenceRefs).not.toContain('pageGroup:u1-answer-key');
+      expect(slot?.allowedSourceEvidenceRefs).not.toContain('source:full:page:5');
+      expect(slot?.allowedAnswerEvidenceRefs).toContain('pageGroup:u1-answer-key');
+      expect(slot?.allowedAnswerEvidenceRefs).toContain('source:full:page:5');
+    }
+  });
 });

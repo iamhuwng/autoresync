@@ -145,7 +145,7 @@ const validatePageGroups = (
         fail(`${path}.pages[${pageIndex}]:unresolved-page`);
       }
     });
-    if (group.mode !== 'activity' && group.mode !== 'reference_only') {
+    if (group.mode !== 'activity' && group.mode !== 'reference_only' && group.mode !== 'teacher_only') {
       fail(`${path}:invalid-mode`);
     }
     if (!Array.isArray(group.activityKeys)) fail(`${path}:invalid-activity-keys`);
@@ -155,7 +155,7 @@ const validatePageGroups = (
     }
     if (new Set(activityKeys).size !== activityKeys.length) fail(`${path}:duplicate-activity-key`);
     if (group.mode === 'activity' && activityKeys.length === 0) fail(`${path}:missing-activity-key`);
-    if (group.mode === 'reference_only' && activityKeys.length > 0) fail(`${path}:reference-group-activity`);
+    if (group.mode !== 'activity' && activityKeys.length > 0) fail(`${path}:reference-group-activity`);
     if (group.defaultPhysicalPageNumber !== undefined
       && (!Number.isSafeInteger(group.defaultPhysicalPageNumber)
         || !group.pages.includes(group.defaultPhysicalPageNumber))) {

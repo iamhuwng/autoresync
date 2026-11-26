@@ -194,7 +194,7 @@ const BookAssemblyMappingRevisionPanel = ({
         <dl>
           <div><dt>Old activity page</dt><dd>{originalActivity?.pages.join(', ')}</dd></div>
           <div><dt>New activity page</dt><dd data-testid="mapping-revision-new-page">{targetActivity?.pages.join(', ')}</dd></div>
-          <div><dt>Reference group</dt><dd>{targetReference?.mode === 'reference_only' ? 'reference-only' : 'activity'}</dd></div>
+          <div><dt>Reference group</dt><dd>{targetReference?.mode === 'reference_only' ? 'reference-only' : targetReference?.mode === 'teacher_only' ? 'teacher-only' : 'activity'}</dd></div>
           <div><dt>Source-assisted preview</dt><dd data-testid="mapping-revision-preview-state">{sourceAssisted ? (previewApproval ? 'approved' : 'required') : 'not required'}</dd></div>
         </dl>
       </div>

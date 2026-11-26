@@ -20,7 +20,11 @@ import {
   type ComponentPdfActivationCommandInput,
 } from '../../../../src/services/book-assembly/componentPdfActivation.service.ts';
 import { canonicalActivityPayloadFingerprint } from '../../../../src/services/book-assembly/unitPreview.service.ts';
-import { allowedActivitySlotEvidenceRefs } from '../../../../src/services/book-assembly/unitPrompt.service.ts';
+import {
+  allowedActivitySlotAnswerEvidenceRefs,
+  allowedActivitySlotEvidenceRefs,
+  allowedActivitySlotSourceEvidenceRefs,
+} from '../../../../src/services/book-assembly/unitPrompt.service.ts';
 import { FirebaseRestBookAssemblyPreviewApprovalRepository } from './preview-approval-repository.ts';
 import { FirebaseRestUnitActivityBindingRepository } from './unit-activity-binding-repository.ts';
 import { createBookResultReadProductionHandlers } from '../book-results/production-composition.ts';
@@ -107,11 +111,15 @@ const savedActivityMatchesFinalManifest = (
   if (!unit || !slot || !sealValid
     || !activityMatchesAssemblyContract(content, { activityKey, contextRequirement: slot.contextRequirement })) return false;
   const groups = new Map(unit.pageGroups.map((group) => [group.pageGroupKey, group]));
-  const allowedRefs = new Set<string>(allowedActivitySlotEvidenceRefs(unit, activityKey));
+  const allowedByField: Record<'evidenceRefs' | 'sourceEvidenceRefs' | 'answerEvidenceRefs', Set<string>> = {
+    evidenceRefs: new Set<string>(allowedActivitySlotEvidenceRefs(unit, activityKey)),
+    sourceEvidenceRefs: new Set<string>(allowedActivitySlotSourceEvidenceRefs(unit, activityKey)),
+    answerEvidenceRefs: new Set<string>(allowedActivitySlotAnswerEvidenceRefs(unit, activityKey)),
+  };
   const mappedBookPageRefs: string[] = [];
   for (const pageGroupKey of slot.pageGroupKeys) {
     const group = groups.get(pageGroupKey);
-    if (!group) return false;
+    if (!group || group.mode !== 'activity') return false;
     for (const page of group.pages) {
       mappedBookPageRefs.push(`source:${group.sourceKey}:page:${page}`);
     }
@@ -122,10 +130,10 @@ const savedActivityMatchesFinalManifest = (
       taskProfileRegistry: defaultBookActivityTaskProfileRegistry,
     }).valid) return false;
   const raw = record(saved);
-  return ['evidenceRefs', 'sourceEvidenceRefs', 'answerEvidenceRefs'].every((key) => {
+  return (['evidenceRefs', 'sourceEvidenceRefs', 'answerEvidenceRefs'] as const).every((key) => {
     const refs = raw?.[key];
     return refs === undefined || (Array.isArray(refs)
-      && refs.every((ref) => typeof ref === 'string' && allowedRefs.has(ref)));
+      && refs.every((ref) => typeof ref === 'string' && allowedByField[key].has(ref)));
   });
 };
 

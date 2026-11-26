@@ -27,8 +27,10 @@ export type BookContentNodeType = (typeof BOOK_CONTENT_NODE_TYPES)[number];
 export const ACTIVITY_CONTEXT_REQUIREMENTS = ['required', 'optional', 'none'] as const;
 export type ActivityContextRequirement = (typeof ACTIVITY_CONTEXT_REQUIREMENTS)[number];
 
-export const PAGE_GROUP_MODES = ['activity', 'reference_only'] as const;
+export const PAGE_GROUP_MODES = ['activity', 'reference_only', 'teacher_only'] as const;
 export type PageGroupMode = (typeof PAGE_GROUP_MODES)[number];
+export const STUDENT_SAFE_PAGE_GROUP_MODES = ['activity', 'reference_only'] as const;
+export type StudentSafePageGroupMode = (typeof STUDENT_SAFE_PAGE_GROUP_MODES)[number];
 
 export const COMPONENT_PDF_ROTATIONS = [0, 90, 180, 270] as const;
 export type ComponentPdfRotation = (typeof COMPONENT_PDF_ROTATIONS)[number];

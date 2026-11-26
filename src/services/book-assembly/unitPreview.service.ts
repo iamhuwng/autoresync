@@ -313,12 +313,15 @@ const runtimeProjection = (
       ? { strategy: 'component_pdfs' as const, sources: [] }
       : { strategy: manifest.sourceSet.sourceStrategy, sources: Object.freeze(sources) },
     documentRequests: Object.freeze(requests),
-    pageGroups: studentDocument
-      ? projectCombinedPageContext(studentDocument.descriptor, unit.pageGroups)
-      : Object.freeze(unit.pageGroups.map((group) => Object.freeze({
-        pageGroupKey: group.pageGroupKey,
-        combinedPhysicalPages: Object.freeze([...group.pages]),
-      }))),
+    pageGroups: (() => {
+      const studentVisibleGroups = unit.pageGroups.filter((group) => group.mode !== 'teacher_only');
+      return studentDocument
+        ? projectCombinedPageContext(studentDocument.descriptor, studentVisibleGroups)
+        : Object.freeze(studentVisibleGroups.map((group) => Object.freeze({
+          pageGroupKey: group.pageGroupKey,
+          combinedPhysicalPages: Object.freeze([...group.pages]),
+        })));
+    })(),
     activities: Object.freeze(placements),
     actionFlags: { canAutosave: false as const, canSubmit: false as const, canReview: false as const },
   });

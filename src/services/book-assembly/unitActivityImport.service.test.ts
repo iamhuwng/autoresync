@@ -547,6 +547,65 @@ describe('unit Activity JSON import', () => {
       }), listeningManifest, 'unit-1')).toThrowError(expect.objectContaining({ code: 'cross-source-evidence' }));
     });
 
+    it('accepts teacher_only page groups in answerEvidenceRefs, rejects them in sourceEvidenceRefs, and enforces the 64-ref evidence limit', () => {
+      const pages65 = Array.from({ length: 65 }, (_, index) => index + 10);
+      const manifestWithTeacherKey: BookAssemblyManifestCandidate = {
+        ...twoUnitManifest,
+        units: [
+          {
+            ...twoUnitManifest.units[0]!,
+            pageGroups: [
+              ...twoUnitManifest.units[0]!.pageGroups,
+              {
+                pageGroupKey: 'pages-unit-1-answer-key',
+                sourceKey: 'full',
+                pages: pages65,
+                defaultPhysicalPageNumber: 10,
+                activityKeys: [],
+                mode: 'teacher_only',
+              },
+            ],
+          },
+          twoUnitManifest.units[1]!,
+        ],
+      };
+
+      const accepted = parseUnitActivityImportBundle(bundle({
+        slots: [
+          {
+            activityKey: 'activity-a',
+            content: activity('A'),
+            sourceEvidenceRefs: ['source:full:page:2'],
+            answerEvidenceRefs: ['pageGroup:pages-unit-1-answer-key', 'source:full:page:10'],
+          },
+          { activityKey: 'activity-b', content: activity('B') },
+        ],
+      }), manifestWithTeacherKey, 'unit-1');
+      expect(accepted.slots[0]?.answerEvidenceRefs).toEqual(['pageGroup:pages-unit-1-answer-key', 'source:full:page:10']);
+
+      expect(() => parseUnitActivityImportBundle(bundle({
+        slots: [
+          {
+            activityKey: 'activity-a',
+            content: activity('A'),
+            sourceEvidenceRefs: ['pageGroup:pages-unit-1-answer-key'],
+          },
+          { activityKey: 'activity-b', content: activity('B') },
+        ],
+      }), manifestWithTeacherKey, 'unit-1')).toThrowError(expect.objectContaining({ code: 'cross-source-evidence' }));
+
+      expect(() => parseUnitActivityImportBundle(bundle({
+        slots: [
+          {
+            activityKey: 'activity-a',
+            content: activity('A'),
+            answerEvidenceRefs: pages65.map((page) => `source:full:page:${page}`),
+          },
+          { activityKey: 'activity-b', content: activity('B') },
+        ],
+      }), manifestWithTeacherKey, 'unit-1')).toThrowError(expect.objectContaining({ code: 'evidence-limit-exceeded' }));
+    });
+
     it('stages and validates all slots before saving any draft so a conflict on a later slot leaves earlier slots untouched', async () => {
       const saveDraft = vi.fn();
       const discard = vi.fn().mockResolvedValue({ status: 'discarded', candidateId: 'cand-a', revision: 3, lifecycle: 'discarded' });

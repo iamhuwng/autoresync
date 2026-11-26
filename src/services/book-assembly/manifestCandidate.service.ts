@@ -313,6 +313,7 @@ export const validateBookAssemblyManifestCandidate = (
         });
         if (rawGroup.mode === 'activity' && activityKeysForGroup.length === 0) errors.push(error('unmapped-activity', `${path}.activityKeys`, 'Activity Page Group must name an Activity.'));
         if (rawGroup.mode === 'reference_only' && activityKeysForGroup.length > 0) errors.push(error('invalid-page-group', `${path}.activityKeys`, 'Reference-only Page Group cannot name Activities.'));
+        if (rawGroup.mode === 'teacher_only' && activityKeysForGroup.length > 0) errors.push(error('invalid-page-group', `${path}.activityKeys`, 'Teacher-only Page Group cannot name Activities.'));
       }
       if (!PAGE_GROUP_MODES.includes(rawGroup.mode as typeof PAGE_GROUP_MODES[number])) errors.push(error('invalid-page-group', `${path}.mode`, 'Page Group mode is unsupported.'));
       if (Object.hasOwn(rawGroup, 'defaultPhysicalPageNumber')) {
@@ -342,7 +343,9 @@ export const validateBookAssemblyManifestCandidate = (
         if (!groupsByKey.has(groupKey)) errors.push(error('unknown-node-key', `${unitPath}.activitySlots[${slotIndex}].pageGroupKeys[${groupIndex}]`, 'Activity names an unknown Page Group.'));
         else {
           const group = groupsByKey.get(groupKey);
-          if (group && group.mode === 'activity' && typeof rawSlot.activityKey === 'string' && !group.activityKeys.includes(rawSlot.activityKey)) {
+          if (group && group.mode !== 'activity') {
+            errors.push(error('invalid-page-group', `${unitPath}.activitySlots[${slotIndex}].pageGroupKeys[${groupIndex}]`, 'Activity slots can only map to activity Page Groups.'));
+          } else if (group && typeof rawSlot.activityKey === 'string' && !group.activityKeys.includes(rawSlot.activityKey)) {
             errors.push(error('unmapped-activity', `${unitPath}.activitySlots[${slotIndex}].pageGroupKeys[${groupIndex}]`, 'Activity and Page Group mappings must be reciprocal.'));
           }
         }

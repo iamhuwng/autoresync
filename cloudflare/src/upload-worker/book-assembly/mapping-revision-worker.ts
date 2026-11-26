@@ -77,8 +77,10 @@ const revision = (value: unknown, code: string): number => {
   return value as number;
 };
 
-const mode = (value: unknown): 'activity' | 'reference_only' => {
-  if (value !== 'activity' && value !== 'reference_only') throw new MappingRevisionWorkerError('invalid_page_group_mode');
+const mode = (value: unknown): 'activity' | 'reference_only' | 'teacher_only' => {
+  if (value !== 'activity' && value !== 'reference_only' && value !== 'teacher_only') {
+    throw new MappingRevisionWorkerError('invalid_page_group_mode');
+  }
   return value;
 };
 

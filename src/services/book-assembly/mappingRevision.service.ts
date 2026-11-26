@@ -482,7 +482,10 @@ export const createMappingRevisionPublicationPlan = (
       publicationRevision: input.ids.publicationRevision,
       sourceStrategy: input.predecessor.strategy,
       sourceSet: clone(input.targetManifest.sourceSet),
-      units: clone(input.targetManifest.units),
+      units: clone(input.targetManifest.units.map((unit) => ({
+        ...unit,
+        pageGroups: unit.pageGroups.filter((group) => group.mode !== 'teacher_only'),
+      }))),
     },
     atomicWrites,
     ...(input.previewApproval ? { previewApproval: clone(input.previewApproval) } : {}),

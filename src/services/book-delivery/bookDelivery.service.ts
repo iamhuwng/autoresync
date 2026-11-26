@@ -148,13 +148,16 @@ export const createBookDeliveryProjectionResolver = (options: {
       const combined = binding.sourceSet.strategy === 'component_pdfs'
         ? await options.resolveStudentDocument?.(binding)
         : undefined;
+      const requiresCombinedPages = binding.placements.some((placement) => (
+        placement.contextMode !== 'none' || placement.pageGroupKeys.length > 0
+      ));
       if (binding.sourceSet.strategy === 'component_pdfs'
         && (!combined || !Number.isSafeInteger(combined.expectedByteLength)
           || combined.expectedByteLength < 1
           || !/^"[A-Fa-f0-9]{64}"$/u.test(combined.expectedEtag)
           || !Number.isSafeInteger(combined.physicalPageCount)
           || combined.physicalPageCount < 1
-          || combined.pageGroups.length === 0
+          || (requiresCombinedPages && combined.pageGroups.length === 0)
           || new Set(combined.pageGroups.map((group) => group.pageGroupKey)).size !== combined.pageGroups.length
           || combined.pageGroups.some((group) => !ID.test(group.pageGroupKey)
             || group.combinedPhysicalPages.length === 0

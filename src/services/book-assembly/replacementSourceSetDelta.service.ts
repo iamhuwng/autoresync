@@ -74,7 +74,7 @@ const validatePageGroup = (
   if (group.ownerNodeKey !== undefined && !ID.test(group.ownerNodeKey)) {
     errors.push(error('invalid-owner', `${path}.ownerNodeKey`, 'Page Group owner must be a safe bounded key.'));
   }
-  if ((group.mode !== 'activity' && group.mode !== 'reference_only')
+  if ((group.mode !== 'activity' && group.mode !== 'reference_only' && group.mode !== 'teacher_only')
     || !Array.isArray(group.pages)
     || group.pages.length === 0) {
     errors.push(error('invalid-page-group', path, 'Page Group mode and pages are required.'));

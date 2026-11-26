@@ -150,7 +150,7 @@ export const buildBookStructurePrompt = ({
     'Use unique readable logical keys, valid parent links, and positive sibling order. Every Unit node needs one matching units entry.',
     'When multiple activities appear on the same physical page(s), combine them into one shared Page Group (listing all of their activityKeys in that Page Group and referencing that same pageGroupKey from each slot).',
     'Map every Activity slot reciprocally to at least one activity Page Group. Use the exact sourceKey above and strictly ascending one-based physical pages no greater than physicalPageCount.',
-    'IMPORTANT STUDENT SAFETY: Do NOT include Answer Key or teacher-only pages anywhere in pageGroups (not even as reference_only). Only use reference_only for student-safe reference pages such as transcripts, glossaries, or grammar notes.',
+    'IMPORTANT STUDENT SAFETY: Never put Answer Key or teacher-only pages in "activity" or "reference_only" Page Groups. Use "reference_only" (with activityKeys: []) ONLY for student-safe reference pages such as transcripts, glossaries, or grammar notes. Use "teacher_only" (with activityKeys: []) for Answer Key or teacher-guide pages so they stay strictly hidden from student delivery while remaining available for teacher authoring and answerEvidenceRefs.',
     'Do not include extra keys (such as title or description), Activity content, answers, bookId, sourceSet, sourceVersionId, ownership, storage data, system IDs, Markdown, or commentary.',
   ].join('\n\n');
 };
@@ -319,7 +319,9 @@ export const parseAndNormalizeBookStructureJson = (
       const mode = (typeof cleaned.mode === 'string' ? cleaned.mode : 'activity') as PageGroupMode;
       const activityKeys = Array.isArray(cleaned.activityKeys)
         ? [...new Set(cleaned.activityKeys.filter((k): k is string => typeof k === 'string'))]
-        : cleaned.activityKeys;
+        : (cleaned.activityKeys === undefined && (mode === 'reference_only' || mode === 'teacher_only')
+          ? []
+          : cleaned.activityKeys);
 
       const nextGroup: Record<string, unknown> = {
         ...cleaned,

@@ -1017,6 +1017,27 @@ describe('Book Assembly publication Firebase repository', () => {
       await expect(repository.transaction('book-1', () => ({ outcome: 'invalid', next: invalid, write: true })))
         .rejects.toThrow('invalid_book_assembly_publication_record');
     }
+
+    // teacher_only pageGroups round-trip in manifest (with empty activityKeys hydrated),
+    // but are strictly rejected inside studentSafeProjection.
+    const teacherOnly = { ...version.manifest.units[0]!.pageGroups[0]!,
+      pageGroupKey: 'answer-key', activityKeys: [], mode: 'teacher_only' as const };
+    const withTeacherManifest = structuredClone(scope);
+    withTeacherManifest.versions!['manifest-1']!.studentSafeProjection.units = structuredClone(
+      withTeacherManifest.versions!['manifest-1']!.studentSafeProjection.units,
+    );
+    withTeacherManifest.versions!['manifest-1']!.manifest.units[0]!.pageGroups.push(teacherOnly);
+    const teacherHarness = createFetchHarness(null, { lossyFirebaseWire: true });
+    const teacherRepo = new FirebaseRestBookAssemblyPublicationRepository({
+      env, fetchImpl: teacherHarness.fetchImpl, getAccessToken: async () => 'test-token',
+    });
+    await teacherRepo.transaction('book-1', () => ({ outcome: 'published', next: withTeacherManifest, write: true }));
+    await expect(teacherRepo.readScope('book-1')).resolves.toEqual(withTeacherManifest);
+
+    const leakedToStudentProjection = structuredClone(withTeacherManifest);
+    leakedToStudentProjection.versions!['manifest-1']!.studentSafeProjection.units[0]!.pageGroups.push(teacherOnly);
+    await expect(teacherRepo.transaction('book-1', () => ({ outcome: 'invalid', next: leakedToStudentProjection, write: true })))
+      .rejects.toThrow('invalid_book_assembly_publication_record');
   });
 
   it('rejects camelCase, mixed, and unknown aggregate wire keys', async () => {
