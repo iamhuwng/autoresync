@@ -1495,9 +1495,25 @@ const BookPdfFlowWorkspace = ({
         <div className="pbf-row">
           <div>
             <h3 id={`${slot.id}-title`}>{slot.label}</h3>
-            <p className="pbf-muted">{verified ? `${slot.selection?.claim.displayFilename ?? 'PDF'} is ready privately.` : 'Check this file on your device before uploading.'}</p>
+            {!focusedEditing && (
+              <p className="pbf-muted">{verified ? `${slot.selection?.claim.displayFilename ?? 'PDF'} is ready privately.` : 'Check this file on your device before uploading.'}</p>
+            )}
+            {focusedEditing && verified && (
+              <p className="pbf-muted">
+                {[
+                  slot.selection?.claim.displayFilename ?? 'PDF',
+                  persistedVersion?.physicalPageCount ? `${persistedVersion.physicalPageCount} pages` : slot.selection?.claim.physicalPageCount ? `${slot.selection.claim.physicalPageCount} pages` : null,
+                  selectedMode === 'full' ? 'Full PDF' : 'Component PDF',
+                ].filter(Boolean).join(' · ')}
+              </p>
+            )}
           </div>
-          <span className={`pbf-status${verified ? ' is-good' : ''}`}>{verified ? 'Ready' : 'Needs file'}</span>
+          <div className="pbf-actions">
+            <span className={`pbf-status${verified ? ' is-good' : ''}`}>{verified ? 'Ready' : 'Needs file'}</span>
+            {focusedEditing && verified && !activeUpload && !replacementReady && (
+              <button type="button" className="pbf-button" disabled={fullAttachmentBusy} onClick={() => requestSourceReplacement(slot)}>Replace PDF</button>
+            )}
+          </div>
         </div>
         {activeUpload && workflow && !persistedReady ? (
           <div className="pbf-real-upload">
@@ -1518,20 +1534,14 @@ const BookPdfFlowWorkspace = ({
         ) : replacementReady ? (
           <div className="pbf-surface" style={{ marginTop: 14 }} aria-label="PDF replacement review">
             <div className="pbf-row">
-              <div>
-                <strong>Review this PDF replacement</strong>
-                <p className="pbf-muted">{replacementReview.displayFilename} will become the new private source for this Book.</p>
-              </div>
+              <strong>Review replacement · {replacementReview.displayFilename}</strong>
               <span className="pbf-status is-warn">Review needed</span>
             </div>
             <dl style={{ marginTop: 14 }}>
               <div><dt>Pages</dt><dd>{replacementReview.oldPageCount} → {replacementReview.newPageCount}</dd></div>
-              <div><dt>Page connections to recheck</dt><dd>{replacementReview.pageGroupCount}</dd></div>
-              <div><dt>Activities using this PDF</dt><dd>{replacementReview.activityCount}</dd></div>
+              <div><dt>Page connections</dt><dd>{replacementReview.pageGroupCount}</dd></div>
+              <div><dt>Activities</dt><dd>{replacementReview.activityCount}</dd></div>
             </dl>
-            <p className="pbf-callout is-warn" role="status" style={{ marginTop: 14 }}>
-              Nothing in the Book changes until you choose Replace. Your existing content stays in place while this is reviewed.
-            </p>
             {replacementError && <p className="pbf-callout is-danger" role="alert" style={{ marginTop: 14 }}>{replacementError}</p>}
             <div className="pbf-actions" style={{ marginTop: 14 }}>
               <button type="button" className="pbf-button" onClick={cancelReplacementReview} disabled={replacementBusy}>Cancel</button>
@@ -1541,11 +1551,12 @@ const BookPdfFlowWorkspace = ({
             </div>
           </div>
         ) : verified ? (
-          <div className="pbf-callout is-good" style={{ marginTop: 14 }}>
-            <strong>{selectedMode === 'full' ? 'Your PDF is ready' : 'PDF ready'}</strong>
-            <span>{persistedReady ? 'This verified PDF is already part of the saved Book draft.' : 'Nothing is published yet. You can continue to assemble the Book.'}</span>
-            {focusedEditing && <div className="pbf-actions" style={{ marginTop: 12 }}><button type="button" className="pbf-button" disabled={fullAttachmentBusy} onClick={() => requestSourceReplacement(slot)}>Replace PDF</button></div>}
-          </div>
+          focusedEditing ? null : (
+            <div className="pbf-callout is-good" style={{ marginTop: 14 }}>
+              <strong>{selectedMode === 'full' ? 'Your PDF is ready' : 'PDF ready'}</strong>
+              <span>{persistedReady ? 'This verified PDF is already part of the saved Book draft.' : 'Nothing is published yet. You can continue to assemble the Book.'}</span>
+            </div>
+          )
         ) : (
           <div className="pbf-real-source-panel">
             <BookSourceInspectionPanel
@@ -1566,11 +1577,10 @@ const BookPdfFlowWorkspace = ({
 
   const renderFiles = () => (
     <FlowView
+      omitHeader={focusedEditing}
       title={focusedEditing ? 'Manage PDF files' : selectedMode === 'full' ? 'Start with one PDF' : 'Combine your PDF sections'}
       subtitle={focusedEditing
-        ? selectedMode === 'full'
-          ? 'This Book uses one complete PDF. Replace that file here without rebuilding the Book structure.'
-          : 'Select the component PDFs, review their order, and preview their composed pages without changing their source ownership.'
+        ? ''
         : selectedMode === 'full'
           ? 'Choose the student-safe PDF you want to use in this Book.'
           : 'Select at least two PDFs, review their order, and preview the composed pages before assigning each source to the Book.'}
@@ -1581,21 +1591,18 @@ const BookPdfFlowWorkspace = ({
       {selectedMode === 'component' && visibleSlots.map(renderSourceCard)}
       {selectedMode === 'full' && visibleSlots.map(renderSourceCard)}
       {focusedEditing && (
-        <div className="pbf-actions" style={{ marginTop: 14, justifyContent: 'space-between' }}>
-          <span className="pbf-status">PDF mode: {selectedMode === 'full' ? 'Full PDF' : 'Component PDFs'}</span>
-          <div className="pbf-actions">
-            <button type="button" className="pbf-button" disabled={fullAttachmentBusy} onClick={requestSetupChange}>Change PDF setup</button>
-            {sourceReady && (
-              <button
-                type="button"
-                className="pbf-button pbf-button-primary"
-                disabled={fullAttachmentBusy}
-                onClick={() => void (persistedSourceReady && !replacingSourceId ? onSectionChange?.('content-tree') : continueFromFiles())}
-              >
-                {fullAttachmentBusy ? 'Attaching…' : persistedSourceReady ? 'Next: Book outline →' : 'Attach PDF & continue →'}
-              </button>
-            )}
-          </div>
+        <div className="pbf-actions" style={{ marginTop: 14, justifyContent: 'flex-end' }}>
+          <button type="button" className="pbf-button" disabled={fullAttachmentBusy} onClick={requestSetupChange}>Change PDF setup</button>
+          {sourceReady && (
+            <button
+              type="button"
+              className="pbf-button pbf-button-primary"
+              disabled={fullAttachmentBusy}
+              onClick={() => void (persistedSourceReady && !replacingSourceId ? onSectionChange?.('content-tree') : continueFromFiles())}
+            >
+              {fullAttachmentBusy ? 'Attaching…' : persistedSourceReady ? 'Next: Book outline →' : 'Attach PDF & continue →'}
+            </button>
+          )}
         </div>
       )}
     </FlowView>
@@ -1614,15 +1621,15 @@ const BookPdfFlowWorkspace = ({
           : { title: 'Build the Book structure', subtitle: 'Start with the outline students will follow, then add the content for the first Unit.' };
     const assemblyView = focusedEditing
       ? editingSection === 'content-tree'
-        ? { title: 'Book outline', subtitle: selectedMode === 'full' ? 'Import or edit the Book outline and its activity slots.' : 'Assign each PDF to its Unit and organize the Book outline.' }
+        ? { title: 'Book outline', subtitle: '' }
         : editingSection === 'activity-json'
-          ? { title: 'Unit activities', subtitle: 'Pick a Unit, copy its prompt, and import the student activities.' }
+          ? { title: 'Unit activities', subtitle: '' }
           : editingSection === 'page-mapping'
-            ? { title: 'Page mapping', subtitle: 'Connect each activity to the exact PDF pages students should see.' }
-            : { title: 'Preview & publish', subtitle: 'Preview any ready Unit as a student, approve it, and publish it for homework.' }
+            ? { title: 'Page mapping', subtitle: '' }
+            : { title: 'Preview & publish', subtitle: '' }
       : guidedAssemblyView;
     return (
-      <FlowView title={assemblyView.title} subtitle={assemblyView.subtitle} status={assemblyStep === 'review' ? 'Review' : 'In progress'}>
+      <FlowView omitHeader={focusedEditing} title={assemblyView.title} subtitle={assemblyView.subtitle} status={assemblyStep === 'review' ? 'Review' : 'In progress'}>
         <BookAssemblyWorkspace
           key={`${bookId}:${mode ?? 'unset'}:${assemblySyncNonce}`}
           access={access as 'owner' | 'administrator'}
@@ -1677,24 +1684,19 @@ const BookPdfFlowWorkspace = ({
         {assemblyStep === 'review' && (
           <FlowSurface>
             <div className="pbf-row">
-              <div>
-                <h3>{selectedMode === 'component' ? 'Preview & publish Book' : `Preview & publish ${activeUnitLabel}`}</h3>
-                <p className="pbf-muted">Open the student preview and approve it before publishing. Publishing adds or updates this Unit without removing your other published Units.</p>
-              </div>
+              <h3>{selectedMode === 'component' ? 'Student preview & publish' : `Preview & publish ${activeUnitLabel}`}</h3>
               <span className={`pbf-status${previewApproval || selectedUnitPublished ? ' is-good' : ''}`}>
                 {previewApproval ? 'Approved' : previewProjection ? 'Ready to approve' : selectedUnitPublished ? 'Published' : 'Review needed'}
               </span>
             </div>
             {publishedUnitKeys.length > 0 && (
               <div className="pbf-callout is-good" style={{ marginTop: 12 }}>
-                <strong>Published units ({publishedUnitKeys.length})</strong>
-                <span>{publishedUnitKeys.map((key) => formatUnitLabel(candidate?.manifest?.units ?? [], key)).join(', ')} — ready to assign as homework.</span>
+                <strong>Published ({publishedUnitKeys.length})</strong>
+                <span>{publishedUnitKeys.map((key) => formatUnitLabel(candidate?.manifest?.units ?? [], key)).join(', ')}</span>
                 {onHomeworkHandoff ? (
                   <div className="pbf-actions" style={{ marginTop: 10 }}>
                     <button type="button" className="pbf-button" onClick={onHomeworkHandoff}>Assign as homework</button>
                   </div>
-                ) : publishedUnitKeys.length > 1 ? (
-                  <span className="pbf-muted" style={{ display: 'block', marginTop: 8 }}>Select a published unit above to assign it as homework.</span>
                 ) : null}
               </div>
             )}
@@ -1783,12 +1785,11 @@ const BookPdfFlowWorkspace = ({
         <div className={`pbf-window${focusedEditing ? ' pbf-window--focused' : ''}`}>
           {!focusedEditing && <header className="pbf-header"><div className="pbf-brand"><span className="pbf-mark">PDF</span><div><p className="pbf-eyebrow">Book creation</p><h1>{title}</h1></div></div><div className="pbf-header-actions"><span className="pbf-status">Draft</span></div></header>}
           <main className="pbf-main">
-            <div className="pbf-hero pbf-mode-hero"><div className="pbf-eyebrow">Set up your PDF Book</div><h2>How will this Book use PDFs?</h2><p>Choose the setup that matches your files. You can change it later through a reviewed migration.</p></div>
+            <div className="pbf-hero pbf-mode-hero"><h2>How will this Book use PDFs?</h2></div>
             <div className="pbf-choice-grid">
-              <button type="button" className="pbf-choice" onClick={() => chooseMode('full')}><h3>One complete PDF</h3><p>Use one PDF for the whole Book. You will upload one file and connect one Book structure to it.</p><small>Best when everything lives in one document →</small></button>
-              <button type="button" className="pbf-choice" onClick={() => chooseMode('component')}><h3>Several component PDFs</h3><p>Use separate PDFs for different sections. Each file keeps its own place and its own structure.</p><small>Best when a Book is assembled from multiple files →</small></button>
+              <button type="button" className="pbf-choice" onClick={() => chooseMode('full')}><h3>One complete PDF</h3><p>One PDF file for the whole Book.</p><small>Single document →</small></button>
+              <button type="button" className="pbf-choice" onClick={() => chooseMode('component')}><h3>Several component PDFs</h3><p>Separate PDF files combined in order.</p><small>Multiple files →</small></button>
             </div>
-            <div className="pbf-callout" style={{ marginTop: 18 }}><strong>Nothing is published yet</strong><span>Your draft stays private until you preview and publish a Unit.</span></div>
           </main>
           {!focusedEditing && <footer className="pbf-footer"><p>Choose a setup to begin.</p><div /></footer>}
         </div>
@@ -1836,8 +1837,13 @@ const BookPdfFlowWorkspace = ({
   );
 };
 
-const FlowView = ({ title, subtitle, status, statusKind, children }: { readonly title: string; readonly subtitle: string; readonly status: string; readonly statusKind?: 'good' | 'warn'; readonly children: ReactNode }) => (
-  <div className="pbf-view"><div className="pbf-heading"><div><h2>{title}</h2><p>{subtitle}</p></div><span className={`pbf-status${statusKind ? ` is-${statusKind}` : ''}`}>{status}</span></div>{children}</div>
+const FlowView = ({ omitHeader = false, title, subtitle, status, statusKind, children }: { readonly omitHeader?: boolean; readonly title: string; readonly subtitle: string; readonly status: string; readonly statusKind?: 'good' | 'warn'; readonly children: ReactNode }) => (
+  <div className="pbf-view">
+    {!omitHeader && (
+      <div className="pbf-heading"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><span className={`pbf-status${statusKind ? ` is-${statusKind}` : ''}`}>{status}</span></div>
+    )}
+    {children}
+  </div>
 );
 
 const FlowSurface = ({ children, className }: { readonly children: ReactNode; readonly className?: string }) => <div className={`pbf-surface${className ? ` ${className}` : ''}`}>{children}</div>;

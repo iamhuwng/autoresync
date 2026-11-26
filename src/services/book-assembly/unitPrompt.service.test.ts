@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { EditableActivity } from '../../types/bookActivity.types';
 import type { BookAssemblyManifestCandidate, TrustedBookSourceVersionProjection } from '../../types/bookAssembly.types';
-import { buildUnitActivityImportPrompt, UNIT_ACTIVITY_IMPORT_PROMPT_VERSION, UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION } from './unitPrompt.service';
+import {
+  buildBulkUnitActivityImportPrompt,
+  buildUnitActivityImportPrompt,
+  BULK_UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
+  BULK_UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION,
+  UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
+  UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION,
+} from './unitPrompt.service';
 
 const sourceVersions: readonly TrustedBookSourceVersionProjection[] = [
   { sourceKey: 'full', bookId: 'book-1', sourceVersionId: 'source-secret-version', purpose: 'book-source', studentSafeStatus: 'ready', studentSafeDecision: { decidedBy: 'teacher-1', decidedAt: '2026-08-11T00:02:00.000Z', sourceVersionId: 'source-secret-version', sha256Hex: 'a'.repeat(64), reasonCode: 'teacher-reviewed' }, physicalPageCount: 48, verifiedUsable: true },
@@ -217,5 +224,53 @@ describe('buildUnitActivityImportPrompt', () => {
     expect(prompt).not.toContain('providerObjectKey');
     expect(prompt).not.toContain('https://');
     expect(sourceAssisted.presentationMode).toBe('source-assisted');
+  });
+});
+
+describe('buildBulkUnitActivityImportPrompt', () => {
+  it('builds one compact multi-unit prompt covering requested units without leaking sourceVersionId', () => {
+    const multiUnitManifest: BookAssemblyManifestCandidate = {
+      ...manifest,
+      nodes: [
+        { nodeKey: 'section-1', parentNodeKey: null, nodeType: 'section', order: 1 },
+        { nodeKey: 'unit-1', parentNodeKey: 'section-1', nodeType: 'unit', order: 1 },
+        { nodeKey: 'unit-2', parentNodeKey: 'section-1', nodeType: 'unit', order: 2 },
+      ],
+      units: [
+        manifest.units[0]!,
+        {
+          unitKey: 'unit-2',
+          activitySlots: [{ activityKey: 'u2-act-1', order: 1, contextRequirement: 'required', pageGroupKeys: ['u2-p5'] }],
+          pageGroups: [{ pageGroupKey: 'u2-p5', sourceKey: 'full', pages: [5], defaultPhysicalPageNumber: 5, activityKeys: ['u2-act-1'], mode: 'activity' }],
+        },
+      ],
+    };
+    const prompt = buildBulkUnitActivityImportPrompt({
+      bookTitle: 'Collins Listening',
+      manifest: multiUnitManifest,
+      unitKeys: ['unit-1', 'unit-2'],
+      sourceVersions,
+    });
+    expect(prompt).toContain(BULK_UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION);
+    expect(prompt).toContain(BULK_UNIT_ACTIVITY_IMPORT_PROMPT_VERSION);
+    expect(prompt).toContain('"unitKey": "unit-1"');
+    expect(prompt).toContain('"unitKey": "unit-2"');
+    expect(prompt).toContain('"activityKey": "u2-act-1"');
+    expect(prompt).not.toContain('source-secret-version');
+
+    const contract = promptContract(prompt) as {
+      units: Array<{ unitKey: string; activitySlots: Array<{ activityKey: string; allowedEvidenceRefs: string[] }> }>;
+    };
+    const u2Slot = contract.units.find((u) => u.unitKey === 'unit-2')?.activitySlots[0];
+    expect(u2Slot?.allowedEvidenceRefs).toEqual(['import:u2-act-1', 'pageGroup:u2-p5', 'source:full:page:5']);
+
+    const filteredPrompt = buildBulkUnitActivityImportPrompt({
+      bookTitle: 'Collins Listening',
+      manifest: multiUnitManifest,
+      unitKeys: ['unit-2'],
+      sourceVersions,
+    });
+    expect(filteredPrompt).not.toContain('"unitKey": "unit-1"');
+    expect(filteredPrompt).toContain('"unitKey": "unit-2"');
   });
 });

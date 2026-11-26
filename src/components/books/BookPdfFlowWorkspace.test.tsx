@@ -996,7 +996,7 @@ describe('BookPdfFlowWorkspace student preview', () => {
 
     await user.click(screen.getByRole('button', { name: 'Replace PDF' }));
 
-    expect(screen.getByText('1 file')).toBeInTheDocument();
+    expect(screen.getByText('Needs file')).toBeInTheDocument();
     expect(screen.getByText('Choose your PDF', { selector: 'strong' })).toBeInTheDocument();
     expect(screen.getByText('We will check the file in your browser before anything is uploaded.')).toBeInTheDocument();
   });
@@ -1091,20 +1091,20 @@ describe('BookPdfFlowWorkspace student preview', () => {
     const view = render(<BookPdfFlowWorkspace {...commonProps} editingSection="content-tree" />);
 
     expect(screen.queryByRole('navigation', { name: 'PDF Book progress' })).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Book outline' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Book content tree editor' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Outline JSON' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Book hierarchy' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Unit 1 content' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeInTheDocument();
 
     view.rerender(<BookPdfFlowWorkspace {...commonProps} editingSection="activity-json" />);
-    expect(screen.getByRole('heading', { name: 'Unit activities' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Activity JSON editor' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Activities for Unit 2' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Unit 2' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copy Unit 2 prompt' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Book hierarchy' })).not.toBeInTheDocument();
 
     view.rerender(<BookPdfFlowWorkspace {...commonProps} editingSection="page-mapping" />);
-    expect(screen.getByRole('heading', { name: 'Page mapping' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Page mapping editor' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Continue' })).not.toBeInTheDocument();
   });
 });
