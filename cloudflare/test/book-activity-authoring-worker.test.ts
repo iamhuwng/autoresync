@@ -1526,4 +1526,171 @@ describe('Book Activity authoring Worker boundary', () => {
     // Oldest unbound saved candidate was evicted instead
     expect(current.state['teacher-1'].candidates?.['cand-unbound-saved-0']).toBeUndefined();
   });
+
+  it('never prunes saved candidates belonging to another book under the same owner during capacity pruning', async () => {
+    const makeSaved = (candidateId: string, bookId: string, targetActivityId: string, updatedAt: number) => ({
+      candidateId,
+      targetActivityId,
+      ownerId: 'teacher-1',
+      bookId,
+      targetRevision: 0,
+      revision: 3,
+      lifecycle: 'saved',
+      content: activity,
+      validation: { valid: true, errors: [] },
+      diff: null,
+      evidenceRefs: [],
+      sourceEvidenceRefs: [],
+      answerEvidenceRefs: [],
+      updatedAt,
+    });
+
+    // 1. Mixed books: oldest superseded saved candidate belongs to book-2 (unverified),
+    // while book-1 has verified-unbound superseded saved candidates that can be pruned safely.
+    const mixedCandidates: Record<string, unknown> = {
+      'cand-book2-bound-old': makeSaved('cand-book2-bound-old', 'book-2', 'act-book2', 10),
+      'cand-book2-newer': makeSaved('cand-book2-newer', 'book-2', 'act-book2', 9000),
+    };
+    for (let index = 0; index < 1534; index += 1) {
+      mixedCandidates[`cand-book1-saved-${index}`] = makeSaved(
+        `cand-book1-saved-${index}`,
+        'book-1',
+        'act-book1-shared',
+        200 + index,
+      );
+    }
+    const readBookBindings = vi.fn(async () => ({}));
+    const mixed = worker({
+      state: { 'teacher-1': { candidates: mixedCandidates } },
+      bindingRepositoryFactory: () => ({
+        read: vi.fn(async () => null),
+        readBookBindings,
+        bindCandidate: vi.fn(async () => 'created' as const),
+        recordPublication: vi.fn(async () => 'updated' as const),
+      }),
+    });
+
+    const stagedMixed = await mixed.handlers.stage({
+      request: request({ operationId: operation('860'), expectedRevision: 0, content: activity }),
+      env: {},
+      uid: 'teacher-1',
+    });
+    expect(stagedMixed.init.status).toBe(200);
+    expect(readBookBindings).toHaveBeenCalledWith('teacher-1', 'book-1');
+    // Superseded saved candidate from book-2 MUST survive despite oldest updatedAt (10)
+    expect(mixed.state['teacher-1'].candidates?.['cand-book2-bound-old']).toBeDefined();
+    // Verified-unbound superseded saved candidate from book-1 was evicted instead
+    expect(mixed.state['teacher-1'].candidates?.['cand-book1-saved-0']).toBeUndefined();
+
+    // 2. Only other-book saved candidates at capacity -> fail closed with 409 capacity-exceeded
+    const otherBookOnly: Record<string, unknown> = {};
+    for (let index = 0; index < 1536; index += 1) {
+      otherBookOnly[`cand-book2-only-${index}`] = makeSaved(
+        `cand-book2-only-${index}`,
+        'book-2',
+        'act-book2-shared',
+        100 + index,
+      );
+    }
+    const onlyOtherBook = worker({
+      state: { 'teacher-1': { candidates: otherBookOnly } },
+      bindingRepositoryFactory: () => ({
+        read: vi.fn(async () => null),
+        readBookBindings: vi.fn(async () => ({})),
+        bindCandidate: vi.fn(async () => 'created' as const),
+        recordPublication: vi.fn(async () => 'updated' as const),
+      }),
+    });
+
+    const denied = await onlyOtherBook.handlers.stage({
+      request: request({ operationId: operation('861'), expectedRevision: 0, content: activity }),
+      env: {},
+      uid: 'teacher-1',
+    });
+    expect(denied).toMatchObject({ init: { status: 409 }, body: { status: 'capacity-exceeded' } });
+    expect(Object.keys(onlyOtherBook.state['teacher-1'].candidates ?? {})).toHaveLength(1536);
+    expect(onlyOtherBook.state['teacher-1'].candidates?.['cand-book2-only-0']).toBeDefined();
+  });
+
+  it('fails closed for saved candidates when bindingRepositoryFactory or readBookBindings is absent or errors, while still pruning discarded candidates', async () => {
+    const makeSaved = (candidateId: string, updatedAt: number) => ({
+      candidateId,
+      targetActivityId: 'act-shared-failclosed',
+      ownerId: 'teacher-1',
+      bookId: 'book-1',
+      targetRevision: 0,
+      revision: 3,
+      lifecycle: 'saved',
+      content: activity,
+      validation: { valid: true, errors: [] },
+      diff: null,
+      evidenceRefs: [],
+      sourceEvidenceRefs: [],
+      answerEvidenceRefs: [],
+      updatedAt,
+    });
+    const buildFullSaved = (): Record<string, unknown> => {
+      const candidates: Record<string, unknown> = {};
+      for (let index = 0; index < 1536; index += 1) {
+        candidates[`cand-saved-${index}`] = makeSaved(`cand-saved-${index}`, 100 + index);
+      }
+      return candidates;
+    };
+
+    // Case A: bindingRepositoryFactory omitted completely
+    const noFactory = worker({ state: { 'teacher-1': { candidates: buildFullSaved() } } });
+    const resNoFactory = await noFactory.handlers.stage({
+      request: request({ operationId: operation('870'), expectedRevision: 0, content: activity }),
+      env: {},
+      uid: 'teacher-1',
+    });
+    expect(resNoFactory).toMatchObject({ init: { status: 409 }, body: { status: 'capacity-exceeded' } });
+    expect(Object.keys(noFactory.state['teacher-1'].candidates ?? {})).toHaveLength(1536);
+    expect(noFactory.state['teacher-1'].candidates?.['cand-saved-0']).toBeDefined();
+
+    // Case B: bindingRepositoryFactory present, but repo omits readBookBindings
+    const noReader = worker({
+      state: { 'teacher-1': { candidates: buildFullSaved() } },
+      bindingRepositoryFactory: () => ({
+        read: vi.fn(async () => null),
+        bindCandidate: vi.fn(async () => 'created' as const),
+        recordPublication: vi.fn(async () => 'updated' as const),
+      }),
+    });
+    const resNoReader = await noReader.handlers.stage({
+      request: request({ operationId: operation('871'), expectedRevision: 0, content: activity }),
+      env: {},
+      uid: 'teacher-1',
+    });
+    expect(resNoReader).toMatchObject({ init: { status: 409 }, body: { status: 'capacity-exceeded' } });
+    expect(Object.keys(noReader.state['teacher-1'].candidates ?? {})).toHaveLength(1536);
+    expect(noReader.state['teacher-1'].candidates?.['cand-saved-0']).toBeDefined();
+
+    // Case C: readBookBindings throws a transport error -> saved candidates remain protected,
+    // while discarded candidates can still be evicted safely.
+    const withDiscarded = buildFullSaved();
+    delete withDiscarded['cand-saved-1535'];
+    withDiscarded['cand-discarded-safe'] = {
+      ...makeSaved('cand-discarded-safe', 5000),
+      lifecycle: 'discarded',
+      content: null,
+    };
+    const readerFails = worker({
+      state: { 'teacher-1': { candidates: withDiscarded } },
+      bindingRepositoryFactory: () => ({
+        read: vi.fn(async () => null),
+        readBookBindings: vi.fn(async () => { throw new Error('rtdb_unavailable'); }),
+        bindCandidate: vi.fn(async () => 'created' as const),
+        recordPublication: vi.fn(async () => 'updated' as const),
+      }),
+    });
+    const resReaderFails = await readerFails.handlers.stage({
+      request: request({ operationId: operation('872'), expectedRevision: 0, content: activity }),
+      env: {},
+      uid: 'teacher-1',
+    });
+    expect(resReaderFails.init.status).toBe(200);
+    expect(readerFails.state['teacher-1'].candidates?.['cand-saved-0']).toBeDefined();
+    expect(readerFails.state['teacher-1'].candidates?.['cand-discarded-safe']).toBeUndefined();
+  });
 });
