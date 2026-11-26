@@ -94,7 +94,7 @@ from the repository root with:
 node scripts/tooling-where.mjs --exec <wrangler-tool> versions deploy <priorVersion>@100% --config <package>/<config> --message rollback:<priorVersion> --yes
 ```
 
-The deployable services are `r2-upload-signer`, `r2-backup-worker`,
+The deployable services are `luyentap-book-pdf-prod`, `r2-upload-signer`, `r2-backup-worker`,
 `luyentap-notification-command`, `thcs-gemma`, and
 `luyentap-qualification-upload-signer`. `luyentap-notification-firestore-qa` is a
 `deployable: false` external-DO public-entry proxy and is blocked from generic

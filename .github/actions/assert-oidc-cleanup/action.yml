@@ -4,7 +4,7 @@ inputs:
   path:
     required: true
 runs:
-  using: node20
+  using: node24
   main: index.mjs
   post: index.mjs
   post-if: always()

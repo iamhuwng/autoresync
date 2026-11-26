@@ -1,7 +1,7 @@
 // @ts-ignore Existing Worker verifier is JavaScript without declarations.
 import { createFirebaseVerifier } from './firebase-verification.js';
 // @ts-ignore JavaScript module has no declaration file.
-import { isApprovedOrigin } from './cors-policy.js';
+import { isApprovedOrigin, parseSpareAllowedLocalhostOrigins } from './cors-policy.js';
 import { canonicalBookRouteManifest } from './book-routes/manifest.ts';
 import type { CanonicalBookRouteDescriptor } from './book-routes/types.ts';
 import { parseAllowedOrigins } from '../book-source-worker/allowed-origin.ts';
@@ -191,11 +191,24 @@ const sourceOriginFailure = (
     return { code: 'invalid_deployment', status: 500 };
   }
   const requestOrigin = request.headers.get('Origin');
-  if (!requestOrigin || !allowedOrigins.includes(requestOrigin)) {
+  const spareOrigins = parseSpareAllowedLocalhostOrigins(env);
+  if (!requestOrigin || (!allowedOrigins.includes(requestOrigin) && !spareOrigins.has(requestOrigin))) {
     return { code: 'cors_origin_denied', status: 403 };
   }
   return null;
 };
+
+const corsDeniedJsonResponse = (
+  body: Record<string, unknown>,
+  status: number,
+): Response => new Response(JSON.stringify(body), {
+  status,
+  headers: {
+    Vary: 'Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
+    'Cache-Control': 'no-store',
+    'Content-Type': 'application/json; charset=utf-8',
+  },
+});
 
 const preflight = (
   request: Request,
@@ -206,14 +219,18 @@ const preflight = (
   if (candidates.length === 0) return jsonResponse(request, { code: 'book_route_not_found' }, 404, [], env);
   const origin = headerValue(request, 'Origin');
   if (!origin || !isApprovedOrigin(origin, env)) {
-    return jsonResponse(request, { code: 'cors_origin_denied' }, 403, [], env);
+    return corsDeniedJsonResponse({ code: 'cors_origin_denied' }, 403);
   }
   const requestedMethod = headerValue(request, 'Access-Control-Request-Method')?.toUpperCase();
   if (!requestedMethod) return jsonResponse(request, { code: 'cors_method_required' }, 405, [], env);
   const descriptor = candidates.find((candidate) => methodList(candidate).includes(requestedMethod));
   if (!descriptor) return jsonResponse(request, { code: 'cors_method_denied' }, 405, [], env);
   const sourceOrigin = sourceOriginFailure(request, env, descriptor);
-  if (sourceOrigin) return jsonResponse(request, { code: sourceOrigin.code }, sourceOrigin.status, [], env);
+  if (sourceOrigin) {
+    return sourceOrigin.code === 'cors_origin_denied'
+      ? corsDeniedJsonResponse({ code: sourceOrigin.code }, sourceOrigin.status)
+      : jsonResponse(request, { code: sourceOrigin.code }, sourceOrigin.status, [], env);
+  }
   const requestedHeaders = (headerValue(request, 'Access-Control-Request-Headers') ?? '')
     .split(',')
     .map((header) => header.trim().toLowerCase())
@@ -470,7 +487,9 @@ export const createBookRouter = (options: BookRouterOptions = {}): BookRouter =>
     if (!uid) return jsonResponse(request, { code: 'unauthorized' }, 401, methods, env);
     const sourceOrigin = sourceOriginFailure(request, env, descriptor);
     if (sourceOrigin) {
-      return jsonResponse(request, { code: sourceOrigin.code }, sourceOrigin.status, methods, env);
+      return sourceOrigin.code === 'cors_origin_denied'
+        ? corsDeniedJsonResponse({ code: sourceOrigin.code }, sourceOrigin.status)
+        : jsonResponse(request, { code: sourceOrigin.code }, sourceOrigin.status, methods, env);
     }
     try {
       await enforceRateLimit(request, env, uid, descriptor);

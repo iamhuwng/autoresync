@@ -5,6 +5,7 @@ import test from 'node:test';
 import {
   buildPrd0062SecurityPhases,
   collectExistingPaths,
+  createIsolatedEmulatorConfig,
   parseSecurityMode,
   summarizeCommandOutput,
 } from '../run-security-tests.js';
@@ -60,4 +61,28 @@ test('the aggregate test gate uses the active PRD0062 security matrix', () => {
     packageJson.scripts['test:prd0062:historical-retirement'],
     /prd0062RetiredDataQuarantineFirebaseRules/u,
   );
+});
+
+test('createIsolatedEmulatorConfig allocates dynamic ports and writes isolated temp firebase.json', async () => {
+  const ports = [19111, 19222];
+  let idx = 0;
+  const isolated = await createIsolatedEmulatorConfig(process.cwd(), {
+    includeDatabase: true,
+    includeFirestore: true,
+    allocatePort: async () => ports[idx++],
+  });
+  try {
+    const parsed = JSON.parse(fs.readFileSync(isolated.configPath, 'utf8'));
+    assert.equal(parsed.emulators.database.port, 19111);
+    assert.equal(parsed.emulators.firestore.port, 19222);
+    assert.equal(parsed.emulators.ui.enabled, false);
+    assert.equal(parsed.database.rules, 'database.rules.json');
+    assert.equal(parsed.firestore.rules, 'firestore.rules');
+    const phases = buildPrd0062SecurityPhases({ configPaths: [isolated.configPath, isolated.configPath] });
+    assert.ok(phases[0].args.includes('--config'));
+    assert.ok(phases[0].args.includes(isolated.configPath));
+  } finally {
+    isolated.cleanup();
+  }
+  assert.equal(fs.existsSync(isolated.configPath), false);
 });

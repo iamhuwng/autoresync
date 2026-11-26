@@ -161,5 +161,61 @@ describe('spare localhost CORS policy', () => {
     }
 
     expect(isApprovedLocalAppOrigin(hostedOrigin, spareHostedEnv)).toBe(false);
+
+    for (const prodOrigin of ['https://kahut1.web.app', 'https://hocthem.net', 'https://www.hocthem.net']) {
+      expect(isApprovedOrigin(prodOrigin, spareHostedEnv)).toBe(false);
+      expect((await bookRouter(bookPreflight(prodOrigin), spareHostedEnv))?.status).toBe(403);
+      expect((await uploadWorker.fetch(preflight(prodOrigin), { ...uploadEnv, FIREBASE_PROJECT_ID: 'luyentap-pdf-qa-20261021' })).status).toBe(403);
+    }
+  });
+
+  it('threads spare localhost ports through book source-upload routes and strips ACAO on denied origins', async () => {
+    const sourceUploadDescriptor: CanonicalBookRouteDescriptor = {
+      id: 'book.source-upload.attach',
+      methods: ['POST'],
+      pathTemplate: '/v1/book-source/books/:bookId/source-set/attach',
+      owner: '#49',
+      domain: 'source-upload',
+      handler: 'bookSource.attach',
+      firebaseAuth: 'firebase-id-token-teacher',
+      rateClass: 'book-control',
+      requestBodyBytes: 1024,
+      responseLimitBytes: 1024,
+      source: 'contributor',
+      contributorTicket: '#49',
+    };
+    const sourceRouter = createBookRouter({ manifest: [sourceUploadDescriptor] });
+    const sourcePath = '/v1/book-source/books/book-1/source-set/attach';
+    const spareSourceEnv = {
+      ...spareEnv,
+      FIREBASE_PROJECT_ID: 'luyentap-pdf-qa-20261021',
+      BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN: 'http://localhost:5173,http://localhost:5174,https://luyentap-pdf-qa-20261021.web.app',
+    };
+    const prodSourceEnv = {
+      FIREBASE_PROJECT_ID: 'temp-a1437',
+      BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN: 'https://kahut1.web.app',
+    };
+
+    for (const origin of ['http://localhost:5173', 'http://localhost:5175', 'http://localhost:5182', 'https://luyentap-pdf-qa-20261021.web.app']) {
+      const response = await sourceRouter(preflight(origin, sourcePath), spareSourceEnv);
+      expect(response?.status).toBe(204);
+      expect(response?.headers.get('Access-Control-Allow-Origin')).toBe(origin);
+    }
+
+    for (const origin of ['http://localhost:5183', 'https://kahut1.web.app', 'https://evil.example']) {
+      const response = await sourceRouter(preflight(origin, sourcePath), spareSourceEnv);
+      expect(response?.status).toBe(403);
+      expect(response?.headers.get('Access-Control-Allow-Origin')).toBeNull();
+    }
+
+    const prodAllowed = await sourceRouter(preflight('https://kahut1.web.app', sourcePath), prodSourceEnv);
+    expect(prodAllowed?.status).toBe(204);
+    expect(prodAllowed?.headers.get('Access-Control-Allow-Origin')).toBe('https://kahut1.web.app');
+
+    for (const origin of ['http://localhost:5173', 'http://localhost:5175', 'http://localhost:5182']) {
+      const response = await sourceRouter(preflight(origin, sourcePath), prodSourceEnv);
+      expect(response?.status).toBe(403);
+      expect(response?.headers.get('Access-Control-Allow-Origin')).toBeNull();
+    }
   });
 });

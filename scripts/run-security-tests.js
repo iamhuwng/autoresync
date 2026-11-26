@@ -19,9 +19,11 @@
  */
 
 import { spawn } from 'child_process';
+import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { allocateEmulatorPort } from './deploy-firebase-rules.mjs';
 
 // =============================================================================
 // CONFIGURATION
@@ -176,10 +178,45 @@ export function parseSecurityMode(args) {
     throw new Error(`Unknown security test arguments: ${args.join(' ')}`);
 }
 
-export function buildPrd0062SecurityPhases() {
+export async function createIsolatedEmulatorConfig(
+    cwd = process.cwd(),
+    { includeDatabase = true, includeFirestore = true, allocatePort = () => allocateEmulatorPort('localhost') } = {},
+) {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'luyentap-security-emulators-'));
+    const config = { emulators: { ui: { enabled: false }, singleProjectMode: true } };
+    if (includeDatabase) {
+        const dbRulesPath = path.join(cwd, 'database.rules.json');
+        if (fs.existsSync(dbRulesPath)) {
+            fs.copyFileSync(dbRulesPath, path.join(tempDir, 'database.rules.json'));
+            config.database = { rules: 'database.rules.json' };
+        }
+        config.emulators.database = { host: 'localhost', port: await allocatePort() };
+    }
+    if (includeFirestore) {
+        const fsRulesPath = path.join(cwd, 'firestore.rules');
+        if (fs.existsSync(fsRulesPath)) {
+            fs.copyFileSync(fsRulesPath, path.join(tempDir, 'firestore.rules'));
+            config.firestore = { rules: 'firestore.rules' };
+        }
+        config.emulators.firestore = { host: 'localhost', port: await allocatePort() };
+    }
+    const configPath = path.join(tempDir, 'firebase.json');
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
+    return {
+        tempDir,
+        configPath,
+        ports: {
+            database: config.emulators.database?.port ?? null,
+            firestore: config.emulators.firestore?.port ?? null,
+        },
+        cleanup: () => fs.rmSync(tempDir, { recursive: true, force: true }),
+    };
+}
+
+export function buildPrd0062SecurityPhases({ configPaths = [] } = {}) {
     const dispatcher = path.join(process.cwd(), 'scripts', 'harness', 'run-tool.mjs');
     const baseArgs = ['--reporter=verbose', '--passWithNoTests=false', '--maxWorkers=1'];
-    const phase = (label, emulators, configPath, testPaths) => ({
+    const phase = (label, emulators, configPath, testPaths, emulatorConfigPath) => ({
         label,
         command: process.execPath,
         args: [
@@ -190,6 +227,7 @@ export function buildPrd0062SecurityPhases() {
             'emulators:exec',
             '--only',
             emulators,
+            ...(emulatorConfigPath ? ['--config', emulatorConfigPath] : []),
             [
                 'node',
                 'node_modules/vitest/vitest.mjs',
@@ -204,8 +242,8 @@ export function buildPrd0062SecurityPhases() {
         environment: PRD0062_CONFIG.environment,
     });
     return [
-        phase('Running PRD0062 assembled RTDB security matrix...', 'database', 'vitest.config.ts', PRD0062_CONFIG.databaseTestPaths),
-        phase('Running PRD0062 M1 RTDB/Firestore composition security...', 'database,firestore', 'cloudflare/vitest.prd0062-m1-rule-enforced-composition.config.mjs', PRD0062_CONFIG.compositionTestPaths),
+        phase('Running PRD0062 assembled RTDB security matrix...', 'database', 'vitest.config.ts', PRD0062_CONFIG.databaseTestPaths, configPaths[0]),
+        phase('Running PRD0062 M1 RTDB/Firestore composition security...', 'database,firestore', 'cloudflare/vitest.prd0062-m1-rule-enforced-composition.config.mjs', PRD0062_CONFIG.compositionTestPaths, configPaths[1]),
     ];
 }
 
@@ -324,32 +362,43 @@ async function runSecurityTests() {
     }
 
     if (mode === 'prd0062') {
-        const phases = buildPrd0062SecurityPhases();
-        const requiredPaths = phases.flatMap(({ testPaths }) => testPaths);
-        collectExistingPaths(requiredPaths, new Set(requiredPaths));
-        let exitCode = 0;
-        let totals = { passed: 0, failed: 0, skipped: 0 };
-        for (const phase of phases) {
-            const result = await runCommand(phase.label, phase.command, phase.args, phase.environment);
-            exitCode = Math.max(exitCode, result.code);
-            totals = mergeSummary(totals, result.summary);
+        const isolatedConfigs = [
+            await createIsolatedEmulatorConfig(process.cwd(), { includeDatabase: true, includeFirestore: false }),
+            await createIsolatedEmulatorConfig(process.cwd(), { includeDatabase: true, includeFirestore: true }),
+        ];
+        try {
+            const phases = buildPrd0062SecurityPhases({
+                configPaths: isolatedConfigs.map(({ configPath }) => configPath),
+            });
+            const requiredPaths = phases.flatMap(({ testPaths }) => testPaths);
+            collectExistingPaths(requiredPaths, new Set(requiredPaths));
+            let exitCode = 0;
+            let totals = { passed: 0, failed: 0, skipped: 0 };
+            for (const phase of phases) {
+                const result = await runCommand(phase.label, phase.command, phase.args, phase.environment);
+                exitCode = Math.max(exitCode, result.code);
+                totals = mergeSummary(totals, result.summary);
+            }
+            const duration = Date.now() - startTime;
+            printSummary(totals.passed, totals.failed, totals.skipped, duration);
+            const results = {
+                timestamp: new Date().toISOString(),
+                mode,
+                passed: totals.passed,
+                failed: totals.failed,
+                skipped: totals.skipped,
+                duration,
+                success: exitCode === 0 && totals.failed === 0 && totals.skipped === 0,
+                phases: phases.map(({ label, testPaths }) => ({ label, testPaths })),
+            };
+            const resultsPath = path.join(process.cwd(), 'tmp', 'security-test-results.json');
+            fs.mkdirSync(path.dirname(resultsPath), { recursive: true });
+            fs.writeFileSync(resultsPath, JSON.stringify(results, null, 2));
+            log(`Results saved to: ${resultsPath}`, 'cyan');
+            return results.success ? 0 : Math.max(exitCode, 1);
+        } finally {
+            for (const isolated of isolatedConfigs) isolated.cleanup();
         }
-        const duration = Date.now() - startTime;
-        printSummary(totals.passed, totals.failed, totals.skipped, duration);
-        const results = {
-            timestamp: new Date().toISOString(),
-            mode,
-            passed: totals.passed,
-            failed: totals.failed,
-            skipped: totals.skipped,
-            duration,
-            success: exitCode === 0 && totals.failed === 0 && totals.skipped === 0,
-            phases: phases.map(({ label, testPaths }) => ({ label, testPaths })),
-        };
-        const resultsPath = path.join(process.cwd(), 'security-test-results.json');
-        fs.writeFileSync(resultsPath, JSON.stringify(results, null, 2));
-        log(`Results saved to: ${resultsPath}`, 'cyan');
-        return results.success ? 0 : Math.max(exitCode, 1);
     }
 
     // Build test command arguments
@@ -390,19 +439,29 @@ async function runSecurityTests() {
                 ...emulatorTestPaths,
             ]);
 
-            const emulatorResult = await runCommand(
-                'Running security emulator tests...',
-                process.execPath,
-                [
-                    firebaseCli,
-                    'emulators:exec',
-                    '--only',
-                    'database,firestore',
-                    emulatorCommand,
-                ],
-            );
-            exitCode = Math.max(exitCode, emulatorResult.code);
-            totals = mergeSummary(totals, emulatorResult.summary);
+            const isolated = await createIsolatedEmulatorConfig(process.cwd(), {
+                includeDatabase: true,
+                includeFirestore: true,
+            });
+            try {
+                const emulatorResult = await runCommand(
+                    'Running security emulator tests...',
+                    process.execPath,
+                    [
+                        firebaseCli,
+                        'emulators:exec',
+                        '--only',
+                        'database,firestore',
+                        '--config',
+                        isolated.configPath,
+                        emulatorCommand,
+                    ],
+                );
+                exitCode = Math.max(exitCode, emulatorResult.code);
+                totals = mergeSummary(totals, emulatorResult.summary);
+            } finally {
+                isolated.cleanup();
+            }
         }
     }
 
@@ -420,7 +479,8 @@ async function runSecurityTests() {
         emulatorTestPaths,
     };
 
-    const resultsPath = path.join(process.cwd(), 'security-test-results.json');
+    const resultsPath = path.join(process.cwd(), 'tmp', 'security-test-results.json');
+    fs.mkdirSync(path.dirname(resultsPath), { recursive: true });
     fs.writeFileSync(resultsPath, JSON.stringify(results, null, 2));
     log(`Results saved to: ${resultsPath}`, 'cyan');
 
