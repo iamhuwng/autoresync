@@ -158,6 +158,27 @@ export const getUserByEmail = async (email: string): Promise<UserProfile | null>
             }
         }
     }
+
+    // Super admins can resolve legacy mixed-case user profiles when exact
+    // RTDB indexed lookup misses after request emails are canonicalized.
+    try {
+        const allUsersSnapshot = await get(usersRef);
+        if (allUsersSnapshot.exists()) {
+            const data = allUsersSnapshot.val() as Record<string, any>;
+            const matched = Object.entries(data).find(
+                ([, value]) =>
+                    typeof value?.email === 'string' &&
+                    value.email.trim().toLowerCase() === normalized
+            );
+            if (matched) {
+                const [key, value] = matched;
+                return { ...value, uid: value.uid || key };
+            }
+        }
+    } catch {
+        // Non-super-admin callers do not have root `/users` read access.
+    }
+
     return null;
 };
 

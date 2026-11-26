@@ -64,6 +64,31 @@ describe('userService.getUserByEmail', () => {
         expect(user).toMatchObject({ uid: 'student-legacy', email: 'Legacy@Example.com' });
     });
 
+    it('resolves legacy mixed-case stored user email via case-insensitive fallback when lowercase query misses', async () => {
+        mockGet
+            .mockResolvedValueOnce({ exists: () => false, val: () => null })
+            .mockResolvedValueOnce({
+                exists: () => true,
+                val: () => ({
+                    'student-mixed': { email: 'Alice@Example.com', displayName: 'Alice Legacy', role: 'student' },
+                }),
+            });
+
+        const user = await getUserByEmail('alice@example.com');
+
+        expect(mockEqualTo).toHaveBeenCalledWith('alice@example.com');
+        expect(user).toMatchObject({ uid: 'student-mixed', email: 'Alice@Example.com' });
+    });
+
+    it('returns null cleanly when fallback root users read is denied for non-admin callers', async () => {
+        mockGet
+            .mockResolvedValueOnce({ exists: () => false, val: () => null })
+            .mockRejectedValueOnce(new Error('permission_denied'));
+
+        const user = await getUserByEmail('missing@example.com');
+        expect(user).toBeNull();
+    });
+
     it('returns null without querying for blank email input', async () => {
         const user = await getUserByEmail('   ');
         expect(user).toBeNull();

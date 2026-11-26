@@ -332,44 +332,6 @@ async function getStudentClassesFromMembershipIndex(studentUid: string): Promise
     .sort((left, right) => right.createdAt - left.createdAt);
 }
 
-async function getStudentClassesByLegacyScan(studentUid: string): Promise<ClassSummary[]> {
-  const classesRef = ref(database, CLASSES_REF);
-  const snapshot = await get(classesRef);
-
-  if (!snapshot.exists()) {
-    return [];
-  }
-
-  const enrolledClasses: ClassSummary[] = [];
-  const data = snapshot.val();
-
-  for (const [id, classData] of Object.entries(data)) {
-    const cls = classData as ClassSession;
-    const studentEntries = Object.entries(cls.students || {});
-
-    const matchedStudentEntry = studentEntries.find(
-      ([key, student]) => student.uid === studentUid || key === studentUid
-    );
-
-    if (!matchedStudentEntry) {
-      continue;
-    }
-
-    const [, matchedStudent] = matchedStudentEntry;
-    if (matchedStudent.status === 'pending_approval' || matchedStudent.status === 'removed') {
-      continue;
-    }
-
-    if (cls.status === 'deleted') {
-      continue;
-    }
-
-    enrolledClasses.push(buildClassSummary(id, cls));
-  }
-
-  return enrolledClasses.sort((left, right) => right.createdAt - left.createdAt);
-}
-
 // ============================================================================
 // CLASS CRUD OPERATIONS
 // ============================================================================
@@ -386,13 +348,18 @@ export async function createClass(request: CreateClassRequest, ownerId?: string)
     let attempts = 0;
     const maxAttempts = 10;
 
-    // Ensure uniqueness
+    // Ensure uniqueness. Non-existent class IDs are readable by any signed-in
+    // teacher; if a random code collides with another teacher's class, RTDB
+    // denies the read, so treat permission errors as an occupied code and retry.
     while (attempts < maxAttempts) {
       const existingRef = ref(database, `${CLASSES_REF}/${classCode}`);
-      const snapshot = await get(existingRef);
-
-      if (!snapshot.exists()) {
-        break;
+      try {
+        const snapshot = await get(existingRef);
+        if (!snapshot.exists()) {
+          break;
+        }
+      } catch {
+        // Code collides with an existing class owned by another teacher.
       }
 
       classCode = generateClassCode();
@@ -1180,11 +1147,7 @@ export async function rejectClassStudent(
 export async function getStudentClasses(studentUid: string): Promise<ClassSummary[]> {
   try {
     const indexedClasses = await getStudentClassesFromMembershipIndex(studentUid);
-    if (indexedClasses !== null) {
-      return indexedClasses;
-    }
-
-    return getStudentClassesByLegacyScan(studentUid);
+    return indexedClasses ?? [];
   } catch (error) {
     console.error('Error getting student classes:', error);
     return [];

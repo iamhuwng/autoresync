@@ -727,13 +727,16 @@ describe('Class Manager - Student Access Control', () => {
     expect(studentClasses).toEqual([]);
   });
 
-  it('should retain the legacy class scan only when the student-owned projection is absent', async () => {
+  it('should return empty array without scanning root classes when student-owned projection is absent', async () => {
     await set(ref(database, `student_classes/${TEST_STUDENT_UID}`), null);
+
+    const getMock = vi.mocked(get);
+    getMock.mockClear();
 
     const studentClasses = await getStudentClasses(TEST_STUDENT_UID);
 
-    expect(studentClasses.map((cls) => cls.id)).toContain(class1Id);
-    expect(studentClasses.map((cls) => cls.id)).not.toContain(class2Id);
+    expect(studentClasses).toEqual([]);
+    expect(getMock).not.toHaveBeenCalledWith(expect.objectContaining({ path: 'classes' }));
   });
 
   it('should use the student-owned projection without losing indexed classes when the legacy root scan is denied', async () => {

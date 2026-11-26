@@ -2216,7 +2216,7 @@
     "classes": {
       ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (query.orderByChild === 'createdBy' && query.equalTo === auth.uid))",
       "$classId": {
-        ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || data.child('createdBy').val() === auth.uid || data.child('students').child(auth.uid).exists() || (root.child('users').child(auth.uid).child('role').val() === 'student' && (!data.exists() || data.child('status').val() === 'active')))",
+        ".read": "auth != null && (!data.exists() || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || data.child('createdBy').val() === auth.uid || data.child('students').child(auth.uid).exists() || (root.child('users').child(auth.uid).child('role').val() === 'student' && data.child('status').val() === 'active'))",
         ".write": "auth != null && !data.exists() && !newData.child('book_locks').exists() && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (root.child('users').child(auth.uid).child('role').val() === 'teacher' && newData.child('createdBy').val() === auth.uid))",
         "students": {
           "$studentId": {

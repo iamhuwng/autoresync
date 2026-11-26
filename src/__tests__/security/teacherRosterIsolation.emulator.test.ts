@@ -253,6 +253,19 @@ describe('RTDB Teacher Roster Isolation Rules', () => {
     expect(Object.keys(ownClassesSnap.val() || {})).toEqual(['class-a']);
     await assertSucceeds(teacherA.ref('classes/class-a').get());
 
+    // Teacher A can check an unused class code (!data.exists()) when creating a new class
+    const unusedSnap = await assertSucceeds(teacherA.ref('classes/NEWCD1').get());
+    expect(unusedSnap.exists()).toBe(false);
+    await assertSucceeds(
+      teacherA.ref('classes/NEWCD1').set({
+        id: 'NEWCD1',
+        classCode: 'NEWCD1',
+        name: 'New Teacher A Class',
+        createdBy: 'teacher-a',
+        status: 'active',
+      })
+    );
+
     await assertFails(teacherA.ref('classes').get());
     await assertFails(teacherA.ref('classes').orderByChild('createdBy').equalTo('teacher-b').get());
     await assertFails(teacherA.ref('classes/class-b').get());
