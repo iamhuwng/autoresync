@@ -68,9 +68,9 @@ export interface BookMode2EditorShellProps {
   readonly onWorkflowSummaryChange?: (summary: BookPdfWorkflowSummary) => void;
 }
 
-const getCurrentFirebaseIdToken = async (): Promise<string> => {
+const getCurrentFirebaseIdToken = async (forceRefresh = false): Promise<string> => {
   const user = getAuth().currentUser;
-  return user ? user.getIdToken(true) : '';
+  return user ? user.getIdToken(forceRefresh) : '';
 };
 
 const getPreviewFirebaseIdToken = async (forceRefresh = false): Promise<string> => {
@@ -86,11 +86,7 @@ const configuredUploadWorkflow = (sourceKey = 'main'): SourceUploadBrowserWorkfl
   const control = createSourceUploadClient({
     baseUrl: controlUrl,
     reconciliationBaseUrl: reconciliationUrl,
-    getIdToken: async () => {
-      const user = getAuth().currentUser;
-      if (!user) return '';
-      return user.getIdToken(true);
-    },
+    getIdToken: getCurrentFirebaseIdToken,
   });
   return createSourceUploadBrowserWorkflow({
     control,

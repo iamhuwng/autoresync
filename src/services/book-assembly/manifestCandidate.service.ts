@@ -13,6 +13,7 @@ import {
 import { validateSourceSetCandidate } from './sourceSet.service';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$/u;
+const RTDB_SLOT_KEY = /^[A-Za-z0-9][A-Za-z0-9_:-]{0,127}$/u;
 const MAX_DEPTH = 64;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => (
@@ -37,6 +38,10 @@ const exactKeys = (
 
 const boundedId = (value: unknown): value is string => (
   typeof value === 'string' && value.length <= BOOK_ASSEMBLY_LIMITS.maxKeyLength && ID.test(value)
+);
+
+const boundedSlotKey = (value: unknown): value is string => (
+  typeof value === 'string' && value.length <= BOOK_ASSEMBLY_LIMITS.maxKeyLength && RTDB_SLOT_KEY.test(value)
 );
 
 const pageNumber = (value: unknown): value is number => (
@@ -221,8 +226,8 @@ export const validateBookAssemblyManifestCandidate = (
       errors.push(error('unknown-field', unitPath, 'Unit contains unknown or missing fields.'));
     }
     const unitKey = rawUnit.unitKey;
-    if (!boundedId(unitKey)) {
-      errors.push(error('invalid-value', `${unitPath}.unitKey`, 'Unit key must be a bounded identifier.'));
+    if (!boundedSlotKey(unitKey)) {
+      errors.push(error('invalid-value', `${unitPath}.unitKey`, 'Unit key must be a bounded RTDB-safe identifier (letters, digits, _, :, -).'));
       return;
     }
     if (representedUnits.has(unitKey)) errors.push(error('duplicate-key', `${unitPath}.unitKey`, 'Unit keys must be unique.'));
@@ -249,7 +254,7 @@ export const validateBookAssemblyManifestCandidate = (
         errors.push(error('unknown-field', path, 'Activity slot contains unknown or missing fields.'));
       }
       const key = rawSlot.activityKey;
-      if (!boundedId(key)) errors.push(error('invalid-value', `${path}.activityKey`, 'Activity key must be a bounded identifier.'));
+      if (!boundedSlotKey(key)) errors.push(error('invalid-value', `${path}.activityKey`, 'Activity key must be a bounded RTDB-safe identifier (letters, digits, _, :, -).'));
       else if (activityKeys.has(key) || slotsByKey.has(key)) errors.push(error('duplicate-key', `${path}.activityKey`, 'Activity keys must be unique.'));
       else { activityKeys.add(key); slotsByKey.set(key, rawSlot as unknown as BookAssemblyManifestCandidate['units'][number]['activitySlots'][number]); }
       const order = rawSlot.order;
@@ -280,7 +285,7 @@ export const validateBookAssemblyManifestCandidate = (
       }
       const pageGroupKey = rawGroup.pageGroupKey;
       const sourceKey = rawGroup.sourceKey;
-      if (!boundedId(pageGroupKey)) errors.push(error('invalid-value', `${path}.pageGroupKey`, 'Page Group key must be a bounded identifier.'));
+      if (!boundedSlotKey(pageGroupKey)) errors.push(error('invalid-value', `${path}.pageGroupKey`, 'Page Group key must be a bounded RTDB-safe identifier (letters, digits, _, :, -).'));
       else if (groupsByKey.has(pageGroupKey)) errors.push(error('duplicate-key', `${path}.pageGroupKey`, 'Page Group keys must be unique within a Unit.'));
       if (!boundedId(sourceKey)) errors.push(error('invalid-value', `${path}.sourceKey`, 'Page Group source key must be a bounded identifier.'));
       const source = boundedId(sourceKey) ? sources.get(sourceKey) : undefined;

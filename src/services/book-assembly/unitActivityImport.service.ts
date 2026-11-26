@@ -12,12 +12,14 @@ import {
   UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
   UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION,
 } from './unitPrompt.service';
+import { bookScopedActivityTargetId } from './bookActivityTargetId.service';
+
+export { bookScopedActivityTargetId };
 
 const MAX_IMPORT_BYTES = 512 * 1024;
 const MAX_BULK_IMPORT_BYTES = 4 * 1024 * 1024;
-const MAX_ACTIVITY_TARGET_ID_LENGTH = 160;
 const FORBIDDEN_KEYS = /^(activityId|candidateId|ownerId|ownerNodeKey|interactionId|itemId|sourceVersionId|providerObjectKey|providerUrl|objectKey|bucket|credential|credentials|token|privateKey|teacherNotes|react|tsx)$/iu;
-const FORBIDDEN_TEXT = /(https?:\/\/|b2:\/\/|backblaze|providerObjectKey|private_key|BEGIN PRIVATE KEY|tsx|<script|function\s+[A-Za-z0-9_]+\s*\()/iu;
+const FORBIDDEN_TEXT = /(b2:\/\/|r2:\/\/|s3:\/\/|gs:\/\/|https?:\/\/[^/\s]*(?:backblazeb2\.com|r2\.cloudflarestorage\.com|firebasestorage\.googleapis\.com|firebaseio\.com)|backblaze|providerObjectKey|private_key|BEGIN PRIVATE KEY|\btsx\b|\.tsx\b|<script|function\s+[A-Za-z0-9_]+\s*\()/iu;
 
 export interface UnitActivityImportSlot {
   readonly activityKey: string;
@@ -63,27 +65,6 @@ export class UnitActivityImportConflictError extends UnitActivityImportError {
     this.name = 'UnitActivityImportConflictError';
   }
 }
-
-const hexUtf8 = (value: string): string => Array.from(
-  new TextEncoder().encode(value),
-  (byte) => byte.toString(16).padStart(2, '0'),
-).join('');
-
-/**
- * Activity authoring storage is owner-scoped, while Assembly slot identities
- * are Book-scoped. Encode both identities into the mutation target so the same
- * logical slot key can be reused safely by another Book without weakening CAS.
- */
-export const bookScopedActivityTargetId = (bookId: string, activityKey: string): string => {
-  const targetActivityId = `ba_${hexUtf8(bookId)}_${hexUtf8(activityKey)}`;
-  if (targetActivityId.length > MAX_ACTIVITY_TARGET_ID_LENGTH) {
-    throw new UnitActivityImportError(
-      'activity-target-too-long',
-      'The Book and Activity slot identifiers are too long for a safe authoring target.',
-    );
-  }
-  return targetActivityId;
-};
 
 const byteLength = (value: string): number => new TextEncoder().encode(value).byteLength;
 const record = (value: unknown, code = 'invalid-json'): Record<string, unknown> => {
@@ -470,7 +451,7 @@ export const stageUnitActivityImportBundle = async ({
     readonly result: ActivityStageResult;
     readonly validatedRevision: number;
   }> = [];
-  let committedAnySlot = false;
+  const committedCandidateIds = new Set<string>();
   try {
     // Phase 1: stage and validate every slot BEFORE saving any draft or writing
     // any unit binding, so a revision conflict, schema error, or cancel on a
@@ -526,7 +507,6 @@ export const stageUnitActivityImportBundle = async ({
     // Phase 2: commit all validated slots once every slot is conflict-free.
     const committed: StagedUnitActivity[] = [];
     for (const { slot, result, validatedRevision } of validatedSlots) {
-      committedAnySlot = true;
       const saved = await activityAuthoring.saveDraft({
         candidateId: result.candidateId,
         expectedRevision: validatedRevision,
@@ -541,6 +521,7 @@ export const stageUnitActivityImportBundle = async ({
       if (saved.status !== 'saved' || saved.activityId !== result.targetActivityId) {
         throw new UnitActivityImportError('activity-binding-save-failed', `Activity slot ${slot.activityKey} was not saved.`);
       }
+      committedCandidateIds.add(result.candidateId);
       committed.push({
         ...result,
         revision: saved.candidateRevision,
@@ -549,8 +530,17 @@ export const stageUnitActivityImportBundle = async ({
     }
     return { bundle, staged: committed };
   } catch (error) {
-    if (!committedAnySlot && staged.length > 0) {
-      await discardStagedUnitActivities(activityAuthoring, staged);
+    const uncommitted = staged.filter((entry) => !committedCandidateIds.has(entry.candidateId));
+    if (uncommitted.length > 0) {
+      if (committedCandidateIds.size === 0) {
+        await discardStagedUnitActivities(activityAuthoring, uncommitted);
+      } else {
+        try {
+          await discardStagedUnitActivities(activityAuthoring, uncommitted);
+        } catch {
+          // Best-effort cleanup of remaining uncommitted slots; preserve the original save failure.
+        }
+      }
     }
     throw error;
   }

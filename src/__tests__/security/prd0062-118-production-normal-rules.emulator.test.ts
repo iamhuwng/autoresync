@@ -634,4 +634,152 @@ describeEmulator('PRD0062 #118 assembled production-normal RTDB rules', () => {
     const assembly = testEnv.authenticatedContext('assembly-1', assemblyClaims()).database();
     await assertSucceeds(assembly.ref(aggregatePath).set(assemblyAggregate()));
   });
+
+  it('permits owner+book-scoped draft discovery reads on activity bindings while denying writes and cross-scope access', async () => {
+    const bookPath = 'book_assembly_activity_bindings/owners/teacher-1/books/book-1';
+    const unit1Path = `${bookPath}/units/unit-1`;
+    const slot1Path = `${unit1Path}/activities/activity-1`;
+    const slot2Path = `${bookPath}/units/unit-2/activities/activity-2`;
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.database().ref().update({
+        'material_catalog/books/book-1': materialBook(),
+        [slot1Path]: binding({ unitKey: 'unit-1', activityKey: 'activity-1', candidateLifecycle: 'saved' }),
+        [slot2Path]: binding({ unitKey: 'unit-2', activityKey: 'activity-2', candidateLifecycle: 'saved' }),
+      });
+    });
+
+    const discovery = testEnv.authenticatedContext('binding-discovery', {
+      book_assembly_draft_discovery_service: true,
+      book_assembly_draft_discovery_ownerId: 'teacher-1',
+      book_assembly_draft_discovery_bookId: 'book-1',
+    }).database();
+    const wrongOwner = testEnv.authenticatedContext('binding-discovery-wrong-owner', {
+      book_assembly_draft_discovery_service: true,
+      book_assembly_draft_discovery_ownerId: 'teacher-2',
+      book_assembly_draft_discovery_bookId: 'book-1',
+    }).database();
+    const wrongBook = testEnv.authenticatedContext('binding-discovery-wrong-book', {
+      book_assembly_draft_discovery_service: true,
+      book_assembly_draft_discovery_ownerId: 'teacher-1',
+      book_assembly_draft_discovery_bookId: 'book-2',
+    }).database();
+    const singleSlotBinding = testEnv.authenticatedContext('binding-1', bindingClaims()).database();
+    const browser = testEnv.authenticatedContext('teacher-1').database();
+
+    const bookSnap = await assertSucceeds(discovery.ref(bookPath).once('value'));
+    expect(Object.keys((bookSnap.val() as { units: Record<string, unknown> }).units)).toEqual(['unit-1', 'unit-2']);
+    await assertSucceeds(discovery.ref(unit1Path).once('value'));
+
+    await assertFails(discovery.ref('book_assembly_activity_bindings/owners/teacher-1/books').once('value'));
+    await assertFails(discovery.ref('book_assembly_activity_bindings/owners/teacher-1').once('value'));
+    await assertFails(wrongOwner.ref(bookPath).once('value'));
+    await assertFails(wrongOwner.ref(unit1Path).once('value'));
+    await assertFails(wrongBook.ref(bookPath).once('value'));
+    await assertFails(wrongBook.ref(unit1Path).once('value'));
+    await assertFails(singleSlotBinding.ref(bookPath).once('value'));
+    await assertFails(singleSlotBinding.ref(unit1Path).once('value'));
+    await assertFails(browser.ref(bookPath).once('value'));
+    await assertFails(browser.ref(unit1Path).once('value'));
+
+    // Ancestor and leaf write denial for read-only discovery claims
+    await assertFails(discovery.ref(bookPath).update({ units: {} }));
+    await assertFails(discovery.ref(unit1Path).update({ activities: { 'activity-1': binding() } }));
+    await assertFails(discovery.ref(slot1Path).set(binding({ candidateRevision: 99 })));
+    await assertFails(discovery.ref(slot1Path).remove());
+  });
+
+  it('allows post-publish candidate replacement and v2+ publication recording on activity bindings while rejecting tampering or downgrade', async () => {
+    const unitPath = 'book_assembly_activity_bindings/owners/teacher-1/books/book-1/units/unit-1';
+    const bindingPath = `${unitPath}/activities/activity-1`;
+    const bindingService = testEnv.authenticatedContext('binding-1', bindingClaims()).database();
+
+    // 1. Initial saved binding + v1 publication recording
+    await assertSucceeds(bindingService.ref(bindingPath).set(binding({
+      candidateId: 'candidate-1',
+      candidateRevision: 1,
+      candidateLifecycle: 'saved',
+    })));
+    await assertSucceeds(bindingService.ref(bindingPath).set(binding({
+      candidateId: 'candidate-1',
+      candidateRevision: 1,
+      candidateLifecycle: 'saved',
+      activityVersionId: 'ver-1',
+      activityVersion: 1,
+    })));
+
+    // 2. Post-publish candidate replacement: strictly higher candidateRevision preserving activityVersionId/activityVersion
+    await assertSucceeds(bindingService.ref(bindingPath).set(binding({
+      candidateId: 'candidate-2',
+      candidateRevision: 2,
+      candidateLifecycle: 'saved',
+      activityVersionId: 'ver-1',
+      activityVersion: 1,
+    })));
+
+    // Reject same or lower candidateRevision, version tampering, or dropping publication lineage
+    await assertFails(bindingService.ref(bindingPath).set(binding({
+      candidateId: 'candidate-3',
+      candidateRevision: 2,
+      candidateLifecycle: 'saved',
+      activityVersionId: 'ver-1',
+      activityVersion: 1,
+    })));
+    await assertFails(bindingService.ref(bindingPath).set(binding({
+      candidateId: 'candidate-3',
+      candidateRevision: 3,
+      candidateLifecycle: 'saved',
+      activityVersionId: 'ver-tampered',
+      activityVersion: 1,
+    })));
+    await assertFails(bindingService.ref(bindingPath).set(binding({
+      candidateId: 'candidate-3',
+      candidateRevision: 3,
+      candidateLifecycle: 'saved',
+    })));
+
+    // 3. Re-publish v2 recording: strictly higher activityVersion and distinct activityVersionId
+    await assertSucceeds(bindingService.ref(bindingPath).set(binding({
+      candidateId: 'candidate-2',
+      candidateRevision: 2,
+      candidateLifecycle: 'saved',
+      activityVersionId: 'ver-2',
+      activityVersion: 2,
+    })));
+
+    // Reject duplicate activityVersionId, version downgrade, deletion, or ancestor-shaped write
+    await assertFails(bindingService.ref(bindingPath).set(binding({
+      candidateId: 'candidate-2',
+      candidateRevision: 2,
+      candidateLifecycle: 'saved',
+      activityVersionId: 'ver-2',
+      activityVersion: 3,
+    })));
+    await assertFails(bindingService.ref(bindingPath).set(binding({
+      candidateId: 'candidate-2',
+      candidateRevision: 2,
+      candidateLifecycle: 'saved',
+      activityVersionId: 'ver-3',
+      activityVersion: 2,
+    })));
+    await assertFails(bindingService.ref(bindingPath).remove());
+    await assertFails(bindingService.ref(unitPath).set({
+      activities: {
+        'activity-1': binding({
+          candidateId: 'candidate-9',
+          candidateRevision: 9,
+          candidateLifecycle: 'saved',
+          activityVersionId: 'ver-2',
+          activityVersion: 2,
+        }),
+      },
+    }));
+    await assertFails(bindingService.ref(unitPath).update({
+      'activities/activity-2': binding({
+        activityKey: 'activity-2',
+        candidateId: 'candidate-9',
+        candidateRevision: 9,
+        candidateLifecycle: 'saved',
+      }),
+    }));
+  });
 });

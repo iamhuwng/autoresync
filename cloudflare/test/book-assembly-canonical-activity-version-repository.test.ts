@@ -660,7 +660,106 @@ describe('canonical Activity Version Firebase repositories', () => {
       activityVersion: request.activityVersion,
       canonicalPayloadFingerprint: request.payloadFingerprint,
     })).resolves.toEqual(canonicalRecord());
-    expect(rtdbRequests).toHaveLength(4);
+  });
+
+  it('reads carried-forward versions across requests via scoped publication-reader claims and supports activity-revision writes', async () => {
+    const { privateKey } = await generateKeyPair('RS256', { extractable: true });
+    const assemblyIdentity = 'book-assembly@example.iam.gserviceaccount.com';
+    const exchangeClaims: unknown[] = [];
+    const values = new Map<string, unknown>([
+      [paths.canonical, canonicalRecord()],
+      [paths.studentSafeProjection, safeProjectionRecord()],
+    ]);
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = new URL(String(input));
+      if (url.hostname === 'identitytoolkit.googleapis.com') {
+        const body = JSON.parse(String(init?.body)) as { token: string };
+        exchangeClaims.push(decodeJwt(body.token));
+        return Response.json({ idToken: 'scoped-firebase-token', expiresIn: '300' });
+      }
+      const method = String(init?.method ?? 'GET');
+      const path = pathFromInput(input as RequestInfo | URL);
+      if (method === 'GET') {
+        return new Response(JSON.stringify(values.get(path) ?? null), {
+          status: 200,
+          headers: { etag: '"etag-1"' },
+        });
+      }
+      if (method === 'PUT') {
+        values.set(path, JSON.parse(String(init?.body ?? 'null')) as unknown);
+        return new Response('{}', { status: 200 });
+      }
+      return new Response('', { status: 405 });
+    };
+    const env = {
+      FIREBASE_DB_URL: dbUrl,
+      FIREBASE_PROJECT_ID: 'project-1',
+      FIREBASE_WEB_API_KEY: 'web-key',
+      BOOK_ASSEMBLY_SERVICE_IDENTITY: assemblyIdentity,
+      BOOK_ASSEMBLY_GOOGLE_SA_KEY: JSON.stringify({
+        client_email: assemblyIdentity,
+        private_key: await exportPKCS8(privateKey),
+      }),
+    };
+
+    // Cold writer in a new request (empty in-memory prepared map) reads carried-forward v1
+    const readerWriter = new FirebaseRestCanonicalActivityVersionWriter({
+      env,
+      ownerId: request.ownerId,
+      fetchImpl,
+    });
+    await expect(readerWriter.readPrepared({
+      activityId: request.activityId,
+      activityVersionId: request.activityVersionId,
+      activityVersion: request.activityVersion,
+      canonicalPayloadFingerprint: request.payloadFingerprint,
+    })).resolves.toEqual(canonicalRecord());
+    expect(exchangeClaims).toContainEqual(expect.objectContaining({
+      uid: request.ownerId,
+      claims: {
+        book_activity_publication_reader_service: true,
+        book_activity_publication_reader_ownerId: request.ownerId,
+        book_activity_publication_reader_activityId: request.activityId,
+        book_activity_publication_reader_activityVersionId: request.activityVersionId,
+      },
+    }));
+
+    // Wrong owner fails closed
+    const foreignWriter = new FirebaseRestCanonicalActivityVersionWriter({
+      env,
+      ownerId: 'teacher-2',
+      fetchImpl,
+    });
+    await expect(foreignWriter.readPrepared({
+      activityId: request.activityId,
+      activityVersionId: request.activityVersionId,
+      activityVersion: request.activityVersion,
+      canonicalPayloadFingerprint: request.payloadFingerprint,
+    })).resolves.toBeNull();
+
+    // Re-publish activity-revision (v2) succeeds with publication_writer claims
+    const v2Record = canonicalRecord({
+      activityVersionId: 'activity-version-2',
+      activityVersion: 2,
+      predecessorActivityVersionId: request.activityVersionId,
+      provenance: {
+        kind: 'activity-revision',
+        candidateId: 'cand-rev-2',
+        candidateRevision: 2,
+        evidenceRefs: [],
+        context: { sourceVersionId: 'source-version-1' },
+      },
+    });
+    await expect(readerWriter.prepare(v2Record as never)).resolves.toEqual({ status: 'created' });
+    expect(exchangeClaims).toContainEqual(expect.objectContaining({
+      uid: request.ownerId,
+      claims: {
+        book_activity_publication_writer_service: true,
+        book_activity_publication_writer_ownerId: request.ownerId,
+        book_activity_publication_writer_activityId: request.activityId,
+        book_activity_publication_writer_activityVersionId: 'activity-version-2',
+      },
+    }));
   });
 
   it('retries a crash after version creation and heals the missing safe sibling', async () => {

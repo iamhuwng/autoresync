@@ -59,6 +59,9 @@ export const createBookDeliveryBinding = (
     context,
     sourceSet: publication.sourceSet,
     placements: publication.placements,
+    ...(publication.referencePageGroups && publication.referencePageGroups.length > 0
+      ? { referencePageGroups: publication.referencePageGroups }
+      : {}),
     schedulePolicy: publication.schedulePolicy,
     createdAt: input.createdAt,
   };

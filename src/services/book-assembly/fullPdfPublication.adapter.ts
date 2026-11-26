@@ -29,6 +29,7 @@ import {
 } from './canonicalActivityVersion.service';
 import { validateBookAssemblyManifestCandidate } from './manifestCandidate.service';
 import { resolveSourceQualifiedPage } from './sourcePageAuthority.service';
+import { boundedCompoundAllocationKey } from './bookActivityTargetId.service';
 
 export class FullPdfPublicationAdapterError extends Error {
   constructor(readonly code: string) {
@@ -728,13 +729,16 @@ export const createFullPdfPublicationCommandOutput = (
           {
             unitProjectionId: input.allocateId('unit-projection', carriedUnit.unitKey),
             deliveryPlanId: input.allocateId('delivery-plan', carriedUnit.unitKey),
-            activitiesByKey: Object.fromEntries(carriedUnit.activitySlots.map((slot) => [
-              slot.activityKey,
-              {
-                projectionId: input.allocateId('activity-projection', `${carriedUnit.unitKey}:${slot.activityKey}`),
-                placementId: input.allocateId('placement', `${carriedUnit.unitKey}:${slot.activityKey}`),
-              },
-            ])),
+            activitiesByKey: Object.fromEntries(carriedUnit.activitySlots.map((slot) => {
+              const carriedKey = boundedCompoundAllocationKey([carriedUnit.unitKey, slot.activityKey]);
+              return [
+                slot.activityKey,
+                {
+                  projectionId: input.allocateId('activity-projection', carriedKey),
+                  placementId: input.allocateId('placement', carriedKey),
+                },
+              ];
+            })),
           },
         ])),
       } : {}),

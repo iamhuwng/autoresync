@@ -1240,4 +1240,136 @@ describe('Book Activity authoring Worker boundary', () => {
     expect(current.state['teacher-1'].candidates?.['cand-live-saved']).toBeDefined();
     expect(current.state['teacher-1'].candidates?.['cand-discarded-0']).toBeUndefined();
   });
+
+  it('allows post-publish binding replacement with explicit intent, rejects out-of-slot evidence refs, and cleanly discards stale or rejected candidates while protecting saved ones', async () => {
+    const unitActivityBinding = { unitKey: 'unit:1', activityKey: 'u1:slot:1' };
+    let draftVersion = 1;
+    let storedBinding: Record<string, unknown> = {
+      schemaVersion: 1,
+      ownerId: 'teacher-1',
+      bookId: 'book-1',
+      unitKey: unitActivityBinding.unitKey,
+      activityKey: unitActivityBinding.activityKey,
+      activityId: 'ba_626f6f6b2d31_75313a736c6f743a31',
+      candidateId: 'cand-published-v1',
+      candidateRevision: 3,
+      candidateLifecycle: 'saved',
+      activityVersionId: 'activity-version-1',
+      activityVersion: 1,
+    };
+    const current = worker({
+      draftContext: async () => ({
+        seal: {
+          bookId: 'book-1',
+          unitKey: unitActivityBinding.unitKey,
+          activityKey: unitActivityBinding.activityKey,
+          candidateId: `asm-cand-${draftVersion}`,
+          candidateRevision: draftVersion,
+          manifestFingerprint: `fnv1a64:000000000000000${draftVersion}`,
+          sourceSetFingerprint: 'fnv1a64:fedcba9876543210',
+        },
+        contract: { activityKey: unitActivityBinding.activityKey, contextRequirement: 'optional' },
+        mappedBookPageRefs: ['source:full:page:2'],
+        allowedEvidenceRefs: {
+          legacy: ['import:u1:slot:1', 'source:full:page:2', 'source:full:page:10'],
+          source: ['import:u1:slot:1', 'source:full:page:2'],
+          answer: ['import:u1:slot:1', 'source:full:page:2', 'source:full:page:10'],
+        },
+      }),
+      bindingRepositoryFactory: () => ({
+        read: async () => storedBinding as never,
+        bindCandidate: async (next) => {
+          storedBinding = { ...storedBinding, ...next, activityVersionId: storedBinding.activityVersionId, activityVersion: storedBinding.activityVersion };
+          return 'updated' as const;
+        },
+        recordPublication: vi.fn(),
+      }),
+    });
+
+    // Rejects forged out-of-slot sourceEvidenceRefs at stage
+    const forged = await current.handlers.stage({
+      request: request({
+        operationId: operation('801'),
+        expectedRevision: 0,
+        targetActivityId: 'ba_626f6f6b2d31_75313a736c6f743a31',
+        unitActivityBinding,
+        content: { ...activity, contextRequirement: { mode: 'optional', acceptedKinds: ['book-pages'] } },
+        sourceEvidenceRefs: ['source:full:page:10'],
+      }),
+      env: {},
+      uid: 'teacher-1',
+    });
+    expect(forged).toMatchObject({ init: { status: 400 }, body: { code: 'invalid_evidence_refs' } });
+
+    // Accepts valid colon-containing keys & post-publish replacement with explicit intent
+    const staged = await current.handlers.stage({
+      request: request({
+        operationId: operation('802'),
+        expectedRevision: 0,
+        targetActivityId: 'ba_626f6f6b2d31_75313a736c6f743a31',
+        unitActivityBinding,
+        content: { ...activity, contextRequirement: { mode: 'optional', acceptedKinds: ['book-pages'] } },
+        sourceEvidenceRefs: ['source:full:page:2'],
+        answerEvidenceRefs: ['source:full:page:10'],
+      }),
+      env: {},
+      uid: 'teacher-1',
+    });
+    expect(staged.init.status).toBe(200);
+    const candidateId = String((staged.body as Record<string, unknown>).candidateId);
+    expect((await current.handlers.validate({
+      request: request({ operationId: operation('803'), candidateId, expectedRevision: 1, unitActivityBinding }),
+      env: {},
+      uid: 'teacher-1',
+    })).init.status).toBe(200);
+
+    // Without replaceExistingUnitActivityBinding: true -> 409 conflict
+    expect(await current.handlers.saveDraft({
+      request: request({ operationId: operation('804'), candidateId, expectedRevision: 2, unitActivityBinding }),
+      env: {},
+      uid: 'teacher-1',
+    })).toMatchObject({ init: { status: 409 }, body: { code: 'unit_activity_binding_conflict' } });
+
+    // With replaceExistingUnitActivityBinding: true -> 200 saved with bumped revision floor
+    const saved = await current.handlers.saveDraft({
+      request: request({
+        operationId: operation('805'),
+        candidateId,
+        expectedRevision: 2,
+        unitActivityBinding,
+        replaceExistingUnitActivityBinding: true,
+      }),
+      env: {},
+      uid: 'teacher-1',
+    });
+    expect(saved.init.status).toBe(200);
+    expect(storedBinding).toMatchObject({ candidateId, candidateRevision: 4, activityVersionId: 'activity-version-1', activityVersion: 1 });
+
+    // Attempting to discard a live saved candidate fails with 409 conflict
+    expect(await current.handlers.discard({
+      request: request({ operationId: operation('806'), candidateId, expectedRevision: 4, unitActivityBinding }),
+      env: {},
+      uid: 'teacher-1',
+    })).toMatchObject({ init: { status: 409 }, body: { status: 'conflict', currentRevision: 4 } });
+
+    // Discarding an unsaved staged candidate STILL succeeds after assembly draft mutates
+    const staleStage = await current.handlers.stage({
+      request: request({
+        operationId: operation('807'),
+        expectedRevision: 1,
+        targetActivityId: 'ba_626f6f6b2d31_75313a736c6f743a31',
+        unitActivityBinding,
+        content: { ...activity, title: 'To discard', contextRequirement: { mode: 'optional', acceptedKinds: ['book-pages'] } },
+      }),
+      env: {},
+      uid: 'teacher-1',
+    });
+    const staleCandId = String((staleStage.body as Record<string, unknown>).candidateId);
+    draftVersion = 2; // Simulate draft changing before discard
+    expect(await current.handlers.discard({
+      request: request({ operationId: operation('808'), candidateId: staleCandId, expectedRevision: 1, unitActivityBinding }),
+      env: {},
+      uid: 'teacher-1',
+    })).toMatchObject({ init: { status: 200 }, body: { status: 'discarded', lifecycle: 'discarded' } });
+  });
 });

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   createProductionBookAssemblyRouteOptions,
   isFullPdfPublicationSourceReady,
@@ -314,5 +314,17 @@ describe('production source publication boundary', () => {
       { read: async () => binding as never },
       { readOwnerRoot: async () => ({ candidates: { [binding.candidateId]: savedWithTeacherSourceEvidence }, activities: { [binding.activityId]: activity } }) },
     )).toEqual([]);
+
+    // Passing pre-loaded cachedBookBindings avoids per-slot bindingRepository.read calls completely
+    const perSlotRead = vi.fn(async () => binding as never);
+    const verifiedFromCache = await readVerifiedDraftActivityKeys(
+      assembly as never,
+      { read: perSlotRead },
+      { readOwnerRoot: async () => ({ candidates: { [binding.candidateId]: saved }, activities: { [binding.activityId]: activity } }) },
+      { candidates: { [binding.candidateId]: saved }, activities: { [binding.activityId]: activity } } as never,
+      { 'unit-02': { 'u02-ex1': binding as never } },
+    );
+    expect(verifiedFromCache).toEqual(['u02-ex1']);
+    expect(perSlotRead).not.toHaveBeenCalled();
   });
 });

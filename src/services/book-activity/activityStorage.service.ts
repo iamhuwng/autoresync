@@ -12,10 +12,13 @@ export interface ActivityAuthoringFetchOptions {
 const MAX_RESPONSE_BYTES = 256 * 1024;
 
 export type ActivityAuthoringFailureCode =
+  | 'activated_activity_candidate_immutable'
   | 'authoring_forbidden'
   | 'body_too_large'
+  | 'book_activity_authoring_authority_unavailable'
   | 'content_type_required'
   | 'invalid_activity_id'
+  | 'invalid_activity_key'
   | 'invalid_candidate_id'
   | 'invalid_evidence_refs'
   | 'invalid_expected_revision'
@@ -25,7 +28,18 @@ export type ActivityAuthoringFailureCode =
   | 'invalid_persisted_candidate'
   | 'invalid_persisted_operation'
   | 'invalid_request'
+  | 'invalid_unit_activity_binding'
+  | 'invalid_unit_activity_binding_replacement'
+  | 'invalid_unit_key'
   | 'trusted_id_provider_failed'
+  | 'unit_activity_binding_conflict'
+  | 'unit_activity_binding_context_mismatch'
+  | 'unit_activity_binding_context_unavailable'
+  | 'unit_activity_binding_draft_changed'
+  | 'unit_activity_binding_receipt_invalid'
+  | 'unit_activity_binding_scope_invalid'
+  | 'unit_activity_binding_unavailable'
+  | 'unit_activity_target_identity_mismatch'
   | 'book_activity_authoring_failed';
 
 export type ActivityAuthoringFailureStatus =
@@ -45,10 +59,13 @@ export interface ActivityAuthoringFailureBody {
 }
 
 const FAILURE_CODES = new Set<ActivityAuthoringFailureCode>([
+  'activated_activity_candidate_immutable',
   'authoring_forbidden',
   'body_too_large',
+  'book_activity_authoring_authority_unavailable',
   'content_type_required',
   'invalid_activity_id',
+  'invalid_activity_key',
   'invalid_candidate_id',
   'invalid_evidence_refs',
   'invalid_expected_revision',
@@ -58,7 +75,18 @@ const FAILURE_CODES = new Set<ActivityAuthoringFailureCode>([
   'invalid_persisted_candidate',
   'invalid_persisted_operation',
   'invalid_request',
+  'invalid_unit_activity_binding',
+  'invalid_unit_activity_binding_replacement',
+  'invalid_unit_key',
   'trusted_id_provider_failed',
+  'unit_activity_binding_conflict',
+  'unit_activity_binding_context_mismatch',
+  'unit_activity_binding_context_unavailable',
+  'unit_activity_binding_draft_changed',
+  'unit_activity_binding_receipt_invalid',
+  'unit_activity_binding_scope_invalid',
+  'unit_activity_binding_unavailable',
+  'unit_activity_target_identity_mismatch',
   'book_activity_authoring_failed',
 ]);
 const FAILURE_STATUSES = new Set<ActivityAuthoringFailureStatus>([

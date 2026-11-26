@@ -123,9 +123,12 @@ describe('unit Activity JSON import', () => {
       .not.toBe(bookScopedActivityTargetId('book-1', 'activity_3aa'));
   });
 
-  it('fails closed when a Book-scoped Activity target cannot fit the authoring ID contract', () => {
-    expect(() => bookScopedActivityTargetId('b'.repeat(128), 'a'.repeat(128)))
-      .toThrowError(expect.objectContaining({ code: 'activity-target-too-long' }));
+  it('keeps long Book and Activity slot identifiers bounded and collision-free within the 160-char authoring ID contract', () => {
+    const first = bookScopedActivityTargetId('b'.repeat(128), 'a'.repeat(128));
+    const second = bookScopedActivityTargetId('b'.repeat(128), `${'a'.repeat(127)}c`);
+    expect(first.length).toBeLessThanOrEqual(160);
+    expect(first).toMatch(/^ba_h_[0-9a-f]{48}$/u);
+    expect(first).not.toBe(second);
   });
 
   it('parses one bounded exact-slot bundle for the selected Unit', () => {
@@ -656,6 +659,111 @@ describe('unit Activity JSON import', () => {
         expectedRevision: 2,
         unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-a' },
       });
+    });
+
+    it('discards only remaining uncommitted slots if Phase 2 saveDraft fails mid-way without touching committed slots', async () => {
+      const discard = vi.fn().mockResolvedValue({ status: 'discarded', candidateId: 'cand-b', revision: 3, lifecycle: 'discarded' });
+      const saveDraft = vi.fn()
+        .mockResolvedValueOnce({
+          status: 'saved',
+          activityId: bookScopedActivityTargetId('book-1', 'activity-a'),
+          candidateId: 'cand-a',
+          candidateRevision: 3,
+          revision: 1,
+          lifecycle: 'saved',
+          validation: { valid: true, errors: [] },
+          diff: null,
+          evidenceRefs: [],
+          sourceEvidenceRefs: [],
+          answerEvidenceRefs: [],
+        })
+        .mockRejectedValueOnce(new Error('network_failure_slot_2'));
+      const stage = vi.fn()
+        .mockResolvedValueOnce({
+          status: 'staged',
+          candidateId: 'cand-a',
+          targetActivityId: bookScopedActivityTargetId('book-1', 'activity-a'),
+          revision: 1,
+          lifecycle: 'staged',
+          validation: { valid: true, errors: [] },
+          diff: null,
+          evidenceRefs: [],
+          sourceEvidenceRefs: [],
+          answerEvidenceRefs: [],
+        })
+        .mockResolvedValueOnce({
+          status: 'staged',
+          candidateId: 'cand-b',
+          targetActivityId: bookScopedActivityTargetId('book-1', 'activity-b'),
+          revision: 1,
+          lifecycle: 'staged',
+          validation: { valid: true, errors: [] },
+          diff: null,
+          evidenceRefs: [],
+          sourceEvidenceRefs: [],
+          answerEvidenceRefs: [],
+        });
+      const validate = vi.fn(async (input: { candidateId: string; expectedRevision: number }) => ({
+        status: 'validated' as const,
+        candidateId: input.candidateId,
+        revision: input.expectedRevision + 1,
+        lifecycle: 'validated' as const,
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [],
+        sourceEvidenceRefs: [],
+        answerEvidenceRefs: [],
+      }));
+
+      await expect(stageUnitActivityImportBundle({
+        text: bundle(),
+        manifest,
+        unitKey: 'unit-1',
+        activityAuthoring: { stage, validate, saveDraft, discard, loadCandidate: vi.fn() },
+        resolveActivityTargetId: (slot) => bookScopedActivityTargetId('book-1', slot.activityKey),
+      })).rejects.toThrow('network_failure_slot_2');
+
+      expect(discard).toHaveBeenCalledTimes(1);
+      expect(discard).toHaveBeenCalledWith({
+        candidateId: 'cand-b',
+        expectedRevision: 2,
+        unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-b' },
+      });
+    });
+
+    it('allows ordinary textbook URLs in activity prompts while still blocking private storage URLs and script tags', () => {
+      const textbookUrlBundle = bundle({
+        slots: [
+          {
+            activityKey: 'activity-a',
+            content: {
+              ...activity('Check schedule'),
+              instructions: [{ text: 'Read https://example.org/timetable before listening.' }],
+            },
+          },
+          { activityKey: 'activity-b', content: activity('B') },
+        ],
+      });
+      expect(parseUnitActivityImportBundle(textbookUrlBundle, manifest, 'unit-1').slots).toHaveLength(2);
+
+      for (const badText of [
+        'Download from b2://private-bucket/file.pdf',
+        'Link https://f002.backblazeb2.com/file/secret',
+        'Link https://mybucket.r2.cloudflarestorage.com/obj',
+        '<script>alert(1)</script>',
+      ]) {
+        const forbiddenBundle = bundle({
+          slots: [
+            {
+              activityKey: 'activity-a',
+              content: { ...activity('Bad'), instructions: [{ text: badText }] },
+            },
+            { activityKey: 'activity-b', content: activity('B') },
+          ],
+        });
+        expect(() => parseUnitActivityImportBundle(forbiddenBundle, manifest, 'unit-1'))
+          .toThrowError(expect.objectContaining({ code: 'forbidden-field' }));
+      }
     });
   });
 });

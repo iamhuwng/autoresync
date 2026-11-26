@@ -175,6 +175,7 @@ export interface BookAssemblyPublicationRouteOptions {
   /** #64 exact immutable Activity Version writer. Uses its dedicated identity. */
   readonly activityVersionWriterFactory?: (
     env: BookRouterEnv,
+    ownerId?: string,
   ) => CanonicalActivityVersionWriter;
   /** #55 candidate repository/read seam. */
   readonly candidateRepositoryFactory?: (
@@ -235,9 +236,11 @@ const defaultCandidateRepositoryFactory = (
 
 const defaultActivityVersionWriterFactory = (
   env: BookRouterEnv,
+  ownerId?: string,
 ): CanonicalActivityVersionWriter => (
   new FirebaseRestCanonicalActivityVersionWriter({
     env: env as CanonicalActivityVersionWriterEnv,
+    ownerId,
   })
 );
 
@@ -414,7 +417,7 @@ const createFullPdfHandler = (
         repository: (options.repositoryFactory ?? defaultRepositoryFactory)(input.env, input.uid),
         activityVersionWriter: (
           options.activityVersionWriterFactory ?? defaultActivityVersionWriterFactory
-        )(input.env),
+        )(input.env, input.uid),
         readCandidate: (bookId, unitKey, candidateId) => readCandidate(
           options,
           input,
@@ -504,7 +507,7 @@ const createComponentPdfHandler = (
         repository,
         activityVersionWriter: (
           options.activityVersionWriterFactory ?? defaultActivityVersionWriterFactory
-        )(input.env),
+        )(input.env, input.uid),
         readCandidate: (bookId, unitKey, candidateId) => readCandidate(
           options,
           input,

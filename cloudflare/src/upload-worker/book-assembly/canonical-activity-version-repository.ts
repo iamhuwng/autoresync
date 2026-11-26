@@ -459,12 +459,17 @@ implements CanonicalActivityVersionWriter {
   private readonly rtdbForPrepare: (
     record: CanonicalPublishedActivityVersionRecord,
   ) => FirebaseRtdbRestClient;
+  private readonly rtdbForRead?: (
+    reference: BookAssemblyActivityVersionReference,
+  ) => FirebaseRtdbRestClient;
+  private readonly ownerId?: string;
   private readonly prepared = new Map<string, CanonicalPublishedActivityVersionRecord>();
   private readonly allowCompatibilityRead: boolean;
   private readonly maxRetries: number;
 
   constructor(private readonly options: {
     env: CanonicalActivityVersionWriterEnv;
+    ownerId?: string;
     fetchImpl?: typeof fetch;
     getAccessToken?: () => Promise<string>;
     maxRetries?: number;
@@ -489,12 +494,14 @@ implements CanonicalActivityVersionWriter {
     if (!keyJson && !options.getAccessToken) {
       throw new Error('missing_canonical_activity_version_writer_google_sa_key');
     }
+    this.ownerId = options.ownerId?.trim() || undefined;
     this.maxRetries = assertRetryCount(options.maxRetries ?? MAX_RETRIES);
     this.allowCompatibilityRead = options.getAccessToken !== undefined;
     this.rtdb = rtdbClient(options.env, keyJson, fetchImpl, options.getAccessToken);
     if (options.getAccessToken) {
       // Preserve the injected OAuth seam for existing compatibility callers.
       this.rtdbForPrepare = () => this.rtdb;
+      this.rtdbForRead = () => this.rtdb;
       return;
     }
     if (!keyJson) throw new Error('missing_canonical_activity_version_writer_google_sa_key');
@@ -506,7 +513,8 @@ implements CanonicalActivityVersionWriter {
       fetchImpl,
     });
     this.rtdbForPrepare = (record) => {
-      if (record.provenance.kind !== 'initial-book-publication') {
+      if (record.provenance.kind !== 'initial-book-publication'
+        && record.provenance.kind !== 'activity-revision') {
         throw new Error('canonical_activity_version_writer_publication_scope_unavailable');
       }
       const claims: BookFirebaseClaimTuple = {
@@ -523,6 +531,24 @@ implements CanonicalActivityVersionWriter {
         async () => getFirebaseAuthToken(claims),
       );
     };
+    if (this.ownerId) {
+      const scopedOwnerId = this.ownerId;
+      this.rtdbForRead = (reference) => {
+        const claims: BookFirebaseClaimTuple = {
+          service: 'book_activity_publication_reader',
+          ownerId: scopedOwnerId,
+          activityId: reference.activityId,
+          activityVersionId: reference.activityVersionId,
+        };
+        return rtdbClient(
+          options.env,
+          keyJson,
+          fetchImpl,
+          undefined,
+          async () => getFirebaseAuthToken(claims),
+        );
+      };
+    }
   }
 
   async prepare(
@@ -593,10 +619,15 @@ implements CanonicalActivityVersionWriter {
     const path = canonicalPath(reference.activityId, reference.activityVersionId);
     const prepared = this.prepared.get(path);
     if (prepared) return sameReference(prepared, reference) ? structuredClone(prepared) : null;
-    if (!this.allowCompatibilityRead) return null;
-    const parsed = parseCanonicalFromRtdb(await this.rtdb.readValue(path));
+    const client = this.allowCompatibilityRead
+      ? this.rtdb
+      : this.rtdbForRead?.(reference);
+    if (!client) return null;
+    const parsed = parseCanonicalFromRtdb(await client.readValue(path));
     if (!parsed || !sameReference(parsed, reference)) return null;
-    return parsed;
+    if (this.ownerId && parsed.ownerId !== this.ownerId) return null;
+    this.prepared.set(path, parsed);
+    return structuredClone(parsed);
   }
 }
 

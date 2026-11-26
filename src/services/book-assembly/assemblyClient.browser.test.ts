@@ -181,6 +181,55 @@ describe('PRD0062 ticket 13A browser client boundary', () => {
     }
   });
 
+  it('hydrates deduplicated discoverDrafts responses for attached multi-unit books with bookRevision >= 1 and >32 units', async () => {
+    const unitEntries = Array.from({ length: 40 }, (_, index) => {
+      const unitKey = `unit-${String(index + 1).padStart(2, '0')}`;
+      return {
+        unitKey,
+        activitySlots: [{ activityKey: `${unitKey}-ex1` }],
+      };
+    });
+    const sharedManifest = {
+      bookId: 'book-1',
+      sourceSet: { sourceStrategy: 'full_pdf' },
+      units: unitEntries,
+    };
+    const savedActivityKeysByUnit = Object.fromEntries(
+      unitEntries.map((unit) => [unit.unitKey, [unit.activitySlots[0]!.activityKey]]),
+    );
+    const wireDrafts = unitEntries.map((unit, index) => ({
+      candidate: {
+        candidateId: `candidate-${index + 1}`,
+        ownerId: 'teacher-1',
+        bookId: 'book-1',
+        bookRevision: 4,
+        sourceSetRevision: 2,
+        unitKey: unit.unitKey,
+        revision: 2,
+        lifecycle: 'validated',
+        updatedAt: '2026-08-01T00:00:00.000Z',
+        manifest: null,
+      },
+      manifestRef: 'm0',
+    }));
+    const fetchImpl = vi.fn(async () => ok({
+      status: 'loaded',
+      savedActivityKeysByUnit,
+      manifestsById: { m0: sharedManifest },
+      drafts: wireDrafts,
+    }));
+    const client = createBookAssemblyClient({
+      baseUrl: 'https://assembly.example',
+      getIdToken: async () => 'token',
+      fetchImpl,
+    });
+    const hydrated = await client.discoverDrafts('book-1');
+    expect(hydrated).toHaveLength(40);
+    expect(hydrated[0]?.candidate.bookRevision).toBe(4);
+    expect(hydrated[0]?.candidate.manifest).toEqual(sharedManifest);
+    expect(hydrated[39]?.savedActivityKeysByUnit['unit-40']).toEqual(['unit-40-ex1']);
+  });
+
   it('loads the current owner-scoped Unit candidate without a browser-supplied candidate id', async () => {
     const fetchImpl = vi.fn(async () => ok({
       status: 'loaded',

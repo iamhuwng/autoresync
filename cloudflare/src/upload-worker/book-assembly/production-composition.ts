@@ -140,19 +140,25 @@ const savedActivityMatchesFinalManifest = (
 /** Authoring-only saved slots; this proves no setup activation or publication. */
 export const readVerifiedDraftActivityKeys = async (
   candidate: BookAssemblyCandidateRecord,
-  bindingRepository: Pick<UnitActivityBindingRepository, 'read'>,
+  bindingRepository: Pick<UnitActivityBindingRepository, 'read' | 'readBookBindings'>,
   activityRepository: Pick<FirebaseRestBookActivityAuthoringRepository, 'readOwnerRoot'>,
   cachedOwnerRoot?: Awaited<ReturnType<FirebaseRestBookActivityAuthoringRepository['readOwnerRoot']>>,
+  cachedBookBindings?: Readonly<Record<string, Readonly<Record<string, UnitActivityBinding>>>>,
 ): Promise<readonly string[]> => {
   const { ownerId, bookId, unitKey, manifest } = candidate;
   const unit = manifest?.units.find((entry) => entry.unitKey === unitKey);
   if (!manifest || !unit) return [];
   const root = cachedOwnerRoot ?? await activityRepository.readOwnerRoot(ownerId);
   const isFullPdf = manifest.sourceSet.sourceStrategy === 'full_pdf';
-  const bindingsBySlot = await Promise.all(unit.activitySlots.map(async ({ activityKey }) => ({
-    activityKey,
-    binding: await bindingRepository.read({ ownerId, bookId, unitKey, activityKey }),
-  })));
+  const bindingsBySlot = cachedBookBindings
+    ? unit.activitySlots.map(({ activityKey }) => ({
+      activityKey,
+      binding: cachedBookBindings[unitKey]?.[activityKey] ?? null,
+    }))
+    : await Promise.all(unit.activitySlots.map(async ({ activityKey }) => ({
+      activityKey,
+      binding: await bindingRepository.read({ ownerId, bookId, unitKey, activityKey }),
+    })));
   const savedKeys: string[] = [];
   for (const { activityKey, binding } of bindingsBySlot) {
     if (!binding || binding.candidateLifecycle !== 'saved'
@@ -421,7 +427,8 @@ const activities = async (
       ? await bindings(env).read({ ownerId, bookId, unitKey, activityKey })
       : activeComponentPdfActivation(bookAuthority ?? {})?.activities.find((item) =>
         item.unitKey === unitKey && item.activityKey === activityKey);
-    const content = reference ? readExactSavedActivityContent(root.candidates?.[reference.candidateId ?? reference.activityCandidateId], {
+    const savedRecord = reference ? root.candidates?.[reference.candidateId ?? reference.activityCandidateId] : undefined;
+    const content = reference ? readExactSavedActivityContent(savedRecord, {
       ownerId,
       bookId,
       candidateId: reference.candidateId ?? reference.activityCandidateId,
@@ -430,6 +437,11 @@ const activities = async (
     }, root.activities?.[reference.activityId]) : null;
     if (!reference || !content || (bookAuthority?.sourceSet.sourceStrategy === 'component_pdfs'
       && canonicalActivityPayloadFingerprint(content) !== reference.activityPayloadFingerprint)) return {};
+    if (bookAuthority?.sourceSet.sourceStrategy === 'full_pdf' && qualified.manifest) {
+      if (!savedActivityMatchesFinalManifest(savedRecord, qualified.manifest, unitKey, activityKey, content)) {
+        return {};
+      }
+    }
     output[activityKey] = {
       activityKey,
       ownerId,
@@ -516,6 +528,11 @@ const assemblyDraftActivityContext = async (
     },
     contract: { activityKey, contextRequirement: slot.contextRequirement },
     mappedBookPageRefs,
+    allowedEvidenceRefs: {
+      legacy: allowedActivitySlotEvidenceRefs(unit, activityKey),
+      source: allowedActivitySlotSourceEvidenceRefs(unit, activityKey),
+      answer: allowedActivitySlotAnswerEvidenceRefs(unit, activityKey),
+    },
   };
 };
 
@@ -737,14 +754,24 @@ export const createProductionBookAssemblyRouteOptions = (): Pick<BookRouteHandle
     activateComponentPdf: (input, env) => activateComponentPdfInProduction(input, env as Env),
     verifyDraftActivities: async ({ env, candidate, requestCache }) => {
       const activityRepo = new FirebaseRestBookActivityAuthoringRepository({ env: env as never });
-      const cacheKey = `ownerRoot:${candidate.ownerId}`;
-      let ownerRootPromise = requestCache?.get(cacheKey) as Promise<Awaited<ReturnType<FirebaseRestBookActivityAuthoringRepository['readOwnerRoot']>>> | undefined;
+      const bindingRepo = bindings(env as Env);
+      const ownerCacheKey = `ownerRoot:${candidate.ownerId}`;
+      let ownerRootPromise = requestCache?.get(ownerCacheKey) as Promise<Awaited<ReturnType<FirebaseRestBookActivityAuthoringRepository['readOwnerRoot']>>> | undefined;
       if (!ownerRootPromise) {
         ownerRootPromise = activityRepo.readOwnerRoot(candidate.ownerId);
-        requestCache?.set(cacheKey, ownerRootPromise);
+        requestCache?.set(ownerCacheKey, ownerRootPromise);
       }
-      const ownerRoot = await ownerRootPromise;
-      return readVerifiedDraftActivityKeys(candidate, bindings(env as Env), activityRepo, ownerRoot);
+      const bindingsCacheKey = `bookBindings:${candidate.ownerId}:${candidate.bookId}`;
+      let bookBindingsPromise = requestCache?.get(bindingsCacheKey) as Promise<Readonly<Record<string, Readonly<Record<string, UnitActivityBinding>>>>> | undefined;
+      if (!bookBindingsPromise && typeof bindingRepo.readBookBindings === 'function') {
+        bookBindingsPromise = bindingRepo.readBookBindings(candidate.ownerId, candidate.bookId);
+        requestCache?.set(bindingsCacheKey, bookBindingsPromise);
+      }
+      const [ownerRoot, cachedBookBindings] = await Promise.all([
+        ownerRootPromise,
+        bookBindingsPromise ?? Promise.resolve(undefined),
+      ]);
+      return readVerifiedDraftActivityKeys(candidate, bindingRepo, activityRepo, ownerRoot, cachedBookBindings);
     },
     verifyActivatedActivities: async ({ env, ownerId, bookId, unitKey, activityKeys }) =>
       Object.keys(await activities(env as Env, ownerId, bookId, unitKey, activityKeys)).length === activityKeys.length,

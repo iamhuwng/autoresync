@@ -269,6 +269,15 @@ const isolateCollidingDeclaredPageGroups = (
       pages.forEach((page) => set!.add(page));
     }
   }
+  const placementRawKeys = new Set(
+    deliveryProjection.activities.flatMap((placement) => placement.sourceContext.pageGroupKeys),
+  );
+  for (const group of declaredPageGroups) {
+    if (placementRawKeys.has(group.pageGroupKey) || byScopedKey.has(group.pageGroupKey)) continue;
+    const pages = group.combinedPhysicalPages.filter((page) => Number.isSafeInteger(page) && page >= 1);
+    if (pages.length === 0) continue;
+    byScopedKey.set(group.pageGroupKey, new Set(pages));
+  }
   return [...byScopedKey.entries()].map(([pageGroupKey, pages]) => ({
     pageGroupKey,
     combinedPhysicalPages: [...pages].sort((left, right) => left - right),

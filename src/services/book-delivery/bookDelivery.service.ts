@@ -86,6 +86,17 @@ const fullPdfPageGroups = (
       pages.forEach((page) => set!.add(page));
     }
   }
+  for (const group of binding.referencePageGroups ?? []) {
+    if (group.sourceKey !== sourceKey) continue;
+    const pages = group.pages.filter((page) => Number.isSafeInteger(page) && page >= 1);
+    if (pages.length === 0) continue;
+    let set = byKey.get(group.pageGroupKey);
+    if (!set) {
+      set = new Set<number>();
+      byKey.set(group.pageGroupKey, set);
+    }
+    pages.forEach((page) => set!.add(page));
+  }
   return [...byKey.entries()].map(([pageGroupKey, pages]) => ({
     pageGroupKey,
     combinedPhysicalPages: [...pages].sort((left, right) => left - right),

@@ -119,6 +119,13 @@ export interface BookDeliveryStructuralNodeProjection {
   readonly titleSnapshot?: string;
 }
 
+export interface BookDeliveryReferencePageGroup {
+  readonly nodeKey: string;
+  readonly pageGroupKey: string;
+  readonly sourceKey: string;
+  readonly pages: readonly number[];
+}
+
 export interface BookDeliveryBinding {
   readonly schemaVersion: typeof BOOK_DELIVERY_SCHEMA_VERSION;
   readonly bindingId: string;
@@ -132,6 +139,8 @@ export interface BookDeliveryBinding {
   readonly context: BookDeliveryContext;
   readonly sourceSet: BookDeliverySourceSet;
   readonly placements: readonly BookDeliveryPlacement[];
+  /** Student-visible reference_only page groups (never teacher_only) for full_pdf delivery. */
+  readonly referencePageGroups?: readonly BookDeliveryReferencePageGroup[];
   readonly schedulePolicy: BookDeliverySchedulePolicyReference;
   readonly createdAt: string;
 }

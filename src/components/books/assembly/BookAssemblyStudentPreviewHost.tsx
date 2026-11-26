@@ -94,8 +94,10 @@ const BookAssemblyStudentPreviewReady = ({
       }
       return (
         <BookPdfViewerHost
+          allowedPages={input.allowedPages}
           getIdToken={getIdToken}
           initialPage={input.combinedPhysicalPage}
+          onPageChange={input.onPageChange}
           route={route}
           title={validFullPdfRequest ? `${bookTitle} — Book document` : `${bookTitle} — combined student document`}
           trustedWorkerOrigins={trustedWorkerOrigins}

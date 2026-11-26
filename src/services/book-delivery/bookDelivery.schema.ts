@@ -325,11 +325,18 @@ const validatePlacements = (value: unknown, errors: BookDeliveryValidationError[
 
 const validateBookDeliveryBindingUnsafe = (value: unknown): BookDeliveryValidationResult => {
   const errors: BookDeliveryValidationError[] = [];
-  if (!exact(value, [
-    'bindingId', 'book', 'context', 'createdAt', 'issuer', 'outline', 'placements',
-    'recipient', 'revision', 'schedulePolicy', 'schemaVersion', 'scope',
-    'sourceSet', 'status',
-  ], 'binding', errors)) return { valid: false, errors };
+  const expectedKeys = Object.hasOwn(value ?? {}, 'referencePageGroups')
+    ? [
+      'bindingId', 'book', 'context', 'createdAt', 'issuer', 'outline', 'placements',
+      'recipient', 'referencePageGroups', 'revision', 'schedulePolicy', 'schemaVersion', 'scope',
+      'sourceSet', 'status',
+    ]
+    : [
+      'bindingId', 'book', 'context', 'createdAt', 'issuer', 'outline', 'placements',
+      'recipient', 'revision', 'schedulePolicy', 'schemaVersion', 'scope',
+      'sourceSet', 'status',
+    ];
+  if (!exact(value, expectedKeys, 'binding', errors)) return { valid: false, errors };
   const binding = value as Record<string, any>;
   if (binding.schemaVersion !== BOOK_DELIVERY_SCHEMA_VERSION) {
     error(errors, 'invalid-value', 'binding.schemaVersion', `Only schema version ${BOOK_DELIVERY_SCHEMA_VERSION} is supported.`);
@@ -466,6 +473,29 @@ const validateBookDeliveryBindingUnsafe = (value: unknown): BookDeliveryValidati
       });
     }
   });
+  if (Object.hasOwn(binding, 'referencePageGroups')) {
+    if (!boundedArray(binding.referencePageGroups)) {
+      error(errors, 'invalid-value', 'binding.referencePageGroups', 'Reference page groups must be a bounded array.');
+    } else {
+      const seenRefKeys = new Set<string>();
+      (binding.referencePageGroups as readonly Record<string, any>[]).forEach((group, groupIndex) => {
+        const path = `binding.referencePageGroups[${groupIndex}]`;
+        if (!exact(group, ['nodeKey', 'pageGroupKey', 'pages', 'sourceKey'], path, errors)) return;
+        if (!id(group.nodeKey) || !outlineKeys.has(group.nodeKey)) {
+          error(errors, 'contradictory-scope', `${path}.nodeKey`, 'Reference page group node is absent from the frozen outline.');
+        }
+        if (!id(group.pageGroupKey) || seenRefKeys.has(group.pageGroupKey)) {
+          error(errors, 'duplicate-id', `${path}.pageGroupKey`, 'Reference page group key must be unique and safe.');
+        } else {
+          seenRefKeys.add(group.pageGroupKey);
+        }
+        if (!id(group.sourceKey) || !sourceKeys.has(group.sourceKey)) {
+          error(errors, 'source-scope-mismatch', `${path}.sourceKey`, 'Reference page group references an unbound source.');
+        }
+        validatePageArray(group.pages, `${path}.pages`, errors);
+      });
+    }
+  }
   if (contextKind === 'future_live' && binding.status !== 'draft') error(errors, 'unrunnable-future-live', 'binding.status', 'future_live is reserved and cannot be runnable.');
   if (contextKind === 'future_live' && binding.recipient.recipientKind !== 'preview-user') error(errors, 'unrunnable-future-live', 'binding.recipient.recipientKind', 'future_live is never a student grant.');
   if (binding.sourceSet?.strategy === 'full_pdf' && binding.sourceSet.sources.length !== 1) error(errors, 'source-scope-mismatch', 'binding.sourceSet', 'full_pdf must bind the complete PDF.');

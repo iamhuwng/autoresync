@@ -42,6 +42,9 @@ const keyPath = (key: UnitActivityBindingKey): string => (
   `${BOOK_ASSEMBLY_ACTIVITY_BINDING_ROOT}/${id(key.ownerId)}/books/${id(key.bookId)}`
   + `/units/${id(key.unitKey)}/activities/${id(key.activityKey)}`
 );
+const bookBindingsPath = (ownerId: string, bookId: string): string => (
+  `${BOOK_ASSEMBLY_ACTIVITY_BINDING_ROOT}/${id(ownerId)}/books/${id(bookId)}`
+);
 
 export const assertUnitActivityBinding = (value: unknown): UnitActivityBinding => {
   const source = record(value);
@@ -103,16 +106,27 @@ export class FirebaseRestUnitActivityBindingRepository implements UnitActivityBi
     this.rtdb = new FirebaseRtdbRestClient({ env: { ...options.env, GOOGLE_SA_KEY: undefined }, fetchImpl,
       firebaseAuthToken: true,
       getFirebaseAuthToken: (request: FirebaseRtdbAuthRequest = { path: '' }) => {
-        const match = new RegExp(`^${BOOK_ASSEMBLY_ACTIVITY_BINDING_ROOT}/([^/]+)/books/([^/]+)/units/([^/]+)/activities/([^/]+)$`).exec(request.path);
-        if (!match) throw new Error('book_assembly_activity_binding_scope_required');
-        const claims: BookFirebaseClaimTuple = {
-          service: 'book_assembly_activity_binding',
-          ownerId: id(match[1]),
-          bookId: id(match[2]),
-          unitKey: id(match[3]),
-          activityKey: id(match[4]),
-        };
-        return provider(claims);
+        const leafMatch = new RegExp(`^${BOOK_ASSEMBLY_ACTIVITY_BINDING_ROOT}/([^/]+)/books/([^/]+)/units/([^/]+)/activities/([^/]+)$`).exec(request.path);
+        if (leafMatch) {
+          const claims: BookFirebaseClaimTuple = {
+            service: 'book_assembly_activity_binding',
+            ownerId: id(leafMatch[1]),
+            bookId: id(leafMatch[2]),
+            unitKey: id(leafMatch[3]),
+            activityKey: id(leafMatch[4]),
+          };
+          return provider(claims);
+        }
+        const bookMatch = new RegExp(`^${BOOK_ASSEMBLY_ACTIVITY_BINDING_ROOT}/([^/]+)/books/([^/]+)$`).exec(request.path);
+        if (bookMatch) {
+          const claims: BookFirebaseClaimTuple = {
+            service: 'book_assembly_draft_discovery',
+            ownerId: id(bookMatch[1]),
+            bookId: id(bookMatch[2]),
+          };
+          return provider(claims);
+        }
+        throw new Error('book_assembly_activity_binding_scope_required');
       },
     });
   }
@@ -123,6 +137,39 @@ export class FirebaseRestUnitActivityBindingRepository implements UnitActivityBi
     const binding = assertUnitActivityBinding(value);
     if (!sameKey(binding, key)) throw new Error('book_assembly_activity_binding_scope_mismatch');
     return binding;
+  }
+
+  async readBookBindings(
+    ownerId: string,
+    bookId: string,
+  ): Promise<Readonly<Record<string, Readonly<Record<string, UnitActivityBinding>>>>> {
+    const safeOwnerId = id(ownerId);
+    const safeBookId = id(bookId);
+    const raw = await this.rtdb.readValue(bookBindingsPath(safeOwnerId, safeBookId));
+    const root = record(raw);
+    const rawUnits = record(root?.units);
+    if (!rawUnits) return {};
+    const byUnit: Record<string, Record<string, UnitActivityBinding>> = {};
+    for (const [unitKey, unitNode] of Object.entries(rawUnits)) {
+      const activitiesNode = record(record(unitNode)?.activities);
+      if (!activitiesNode) continue;
+      const byActivity: Record<string, UnitActivityBinding> = {};
+      for (const [activityKey, value] of Object.entries(activitiesNode)) {
+        if (value === null || value === undefined) continue;
+        try {
+          const binding = assertUnitActivityBinding(value);
+          if (sameKey(binding, { ownerId: safeOwnerId, bookId: safeBookId, unitKey, activityKey })) {
+            byActivity[activityKey] = binding;
+          }
+        } catch {
+          // Ignore malformed individual leaf so discovery stays fail-closed per slot.
+        }
+      }
+      if (Object.keys(byActivity).length > 0) {
+        byUnit[unitKey] = byActivity;
+      }
+    }
+    return byUnit;
   }
 
   async bindCandidate(input: UnitActivityBinding): Promise<UnitActivityBindingWriteStatus> {
@@ -136,7 +183,19 @@ export class FirebaseRestUnitActivityBindingRepository implements UnitActivityBi
       }
       const existing = assertUnitActivityBinding(current.data);
       if (!sameKey(existing, next) || existing.activityId !== next.activityId) return 'conflict';
-      if (existing.activityVersionId !== undefined) return 'conflict';
+      if (existing.activityVersionId !== undefined) {
+        if (existing.candidateId === next.candidateId
+          && next.candidateRevision === existing.candidateRevision
+          && next.candidateLifecycle === existing.candidateLifecycle) return 'replayed';
+        if (next.candidateRevision <= existing.candidateRevision) return 'conflict';
+        const merged: UnitActivityBinding = {
+          ...next,
+          activityVersionId: existing.activityVersionId,
+          activityVersion: existing.activityVersion,
+        };
+        if (await this.rtdb.writeIfMatch(path, merged, current.etag)) return 'updated';
+        continue;
+      }
       if (existing.candidateId === next.candidateId) {
         if (next.candidateRevision < existing.candidateRevision) return 'stale';
         if (next.candidateRevision === existing.candidateRevision
@@ -161,7 +220,14 @@ export class FirebaseRestUnitActivityBindingRepository implements UnitActivityBi
         || existing.candidateId !== id(input.candidateId) || existing.candidateRevision !== revision(input.candidateRevision)) return 'conflict';
       const next: UnitActivityBinding = { ...existing, activityVersionId: id(input.activityVersionId), activityVersion: revision(input.activityVersion) };
       if (existing.activityVersionId !== undefined) {
-        return existing.activityVersionId === next.activityVersionId && existing.activityVersion === next.activityVersion ? 'replayed' : 'conflict';
+        if (existing.activityVersionId === next.activityVersionId && existing.activityVersion === next.activityVersion) {
+          return 'replayed';
+        }
+        if (existing.activityVersion === undefined
+          || next.activityVersion! <= existing.activityVersion
+          || next.activityVersionId === existing.activityVersionId) {
+          return 'conflict';
+        }
       }
       if (await this.rtdb.writeIfMatch(path, next, current.etag)) return 'updated';
     }

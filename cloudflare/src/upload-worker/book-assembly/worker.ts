@@ -42,6 +42,7 @@ export interface BookAssemblyRepositoryPort {
   readValue(path: string): Promise<unknown>;
   readScope(bookId: string, unitKey: string): Promise<BookAssemblyScope>;
   listUnitKeys?(bookId: string): Promise<readonly string[]>;
+  readBookScopes?(bookId: string): Promise<Readonly<Record<string, BookAssemblyScope>>>;
   transaction<T>(
     bookId: string,
     unitKey: string,
@@ -181,6 +182,28 @@ const assertAuthorityUnchanged = (
     throw new BookAssemblyWorkerError('assembly_authority_changed', 409);
   }
 };
+const MAX_RETAINED_CANDIDATES_PER_SCOPE = 8;
+
+const pruneCandidates = (
+  scope: BookAssemblyScope,
+  keepIds: ReadonlySet<string>,
+  maxCandidates = MAX_RETAINED_CANDIDATES_PER_SCOPE,
+): void => {
+  const candidates = scope.candidates;
+  if (!candidates) return;
+  const entries = Object.entries(candidates);
+  if (entries.length < maxCandidates) return;
+  const kept = entries.filter(([candidateId]) => keepIds.has(candidateId));
+  const evictable = entries
+    .filter(([candidateId]) => !keepIds.has(candidateId))
+    .sort((left, right) => right[1].updatedAt.localeCompare(left[1].updatedAt));
+  const allowedEvictable = Math.max(0, maxCandidates - kept.length - 1);
+  scope.candidates = Object.fromEntries([
+    ...kept,
+    ...evictable.slice(0, allowedEvictable),
+  ]);
+};
+
 const replay = (
   scope: BookAssemblyScope,
   ownerId: string,
@@ -192,10 +215,20 @@ const replay = (
   if (stored.ownerId !== ownerId || stored.fingerprint !== fingerprint) {
     return output(operation, fingerprint, 'idempotency-conflict', stored.createdAt);
   }
+  const hydrated = clone(stored.result);
+  if (hydrated.candidate && hydrated.candidate.manifest === null) {
+    const liveCandidate = scope.candidates?.[hydrated.candidate.candidateId];
+    if (liveCandidate?.manifest) {
+      hydrated.candidate = {
+        ...hydrated.candidate,
+        manifest: clone(liveCandidate.manifest),
+      };
+    }
+  }
   return {
-    ...clone(stored.result),
+    ...hydrated,
     status: 'replayed',
-    receipt: { ...stored.result.receipt, status: 'replayed' },
+    receipt: { ...hydrated.receipt, status: 'replayed' },
   };
 };
 const remember = (
@@ -206,10 +239,19 @@ const remember = (
   value: BookAssemblyMutationResult,
   at: string,
 ): void => {
+  const compactResult: BookAssemblyMutationResult = value.candidate
+    ? {
+      ...clone(value),
+      candidate: {
+        ...clone(value.candidate),
+        manifest: null,
+      },
+    }
+    : clone(value);
   const entries = Object.entries(scope.operations ?? {}).slice(-31);
   scope.operations = {
     ...Object.fromEntries(entries),
-    [operation]: { ownerId, fingerprint, result: clone(value), createdAt: at },
+    [operation]: { ownerId, fingerprint, result: compactResult, createdAt: at },
   };
 };
 const pointer = (candidate: BookAssemblyCandidateRecord): NonNullable<BookAssemblyScope['current']> => ({
@@ -443,6 +485,9 @@ export const createBookAssemblyWorkerHandlers = (options: {
           const nextId = activated
             ? options.createCandidateId?.() ?? `candidate-${crypto.randomUUID()}`
             : current.candidateId;
+          if (activated) {
+            pruneCandidates(scope, new Set([current.candidateId]));
+          }
           if (activated && (!ID.test(nextId) || scope.candidates?.[nextId]
             || Object.keys(scope.candidates ?? {}).length >= BOOK_ASSEMBLY_MAX_CANDIDATES_PER_SCOPE)) {
             const conflict = output(operation, fingerprint, 'conflict', at, current);
@@ -477,7 +522,9 @@ export const createBookAssemblyWorkerHandlers = (options: {
           }
           if (action === 'replace' && current.lifecycle === 'validated') {
             const successorId = options.createCandidateId?.() ?? `candidate-${crypto.randomUUID()}`;
-            if (!ID.test(successorId) || scope.candidates?.[successorId]) {
+            pruneCandidates(scope, new Set([current.candidateId]));
+            if (!ID.test(successorId) || scope.candidates?.[successorId]
+              || Object.keys(scope.candidates ?? {}).length >= BOOK_ASSEMBLY_MAX_CANDIDATES_PER_SCOPE) {
               const conflict = output(operation, fingerprint, 'conflict', at, current);
               remember(scope, input.uid, operation, fingerprint, conflict, at);
               return { outcome: conflict, next: scope, write: true };
@@ -564,19 +611,57 @@ export const createBookAssemblyWorkerHandlers = (options: {
         }
         const candidates: BookAssemblyCandidateRecord[] = [];
         const savedActivityKeysByUnit: Record<string, readonly string[]> = {};
+        const buildDiscoveryPayload = (
+          discoveredCandidates: readonly BookAssemblyCandidateRecord[],
+          savedByUnit: Readonly<Record<string, readonly string[]>>,
+        ) => {
+          const manifestsById: Record<string, BookAssemblyManifestCandidate> = {};
+          const refByFingerprint = new Map<string, string>();
+          let manifestCounter = 0;
+          const drafts = discoveredCandidates.map((candidate) => {
+            const manifest = candidate.manifest!;
+            const fp = stable(manifest);
+            let manifestRef = refByFingerprint.get(fp);
+            if (!manifestRef) {
+              manifestRef = `m${manifestCounter}`;
+              manifestCounter += 1;
+              refByFingerprint.set(fp, manifestRef);
+              manifestsById[manifestRef] = manifest;
+            }
+            return {
+              candidate: { ...candidate, manifest: null },
+              manifestRef,
+            };
+          });
+          return {
+            status: 'loaded' as const,
+            savedActivityKeysByUnit: savedByUnit,
+            manifestsById,
+            drafts,
+          };
+        };
+        const readAllUnitScopes = async (
+          keys: readonly string[],
+        ): Promise<Map<string, BookAssemblyScope>> => {
+          if (repository.readBookScopes) {
+            const all = await repository.readBookScopes(bookId);
+            return new Map(keys.map((unitKey) => [unitKey, all[unitKey] ?? {}] as const));
+          }
+          const scopes = new Map<string, BookAssemblyScope>();
+          for (let offset = 0; offset < keys.length; offset += 8) {
+            const slice = keys.slice(offset, offset + 8);
+            const loaded = await Promise.all(slice.map(async (unitKey) => [unitKey, await repository.readScope(bookId, unitKey)] as const));
+            for (const [unitKey, scope] of loaded) scopes.set(unitKey, scope);
+          }
+          return scopes;
+        };
+        const requestCache = new Map<string, Promise<unknown>>();
         const attachedAuthority = await authorityFor(repository, bookId, input.env, input.uid);
         if (attachedAuthority?.ownerId === input.uid
           && attachedAuthority.bookMode === 'pdf'
           && attachedAuthority.sourceSet?.sourceStrategy === 'full_pdf') {
-          const requestCache = new Map<string, Promise<unknown>>();
           for (const unitKey of unitKeys) id(unitKey, 'unit_key');
-          // Read all unit scopes in bounded parallel batches instead of serially.
-          const initialScopes = new Map<string, BookAssemblyScope>();
-          for (let offset = 0; offset < unitKeys.length; offset += 8) {
-            const slice = unitKeys.slice(offset, offset + 8);
-            const loaded = await Promise.all(slice.map(async (unitKey) => [unitKey, await repository.readScope(bookId, unitKey)] as const));
-            for (const [unitKey, scope] of loaded) initialScopes.set(unitKey, scope);
-          }
+          const initialScopes = await readAllUnitScopes(unitKeys);
           const matched: Array<{ readonly unitKey: string; readonly candidate: BookAssemblyCandidateRecord }> = [];
           for (const unitKey of unitKeys) {
             const scope = initialScopes.get(unitKey);
@@ -593,28 +678,32 @@ export const createBookAssemblyWorkerHandlers = (options: {
             }
             matched.push({ unitKey, candidate });
           }
-          for (let offset = 0; offset < matched.length; offset += 4) {
-            const slice = matched.slice(offset, offset + 4);
-            const verified = await Promise.all(slice.map(async ({ unitKey, candidate }) => {
-              const savedKeys = await options.verifyDraftActivities?.({
+          const verifiedByUnit = new Map<string, readonly string[]>();
+          for (let offset = 0; offset < matched.length; offset += 8) {
+            const slice = matched.slice(offset, offset + 8);
+            const verified = await Promise.all(slice.map(async ({ unitKey, candidate }) => ({
+              unitKey,
+              savedKeys: await options.verifyDraftActivities?.({
                 env: input.env,
                 candidate: clone(candidate),
                 requestCache,
-              }) ?? [];
-              const refreshedScope = await repository.readScope(bookId, unitKey);
-              return { unitKey, candidate, savedKeys, refreshedScope };
-            }));
-            for (const { unitKey, candidate, savedKeys, refreshedScope } of verified) {
-              if (refreshedScope.current?.candidateId !== candidate.candidateId
-                || refreshedScope.current?.candidateRevision !== candidate.revision) {
+              }) ?? [],
+            })));
+            for (const { unitKey, savedKeys } of verified) verifiedByUnit.set(unitKey, savedKeys);
+          }
+          if (matched.length > 0) {
+            const refreshedScopes = await readAllUnitScopes(matched.map((entry) => entry.unitKey));
+            for (const { unitKey, candidate } of matched) {
+              const refreshedScope = refreshedScopes.get(unitKey);
+              if (refreshedScope?.current?.candidateId !== candidate.candidateId
+                || refreshedScope?.current?.candidateRevision !== candidate.revision) {
                 throw new BookAssemblyWorkerError('draft_discovery_divergent', 409);
               }
+              const savedKeys = verifiedByUnit.get(unitKey) ?? [];
               const slots = candidate.manifest!.units.find((unit) => unit.unitKey === unitKey)!.activitySlots;
               savedActivityKeysByUnit[unitKey] = slots.map((slot) => slot.activityKey).filter((key) => savedKeys.includes(key));
               candidates.push(clone(candidate));
             }
-          }
-          if (matched.length > 0) {
             const refreshedAuthority = await authorityFor(repository, bookId, input.env, input.uid);
             if (!refreshedAuthority
               || refreshedAuthority.ownerId !== input.uid
@@ -624,7 +713,7 @@ export const createBookAssemblyWorkerHandlers = (options: {
             }
           }
           return {
-            body: { status: 'loaded', drafts: candidates.map((candidate) => ({ candidate, savedActivityKeysByUnit })) },
+            body: buildDiscoveryPayload(candidates, savedActivityKeysByUnit),
             init: { status: 200 },
           };
         }
@@ -653,7 +742,11 @@ export const createBookAssemblyWorkerHandlers = (options: {
             throw new BookAssemblyWorkerError('draft_discovery_divergent', 409);
           }
           manifestFingerprint = fingerprint;
-          const savedKeys = await options.verifyDraftActivities?.({ env: input.env, candidate: clone(candidate) }) ?? [];
+          const savedKeys = await options.verifyDraftActivities?.({
+            env: input.env,
+            candidate: clone(candidate),
+            requestCache,
+          }) ?? [];
           const refreshed = await repository.readScope(bookId, unitKey);
           const refreshedAuthority = await authorityFor(repository, bookId, input.env, input.uid, candidate.manifest.sourceSet);
           await authenticate(repository, input.uid);
@@ -670,7 +763,7 @@ export const createBookAssemblyWorkerHandlers = (options: {
           savedActivityKeysByUnit[unitKey] = slots.map((slot) => slot.activityKey).filter((key) => savedKeys.includes(key));
           candidates.push(clone(candidate));
         }
-        return { body: { status: 'loaded', drafts: candidates.map((candidate) => ({ candidate, savedActivityKeysByUnit })) }, init: { status: 200 } };
+        return { body: buildDiscoveryPayload(candidates, savedActivityKeysByUnit), init: { status: 200 } };
       } catch (error) {
         return { body: { code: error instanceof BookAssemblyWorkerError ? error.code : 'draft_discovery_failed' },
           init: { status: error instanceof BookAssemblyWorkerError ? error.status : 409 } };

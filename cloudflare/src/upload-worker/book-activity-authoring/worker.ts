@@ -25,18 +25,14 @@ import type {
   UnitActivityBinding,
   UnitActivityBindingRepository,
 } from '../../../../src/services/book-assembly/unitActivityBinding.repository.ts';
+import { bookScopedActivityTargetId } from '../../../../src/services/book-assembly/bookActivityTargetId.service.ts';
 import { isActiveBookSourceAuthorityProfile } from '../book-source/trusted-source-contract.ts';
 
 const MAX_BODY_BYTES = 256 * 1024;
 const MAX_CANDIDATE_RECORD_BYTES = 256 * 1024;
 const ID = /^[A-Za-z0-9_-]{1,160}$/u;
+const BINDING_KEY_ID = /^[A-Za-z0-9][A-Za-z0-9_:-]{0,159}$/u;
 const ASSEMBLY_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
-const hexUtf8 = (value: string): string => Array.from(
-  new TextEncoder().encode(value),
-  (byte) => byte.toString(16).padStart(2, '0'),
-).join('');
-const bookScopedActivityTargetId = (bookId: string, activityKey: string): string =>
-  `ba_${hexUtf8(bookId)}_${hexUtf8(activityKey)}`;
 const OPERATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 type Mutation = 'stage' | 'validate' | 'save-draft' | 'discard';
 type Lifecycle = 'staged' | 'validated' | 'rejected' | 'saved' | 'discarded';
@@ -58,6 +54,11 @@ interface AssemblyDraftActivityContext {
   readonly seal: AssemblyDraftSeal;
   readonly contract: AssemblyActivityContract;
   readonly mappedBookPageRefs: readonly string[];
+  readonly allowedEvidenceRefs?: {
+    readonly legacy: readonly string[];
+    readonly source: readonly string[];
+    readonly answer: readonly string[];
+  };
 }
 const OPERATION_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const MATERIAL_BOOK_PATH = (bookId: string): string => `material_catalog/books/${bookId}`;
@@ -139,6 +140,10 @@ const validId = (value: unknown, label: string): string => {
   if (typeof value !== 'string' || !ID.test(value)) throw new AuthoringError(`invalid_${label}`);
   return value;
 };
+const validBindingKeyId = (value: unknown, label: string): string => {
+  if (typeof value !== 'string' || !BINDING_KEY_ID.test(value)) throw new AuthoringError(`invalid_${label}`);
+  return value;
+};
 const validRevision = (value: unknown): number => {
   if (!Number.isSafeInteger(value) || (value as number) < 0) throw new AuthoringError('invalid_expected_revision');
   return value as number;
@@ -166,8 +171,8 @@ const unitActivityBinding = (body: Record<string, unknown>): { unitKey: string; 
     throw new AuthoringError('invalid_unit_activity_binding');
   }
   return {
-    unitKey: validId(value.unitKey, 'unit_key'),
-    activityKey: validId(value.activityKey, 'activity_key'),
+    unitKey: validBindingKeyId(value.unitKey, 'unit_key'),
+    activityKey: validBindingKeyId(value.activityKey, 'activity_key'),
   };
 };
 const replaceExistingUnitActivityBinding = (body: Record<string, unknown>): boolean => {
@@ -211,7 +216,7 @@ type BindingReceipt = UnitActivityBinding & {
 const bindingReceipt = (value: unknown): BindingReceipt | undefined => {
   const record = plainRecord(value);
   if (!record || !validIdValue(record.ownerId) || !validIdValue(record.bookId)
-    || !validIdValue(record.unitKey) || !validIdValue(record.activityKey)
+    || !validBindingKeyValue(record.unitKey) || !validBindingKeyValue(record.activityKey)
     || !validIdValue(record.activityId) || !validIdValue(record.candidateId)
     || !validRevisionValue(record.candidateRevision)
     || record.schemaVersion !== 1 || record.candidateLifecycle !== 'saved'
@@ -327,6 +332,7 @@ const role = (profile: unknown): 'teacher' | 'super_admin' | null => {
   return null;
 };
 const validIdValue = (value: unknown): value is string => typeof value === 'string' && ID.test(value);
+const validBindingKeyValue = (value: unknown): value is string => typeof value === 'string' && BINDING_KEY_ID.test(value);
 const validRevisionValue = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 const validTimestamp = (value: unknown): value is number =>
@@ -442,7 +448,7 @@ const asCandidate = (value: unknown, expectedCandidateId?: string): CandidateRec
     || sealKeys === 'activityKey,bookId,candidateId,candidateRevision,manifestFingerprint,sourceSetFingerprint,unitKey';
   if (record.lifecycle !== 'rejected' && record.assemblyDraft !== undefined && (!seal
     || !validSealKeys
-    || !validIdValue(seal.bookId) || !ASSEMBLY_ID.test(String(seal.unitKey)) || !validIdValue(seal.activityKey)
+    || !validIdValue(seal.bookId) || !ASSEMBLY_ID.test(String(seal.unitKey)) || !validBindingKeyValue(seal.activityKey)
     || !ASSEMBLY_ID.test(String(seal.candidateId)) || !validRevisionValue(seal.candidateRevision)
     || seal.candidateRevision < 1 || seal.bookId !== record.bookId
     || typeof seal.manifestFingerprint !== 'string' || !/^(?:fnv1a64:[a-f0-9]{16}|[a-f0-9]{64})$/iu.test(seal.manifestFingerprint)
@@ -834,15 +840,29 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
         }
         return fresh;
       };
-      if (contextBinding && options.readAssemblyDraftActivityContext) {
+      if (mutation !== 'discard' && contextBinding && options.readAssemblyDraftActivityContext) {
         assemblyDraftContext = await readSealedContext();
         const content = mutation === 'stage' ? bodyRecord?.content : initialCandidate?.content;
         if (!activityMatchesAssemblyContract(content, assemblyDraftContext.contract)
           || assemblyDraftContext.mappedBookPageRefs.length === 0) {
           throw new AuthoringError('unit_activity_binding_context_mismatch', 409);
         }
+        if (assemblyDraftContext.allowedEvidenceRefs && bodyRecord) {
+          const allowedLegacy = new Set(assemblyDraftContext.allowedEvidenceRefs.legacy);
+          const allowedSource = new Set(assemblyDraftContext.allowedEvidenceRefs.source);
+          const allowedAnswer = new Set(assemblyDraftContext.allowedEvidenceRefs.answer);
+          const refs = evidenceRefGroups(bodyRecord);
+          const checkRefs = (values: readonly string[], allowed: ReadonlySet<string>): boolean => (
+            values.every((ref) => allowed.has(ref))
+          );
+          if (!checkRefs(refs.legacy, allowedLegacy)
+            || !checkRefs(refs.source, allowedSource)
+            || !checkRefs(refs.answer, allowedAnswer)) {
+            throw new AuthoringError('invalid_evidence_refs', 400);
+          }
+        }
         activityValidationContext = { mappedBookPageRefs: [...assemblyDraftContext.mappedBookPageRefs] };
-      } else if (requestedBinding && options.readAssemblyActivityContracts && options.readAssemblyActivityPageRefs) {
+      } else if (mutation !== 'discard' && requestedBinding && options.readAssemblyActivityContracts && options.readAssemblyActivityPageRefs) {
         const contracts = await options.readAssemblyActivityContracts({
           env: input.env, ownerId: input.uid, bookId: trustedBookId!, unitKey: requestedBinding.unitKey,
         });
@@ -899,13 +919,14 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
             activityKey: bindingRequest.activityKey,
           });
           if (existing && (existing.activityId !== candidate.targetActivityId
-            || existing.activityVersionId !== undefined
+            || (existing.activityVersionId !== undefined && !replaceBinding)
             || (existing.candidateId === candidate.candidateId
               && existing.candidateRevision > candidate.revision + 1)
             || (existing.candidateId !== candidate.candidateId && !replaceBinding))) {
             throw new AuthoringError('unit_activity_binding_conflict', 409);
           }
-          if (existing && existing.candidateId !== candidate.candidateId && replaceBinding) {
+          if (existing && replaceBinding
+            && (existing.candidateId !== candidate.candidateId || existing.activityVersionId !== undefined)) {
             const floor = existing.candidateRevision + 1;
             if (!Number.isSafeInteger(floor)) {
               throw new AuthoringError('unit_activity_binding_conflict', 409);
@@ -1253,7 +1274,7 @@ const discard = (
   ownerId: string,
   body: unknown,
   at: number,
-  validationContext: ActivityValidationContext = {},
+  _validationContext: ActivityValidationContext = {},
 ) => {
   const input = exact(body, ['operationId', 'expectedRevision', 'candidateId', 'unitActivityBinding']);
   const operationId = operation(input); const candidateId = validId(input.candidateId, 'candidate_id');
@@ -1265,10 +1286,13 @@ const discard = (
     if (!candidate || candidate.ownerId !== ownerId) return { status: 'not-found' };
     if (candidate.revision !== expectedRevision) return { status: 'conflict', currentRevision: candidate.revision };
     if (candidate.lifecycle === 'discarded') return { status: 'discarded', candidateId, revision: candidate.revision, lifecycle: candidate.lifecycle };
-    const activity = activityForMutation(root, candidate.targetActivityId, validationContext);
-    if (activity && activity.ownerId !== ownerId) return { status: 'not-found' };
-    const checked = validateContent(candidate.content, activity?.draft, validationContext);
-    if (!checked.validation.valid) throw new AuthoringError('invalid_persisted_candidate', 500);
+    if (candidate.lifecycle === 'saved') return { status: 'conflict', currentRevision: candidate.revision };
+    if (candidate.lifecycle !== 'rejected' && candidate.validation.valid) {
+      const activity = activityForMutation(root, candidate.targetActivityId, { mappedBookPageRefs: ['discard:structural-check'] });
+      if (activity && activity.ownerId !== ownerId) return { status: 'not-found' };
+      const checked = validateContent(candidate.content, activity?.draft, { mappedBookPageRefs: ['discard:structural-check'] });
+      if (!checked.validation.valid) throw new AuthoringError('invalid_persisted_candidate', 500);
+    }
     const tombstone: CandidateRecord = {
       ...candidate, revision: candidate.revision + 1, lifecycle: 'discarded', content: null,
       updatedAt: at,

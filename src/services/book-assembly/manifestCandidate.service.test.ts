@@ -78,4 +78,27 @@ describe('validateBookAssemblyManifestCandidate', () => {
     expect(validateBookAssemblyManifestCandidate(extra, authority()).errors)
       .toEqual(expect.arrayContaining([expect.objectContaining({ code: 'unknown-field', path: '$' })]));
   });
+
+  it('rejects Firebase-illegal dots and evidence-illegal @ in unitKey, activityKey, and pageGroupKey while allowing colons', () => {
+    const dottedUnit = manifest();
+    dottedUnit.nodes[1]!.nodeKey = 'unit.1';
+    dottedUnit.units[0]!.unitKey = 'unit.1';
+    expect(validateBookAssemblyManifestCandidate(dottedUnit, authority()).errors)
+      .toEqual(expect.arrayContaining([expect.objectContaining({ code: 'invalid-value', path: '$.units[0].unitKey' })]));
+
+    const atActivity = manifest();
+    atActivity.units[0]!.activitySlots[0]!.activityKey = 'ex@1';
+    atActivity.units[0]!.pageGroups[0]!.activityKeys = ['ex@1'];
+    expect(validateBookAssemblyManifestCandidate(atActivity, authority()).errors)
+      .toEqual(expect.arrayContaining([expect.objectContaining({ code: 'invalid-value', path: '$.units[0].activitySlots[0].activityKey' })]));
+
+    const colonValid = manifest();
+    colonValid.nodes[1]!.nodeKey = 'unit:1';
+    colonValid.units[0]!.unitKey = 'unit:1';
+    colonValid.units[0]!.activitySlots[0]!.activityKey = 'u1:ex:1';
+    colonValid.units[0]!.activitySlots[0]!.pageGroupKeys = ['u1:pg:1'];
+    colonValid.units[0]!.pageGroups[0]!.pageGroupKey = 'u1:pg:1';
+    colonValid.units[0]!.pageGroups[0]!.activityKeys = ['u1:ex:1'];
+    expect(validateBookAssemblyManifestCandidate(colonValid, authority())).toMatchObject({ valid: true, errors: [] });
+  });
 });

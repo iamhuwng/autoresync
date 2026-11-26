@@ -130,6 +130,7 @@ export interface ActivityAuthoringRepository {
 }
 
 const ID = /^[A-Za-z0-9_-]{1,160}$/u;
+const BINDING_KEY_ID = /^[A-Za-z0-9][A-Za-z0-9_:-]{0,159}$/u;
 const MAX_TEXT = 512;
 const MAX_VALIDATION_ERRORS = 128;
 const MAX_DIFF_REASONS = 128;
@@ -167,6 +168,12 @@ const exact = (
 };
 const id = (value: unknown): string => {
   if (typeof value !== 'string' || !ID.test(value)) {
+    throw new Error('Activity authoring returned a malformed response.');
+  }
+  return value;
+};
+const bindingKeyId = (value: unknown): string => {
+  if (typeof value !== 'string' || !BINDING_KEY_ID.test(value)) {
     throw new Error('Activity authoring returned a malformed response.');
   }
   return value;
@@ -273,8 +280,8 @@ const binding = (value: unknown): ActivityAuthoringBindingReceipt => {
     schemaVersion: 1,
     ownerId: id(result.ownerId),
     bookId: id(result.bookId),
-    unitKey: id(result.unitKey),
-    activityKey: id(result.activityKey),
+    unitKey: bindingKeyId(result.unitKey),
+    activityKey: bindingKeyId(result.activityKey),
     activityId: id(result.activityId),
     candidateId: id(result.candidateId),
     candidateRevision: revision(result.candidateRevision),

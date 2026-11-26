@@ -25,7 +25,10 @@ import type {
 import type {
   BookHomeworkAuthorityScope,
 } from '../../../../src/services/book-homework/bookHomeworkAuthority.types.ts';
-import type { BookAssemblyPublicationResult } from '../../../../src/services/book-assembly/publicationTransaction.service.ts';
+import {
+  bookAssemblyActivityVersionScopeKey,
+  type BookAssemblyPublicationResult,
+} from '../../../../src/services/book-assembly/publicationTransaction.service.ts';
 import {
   FirebaseRestBookAssemblyPublicationRepository,
   type BookAssemblyPublicationRepositoryEnv,
@@ -375,9 +378,26 @@ export const createTrustedBookDeliveryPublication = (
   );
 
   const placements = selectedPlacements.map((placement, index) => {
-    const activityVersion = Object.values(scope.activityVersions ?? {}).find((candidate) => (
-      candidate.activityVersionId === placement.activityVersionId
-    ));
+    const exactVersionKey = bookAssemblyActivityVersionScopeKey(
+      version.manifestVersionId,
+      placement.activityVersionId,
+    );
+    const directActivityVersion = scope.activityVersions?.[exactVersionKey];
+    const activityVersion = (directActivityVersion
+      && directActivityVersion.activityVersionId === placement.activityVersionId
+      && directActivityVersion.manifestVersionId === version.manifestVersionId
+      && directActivityVersion.publicationId === version.publicationId
+      && directActivityVersion.publicationRevision === version.publicationRevision)
+      ? directActivityVersion
+      : Object.values(scope.activityVersions ?? {}).find((candidate) => (
+        candidate.activityVersionId === placement.activityVersionId
+        && candidate.manifestVersionId === version.manifestVersionId
+        && candidate.publicationId === version.publicationId
+        && candidate.publicationRevision === version.publicationRevision
+      )) ?? Object.values(scope.activityVersions ?? {}).find((candidate) => (
+        candidate.activityVersionId === placement.activityVersionId
+        && preservedByMappingChain(candidate)
+      ));
     const safeProjection = Object.values(scope.activitySafeProjections ?? {}).find((projection) => (
       projection.activityVersionId === placement.activityVersionId
       && projection.activityId === placement.activityId
@@ -471,6 +491,41 @@ export const createTrustedBookDeliveryPublication = (
     };
   });
 
+  const referencePageGroups = version.strategy === 'full_pdf'
+    ? (() => {
+      const allowedSourceKey = publicationSources[0]!.sourceKey;
+      const groups: Array<{
+        readonly nodeKey: string;
+        readonly pageGroupKey: string;
+        readonly sourceKey: string;
+        readonly pages: readonly number[];
+      }> = [];
+      const seenKeys = new Set<string>();
+      for (const unit of version.manifest.units) {
+        if (!outlineKeys.has(unit.unitKey)) continue;
+        for (const group of unit.pageGroups) {
+          if (group.mode !== 'reference_only'
+            || group.sourceKey !== allowedSourceKey
+            || group.pages.length === 0) {
+            continue;
+          }
+          const pageGroupKey = seenKeys.has(group.pageGroupKey)
+            ? `${unit.unitKey}:${group.pageGroupKey}`
+            : group.pageGroupKey;
+          if (seenKeys.has(pageGroupKey)) continue;
+          seenKeys.add(pageGroupKey);
+          groups.push({
+            nodeKey: unit.unitKey,
+            pageGroupKey,
+            sourceKey: group.sourceKey,
+            pages: [...new Set(group.pages)].sort((left, right) => left - right),
+          });
+        }
+      }
+      return groups;
+    })()
+    : [];
+
   const publication: Record<string, unknown> = {
     bookId: intent.bookId,
     bookMode: 'pdf',
@@ -489,6 +544,7 @@ export const createTrustedBookDeliveryPublication = (
       const { activityVersionId: _activityVersionId, pageGroupKeys: _pageGroupKeys, ...legacy } = placement;
       return legacy;
     }),
+    ...(referencePageGroups.length > 0 ? { referencePageGroups } : {}),
     schedulePolicy,
   };
   if ((BOOK_DELIVERY_SCHEMA_VERSION as number) >= 3) {

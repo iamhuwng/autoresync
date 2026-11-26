@@ -26,7 +26,6 @@ import { missingRequiredSourceContext } from '../../services/book-assembly/sourc
 import {
   bookScopedActivityTargetId,
   detectBulkUnitActivityPayload,
-  discardStagedUnitActivities,
   parseBulkUnitActivityImportBundles,
   parseUnitActivityImportBundle,
   stageUnitActivityImportBundle,
@@ -492,6 +491,9 @@ const BookAssemblyWorkspace = ({
   const [migrationRequestedStrategy, setMigrationRequestedStrategy] = useState<BookSourceStrategy | null>(null);
   const [unitImportStatus, setUnitImportStatus] = useState<string | null>(null);
   const [unitImportConflict, setUnitImportConflict] = useState<UnitImportConflict | null>(null);
+  const [unitImportExpectedRevisionsByUnit, setUnitImportExpectedRevisionsByUnit] = useState<
+    Readonly<Record<string, Readonly<Record<string, number>>>>
+  >({});
   const [manualCopyFallback, setManualCopyFallback] = useState(false);
   const [structurePromptManualFallback, setStructurePromptManualFallback] = useState(false);
   const [mockupUnitToolsOpen, setMockupUnitToolsOpen] = useState(false);
@@ -1193,7 +1195,7 @@ const BookAssemblyWorkspace = ({
       : mappingMode === 'reference_only'
         ? 'reference'
         : 'activity';
-    const pageGroupKey = `pages-${sourceKey}-${parsedPages.pages.join('-')}-${modeSlug}`;
+    const pageGroupKey = `${selectedUnitKey}-pages-${sourceKey}-${parsedPages.pages.join('-')}-${modeSlug}`;
     setUnits((current) => {
       const currentUnit = current.find((unit) => unit.unitKey === selectedUnitKey);
       const nextUnit = upsertPageGroupMapping({
@@ -1800,19 +1802,23 @@ const BookAssemblyWorkspace = ({
         signal: controller.signal,
       });
       setUnitImportCancelable(false);
-      if (controller.signal.aborted) {
-        await discardStagedUnitActivities(activityAuthoring, importResult.staged);
-        setStatus('idle');
-        setUnitImportStatus('Import canceled. Existing draft was kept.');
-        return;
-      }
       setImportedActivityKeysByUnit((current) => ({
         ...current,
         [unitKey]: importResult.bundle.slots.map((slot) => slot.activityKey),
       }));
       setUnitImportConflict(null);
+      setUnitImportExpectedRevisionsByUnit((current) => {
+        if (!Object.hasOwn(current, unitKey)) return current;
+        const next = { ...current };
+        delete next[unitKey];
+        return next;
+      });
       setUnitImportTextByUnit((current) => ({ ...current, [unitKey]: '' }));
-      setUnitImportStatus(`Imported ${importResult.staged.length} Activity slot${importResult.staged.length === 1 ? '' : 's'}.`);
+      setUnitImportStatus(
+        controller.signal.aborted
+          ? `Imported ${importResult.staged.length} Activity slot${importResult.staged.length === 1 ? '' : 's'} (already committed before cancel).`
+          : `Imported ${importResult.staged.length} Activity slot${importResult.staged.length === 1 ? '' : 's'}.`,
+      );
       onDirtyChange?.(false);
       setStatus('saved');
       toast.success('Unit Activity JSON imported.');
@@ -1979,12 +1985,6 @@ const BookAssemblyWorkspace = ({
             signal: controller.signal,
           });
           setUnitImportCancelable(false);
-          if (controller.signal.aborted) {
-            await discardStagedUnitActivities(activityAuthoring, importResult.staged);
-            setStatus('idle');
-            setUnitImportStatus(`Canceled after ${importedUnits} of ${pendingBundles.length} units.`);
-            return;
-          }
           totalSlots += importResult.staged.length;
           importedUnits += 1;
           setImportedActivityKeysByUnit((current) => ({
@@ -1996,6 +1996,11 @@ const BookAssemblyWorkspace = ({
               ? { ...item, status: 'done', slotCount: importResult.staged.length }
               : item
           )));
+          if (controller.signal.aborted) {
+            setStatus('saved');
+            setUnitImportStatus(`Canceled after ${importedUnits} of ${pendingBundles.length} units.`);
+            return;
+          }
         } catch (unitError) {
           if (unitError instanceof UnitActivityImportConflictError) {
             setStatus('saved');
@@ -2029,6 +2034,7 @@ const BookAssemblyWorkspace = ({
       }
       setBulkImportText('');
       setUnitImportConflict(null);
+      setUnitImportExpectedRevisionsByUnit({});
       setUnitImportStatus(`Imported ${importedUnits} ${importedUnits === 1 ? 'unit' : 'units'} (${totalSlots} activities).`);
       onDirtyChange?.(false);
       setStatus('saved');
@@ -2067,6 +2073,15 @@ const BookAssemblyWorkspace = ({
   const replaceConflictingUnitActivity = () => {
     const conflict = unitImportConflict;
     if (!conflict || unitImportBusy) return;
+    const nextForUnit: Readonly<Record<string, number>> = {
+      ...(unitImportExpectedRevisionsByUnit[conflict.unitKey] ?? {}),
+      [conflict.activityKey]: conflict.currentRevision,
+    };
+    const nextAll: Readonly<Record<string, Readonly<Record<string, number>>>> = {
+      ...unitImportExpectedRevisionsByUnit,
+      [conflict.unitKey]: nextForUnit,
+    };
+    setUnitImportExpectedRevisionsByUnit(nextAll);
     if (activityScope === 'bulk') {
       emit('teacher_materials_book_assembly_unit_import_replacement_selected', {
         scope: 'bulk',
@@ -2076,7 +2091,7 @@ const BookAssemblyWorkspace = ({
       });
       const completed = new Set(bulkUnitResults.filter((item) => item.status === 'done').map((item) => item.unitKey));
       setUnitImportConflict(null);
-      void importBulkJson({ [conflict.unitKey]: { [conflict.activityKey]: conflict.currentRevision } }, completed);
+      void importBulkJson(nextAll, completed);
       return;
     }
     if (conflict.unitKey !== selectedUnitKey) return;
@@ -2086,23 +2101,31 @@ const BookAssemblyWorkspace = ({
       currentRevision: conflict.currentRevision,
     });
     setUnitImportConflict(null);
-    void importUnitJson({ [conflict.activityKey]: conflict.currentRevision });
+    void importUnitJson(nextForUnit);
   };
 
   const updateUnitImportText = (text: string) => {
     setUnitImportConflict(null);
     if (units.length > 1 && detectBulkUnitActivityPayload(text)) {
+      setUnitImportExpectedRevisionsByUnit({});
       setBulkImportText(text);
       setActivityScope('bulk');
       setUnitImportStatus('Multi-unit JSON detected — switched to Bulk import.');
       return;
     }
     const key = selectedUnitKey ?? '';
+    setUnitImportExpectedRevisionsByUnit((current) => {
+      if (!Object.hasOwn(current, key)) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
     setUnitImportTextByUnit((current) => ({ ...current, [key]: text }));
   };
 
   const updateBulkImportText = (text: string) => {
     setUnitImportConflict(null);
+    setUnitImportExpectedRevisionsByUnit({});
     setBulkUnitResults([]);
     setBulkImportText(text);
   };
@@ -2178,8 +2201,21 @@ const BookAssemblyWorkspace = ({
     const teacherOnlyGroups = selectedUnit?.pageGroups.filter((pageGroup) => pageGroup.mode === 'teacher_only') ?? [];
     const missingMappings = rows.filter((slot) => !groupFor(slot)).map((slot) => slot.activityKey);
     const hasUnsavedChanges = currentSnapshot !== savedSnapshot;
+    const activeCandidateSnapshot = activeCandidate?.manifest
+      ? draftSnapshot(
+        activeCandidate.manifest.sourceSet.sourceStrategy,
+        activeCandidate.manifest.nodes,
+        activeCandidate.manifest.sourceSet.sources,
+        activeCandidate.manifest.units,
+      )
+      : null;
+    const selectedUnitMatchesActiveCandidate = Boolean(
+      activeCandidate
+      && activeCandidate.unitKey === selectedUnitKey
+      && activeCandidateSnapshot === currentSnapshot,
+    );
     const selectedUnitProgress = unitProgressList.find((item) => item.unitKey === selectedUnitKey) ?? null;
-    const selectedUnitNeedsSave = Boolean(selectedUnitKey && (!activeCandidate || activeCandidate.unitKey !== selectedUnitKey || hasUnsavedChanges));
+    const selectedUnitNeedsSave = Boolean(selectedUnitKey && (!selectedUnitMatchesActiveCandidate || hasUnsavedChanges));
     const hasEmptyInitialOutline = !activeCandidate && nodes.length === 0 && units.length === 0;
     const needsReconciliationAttention = !hasEmptyInitialOutline && (
       reconciliationReport.releaseBlocking

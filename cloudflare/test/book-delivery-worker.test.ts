@@ -840,4 +840,131 @@ describe('Book Delivery Worker contract', () => {
       candidatesByUnit,
     })).toBeNull();
   });
+
+  it('selects the current manifest activityVersion on carried-forward Full-PDF revisions and projects reference_only without teacher_only', async () => {
+    const scope = structuredClone(makeBookAssemblyPublicationScope()) as any;
+    const rev1Version = scope.versions['manifest-1'];
+    const rev1ActivityVersion = scope.activityVersions['activity-1-v1'];
+    const rev1Key = bookAssemblyActivityVersionScopeKey('manifest-1', 'activity-1-v1');
+    const rev2Key = bookAssemblyActivityVersionScopeKey('manifest-2', 'activity-1-v1');
+    scope.activityVersions = {
+      [rev1Key]: { ...rev1ActivityVersion },
+      [rev2Key]: {
+        ...rev1ActivityVersion,
+        manifestVersionId: 'manifest-2',
+        publicationId: 'pub-2',
+        publicationRevision: 2,
+        safeProjectionId: 'projection-2',
+      },
+    };
+    scope.versions['manifest-2'] = {
+      ...structuredClone(rev1Version),
+      manifestVersionId: 'manifest-2',
+      publicationId: 'pub-2',
+      publicationRevision: 2,
+      manifest: {
+        ...structuredClone(rev1Version.manifest),
+        units: [{
+          ...structuredClone(rev1Version.manifest.units[0]),
+          pageGroups: [
+            ...structuredClone(rev1Version.manifest.units[0].pageGroups),
+            {
+              pageGroupKey: 'unit-1-transcript',
+              sourceKey: 'full',
+              pages: [4, 5],
+              activityKeys: [],
+              mode: 'reference_only',
+            },
+            {
+              pageGroupKey: 'unit-1-answer-key',
+              sourceKey: 'full',
+              pages: [9],
+              activityKeys: [],
+              mode: 'teacher_only',
+            },
+          ],
+        }],
+      },
+    };
+    scope.placements['placement-2'] = {
+      ...structuredClone(scope.placements['placement-1']),
+      placementId: 'placement-2',
+      manifestVersionId: 'manifest-2',
+      publicationId: 'pub-2',
+      publicationRevision: 2,
+    };
+    scope.activitySafeProjections['projection-2'] = {
+      ...structuredClone(scope.activitySafeProjections['projection-1']),
+      projectionId: 'projection-2',
+      manifestVersionId: 'manifest-2',
+      publicationId: 'pub-2',
+      publicationRevision: 2,
+      placementIds: ['placement-2'],
+    };
+    scope.deliveryPlans['delivery-plan-2'] = {
+      ...structuredClone(scope.deliveryPlans['delivery-plan-1']),
+      deliveryPlanId: 'delivery-plan-2',
+      manifestVersionId: 'manifest-2',
+      publicationId: 'pub-2',
+      publicationRevision: 2,
+      placementIds: ['placement-2'],
+    };
+    scope.current = {
+      ...scope.current,
+      manifestVersionId: 'manifest-2',
+      publicationId: 'pub-2',
+      publicationRevision: 2,
+    };
+
+    const pub = createTrustedBookDeliveryPublication(
+      {
+        ...makeBookDeliveryIssuanceIntent(),
+        publicationId: 'pub-2',
+        publicationRevision: 2,
+      },
+      scope,
+      { policyId: 'preview:preview-1', policyRevision: 1, basis: 'immutable-reference' },
+    );
+    expect(pub.placements).toHaveLength(1);
+    expect(pub.referencePageGroups).toEqual([
+      {
+        nodeKey: 'unit-1',
+        pageGroupKey: 'unit-1-transcript',
+        sourceKey: 'full',
+        pages: [4, 5],
+      },
+    ]);
+    expect(JSON.stringify(pub)).not.toContain('unit-1-answer-key');
+
+    const { handlers } = setup(() => 'binding-carried-ref', scope);
+    const created = await handlers.create({
+      env,
+      uid: 'teacher-1',
+      request: request({
+        intent: {
+          ...makeBookDeliveryIssuanceIntent(),
+          publicationId: 'pub-2',
+          publicationRevision: 2,
+        },
+        operationId: operation(91),
+      }),
+    });
+    expect(created.init.status).toBe(200);
+    await handlers.activate({
+      env,
+      uid: 'teacher-1',
+      request: request({ bindingId: 'binding-carried-ref', expectedRecordRevision: 0, operationId: operation(92) }),
+    });
+    const resolved = await handlers.resolve({
+      env,
+      uid: 'teacher-1',
+      recipientId: 'teacher-1',
+      contextId: 'preview-1',
+    });
+    expect(resolved.init.status).toBe(200);
+    expect((resolved.body as any).pageGroups).toEqual(expect.arrayContaining([
+      { pageGroupKey: 'unit-1-transcript', combinedPhysicalPages: [4, 5] },
+    ]));
+    expect(JSON.stringify(resolved.body)).not.toContain('unit-1-answer-key');
+  });
 });

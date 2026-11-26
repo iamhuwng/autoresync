@@ -122,6 +122,7 @@ describe('Book Activity Firebase rule contract', () => {
     expect(authoring.owners.$ownerId['.read']).toContain('book_activity_authoring_service');
     expect(authoring.owners.$ownerId['.write']).toContain('book_activity_authoring_ownerId');
     expect(canonicalVersion['.read']).toContain('book_activity_runtime_reader_service');
+    expect(canonicalVersion['.read']).toContain('book_activity_publication_reader_service');
     expect(canonicalVersion['.write']).toContain('book_activity_publication_writer_service');
     expect(safeProjection['.read']).toContain('book_activity_runtime_reader_service');
     expect(safeProjection['.write']).toContain('book_activity_publication_writer_service');
@@ -206,5 +207,51 @@ describeEmulator('Book Activity Firebase rule emulator behavior', () => {
     }));
     await assertFails(publicationWriter.database().ref('book_activity/versions/activity-1/version-1').remove());
     await assertFails(publicationWriter.database().ref('book_activity/student_safe_projections/activity-1/version-1').remove());
+  });
+
+  it('allows scoped book_activity_publication_reader reads for exact owner/activity/version and denies writes or broader scope', async () => {
+    const exactReader = testEnv.authenticatedContext('publication-reader', {
+      book_activity_publication_reader_service: true,
+      book_activity_publication_reader_ownerId: 'teacher-1',
+      book_activity_publication_reader_activityId: 'activity-1',
+      book_activity_publication_reader_activityVersionId: 'version-1',
+    }).database();
+    const wrongOwnerReader = testEnv.authenticatedContext('publication-reader-wrong-owner', {
+      book_activity_publication_reader_service: true,
+      book_activity_publication_reader_ownerId: 'teacher-2',
+      book_activity_publication_reader_activityId: 'activity-1',
+      book_activity_publication_reader_activityVersionId: 'version-1',
+    }).database();
+    const wrongActivityReader = testEnv.authenticatedContext('publication-reader-wrong-activity', {
+      book_activity_publication_reader_service: true,
+      book_activity_publication_reader_ownerId: 'teacher-1',
+      book_activity_publication_reader_activityId: 'activity-2',
+      book_activity_publication_reader_activityVersionId: 'version-1',
+    }).database();
+    const wrongVersionReader = testEnv.authenticatedContext('publication-reader-wrong-version', {
+      book_activity_publication_reader_service: true,
+      book_activity_publication_reader_ownerId: 'teacher-1',
+      book_activity_publication_reader_activityId: 'activity-1',
+      book_activity_publication_reader_activityVersionId: 'version-2',
+    }).database();
+    const absentVersionReader = testEnv.authenticatedContext('publication-reader-absent', {
+      book_activity_publication_reader_service: true,
+      book_activity_publication_reader_ownerId: 'teacher-1',
+      book_activity_publication_reader_activityId: 'activity-1',
+      book_activity_publication_reader_activityVersionId: 'version-missing',
+    }).database();
+
+    await assertSucceeds(exactReader.ref('book_activity/versions/activity-1/version-1').once('value'));
+    await assertFails(wrongOwnerReader.ref('book_activity/versions/activity-1/version-1').once('value'));
+    await assertFails(wrongActivityReader.ref('book_activity/versions/activity-1/version-1').once('value'));
+    await assertFails(wrongVersionReader.ref('book_activity/versions/activity-1/version-1').once('value'));
+    await assertFails(absentVersionReader.ref('book_activity/versions/activity-1/version-missing').once('value'));
+    await assertFails(exactReader.ref('book_activity/versions/activity-1/version-2').once('value'));
+    await assertFails(exactReader.ref('book_activity/versions/activity-1').once('value'));
+    await assertFails(exactReader.ref('book_activity/student_safe_projections/activity-1/version-1').once('value'));
+    await assertFails(exactReader.ref('book_activity/versions/activity-1/version-1').set(version));
+    await assertFails(exactReader.ref('book_activity/versions/activity-1/version-1').update({ publishedAt: '2026-07-09T00:02:00.000Z' }));
+    await assertFails(exactReader.ref('book_activity/versions/activity-1/version-1').remove());
+    await assertFails(exactReader.ref('book_activity/versions/activity-1').update({ 'version-1': version }));
   });
 });

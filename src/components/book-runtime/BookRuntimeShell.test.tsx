@@ -577,4 +577,59 @@ describe('BookRuntimeShell', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent('Book page groups collide across units and cannot be isolated.');
   });
+
+  it('preserves student-visible reference_only pageGroups when isolating colliding cross-unit activity pageGroupKeys', () => {
+    const base = delivery(false);
+    const withReferenceGroup: BookRuntimeDeliveryProjection = {
+      ...base,
+      sourceSet: {
+        strategy: 'full_pdf',
+        sources: [{ sourceKey: 'full', sourceVersionId: 'full-v1', lifecycle: 'verified-usable', localPageScope: { kind: 'all', pages: [] } }],
+      },
+      documentRequests: [{ sourceKey: 'full', sourceVersionId: 'full-v1', opaqueRouteKey: 'full-route', localPageScope: { kind: 'all', pages: [] } }],
+      pageGroups: [
+        { pageGroupKey: 'page-1', combinedPhysicalPages: [8, 9, 12, 13] },
+        { pageGroupKey: 'unit-1-transcript', combinedPhysicalPages: [50, 51] },
+      ],
+      activities: [
+        {
+          placementId: 'p-u1',
+          activityId: 'activity-1',
+          activityVersionId: 'activity-1-v1',
+          activityVersion: 1,
+          nodeKey: 'unit-1',
+          order: 1,
+          contextMode: 'required',
+          sourceContext: { available: true, description: 'Unit 1 pages', pageGroupKeys: ['page-1'], sourcePageScopes: [{ sourceKey: 'full', pages: [8, 9] }] },
+        },
+        {
+          placementId: 'p-u2',
+          activityId: 'activity-2',
+          activityVersionId: 'activity-2-v1',
+          activityVersion: 1,
+          nodeKey: 'unit-2',
+          order: 2,
+          contextMode: 'required',
+          sourceContext: { available: true, description: 'Unit 2 pages', pageGroupKeys: ['page-1'], sourcePageScopes: [{ sourceKey: 'full', pages: [12, 13] }] },
+        },
+      ],
+    };
+
+    render(
+      <BookRuntimeShell
+        {...shellProps({
+          deliveryProjection: withReferenceGroup,
+          activities: [
+            { activityId: 'activity-1', activityVersionId: 'activity-1-v1', projection: projection(true), label: 'Unit 1 Task' },
+            { activityId: 'activity-2', activityVersionId: 'activity-2-v1', projection: projection(true), label: 'Unit 2 Task' },
+          ],
+          registry: registry(true),
+        })}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /Page Group 1 · 8, 9/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Page Group 2 · 12, 13/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Page Group 3 · 50, 51/i })).toBeInTheDocument();
+  });
 });

@@ -399,4 +399,79 @@ describe('buildBulkUnitActivityImportPrompt', () => {
       expect(slot?.allowedAnswerEvidenceRefs).toContain('source:full:page:5');
     }
   });
+
+  it('documents { left, right } matching pairs and validates representative payloads for all 5 interaction families', () => {
+    const promptText = buildUnitActivityImportPrompt({
+      bookTitle: 'Fixture Book',
+      manifest,
+      unitKey: 'unit-1',
+      sourceVersions,
+    });
+    expect(promptText).toContain('acceptedPairs (array of { left: string, right: string } objects matching leftItems/rightItems)');
+    expect(promptText).toContain('allowOptionReuse');
+    expect(promptText).not.toContain('[leftIndex, rightIndex]');
+
+    const mappedBookPageRefs = ['source:full:page:2'];
+    const base = {
+      schemaVersion: 1,
+      title: 'Family fixture',
+      taskProfile: null,
+      presentationMode: 'structured',
+      contextRequirement: { mode: 'optional', acceptedKinds: ['book-pages'] },
+      instructions: [{ text: 'Complete the activity.' }],
+      stimulus: null,
+      assetRefs: [],
+    } as const;
+
+    const samples = [
+      {
+        ...base,
+        interaction: { family: 'choice', variant: 'single-select' },
+        answerRule: { defaultPoints: 1, normalization: 'exact', requiredSelectionCount: 1 },
+        interactions: [{ prompt: 'Q1', options: ['A', 'B'], acceptedOptionIndexes: [0] }],
+        scoring: { mode: 'auto-where-possible' },
+      },
+      {
+        ...base,
+        interaction: { family: 'text-entry', variant: 'short-text' },
+        answerRule: { defaultPoints: 1, normalization: 'trim-case-and-spacing' },
+        interactions: [{ prompt: 'Q2', acceptedAnswers: ['London'] }],
+        scoring: { mode: 'auto-where-possible' },
+      },
+      {
+        ...base,
+        interaction: { family: 'matching', variant: 'matching-pairs' },
+        answerRule: { defaultPoints: 1, normalization: 'exact', allowOptionReuse: true },
+        interactions: [{
+          prompt: 'Match speaker to topic.',
+          leftItems: ['Speaker 1', 'Speaker 2'],
+          rightItems: ['Travel', 'Food'],
+          acceptedPairs: [
+            { left: 'Speaker 1', right: 'Travel' },
+            { left: 'Speaker 2', right: 'Travel' },
+          ],
+        }],
+        scoring: { mode: 'auto-where-possible' },
+      },
+      {
+        ...base,
+        interaction: { family: 'ordering', variant: 'sequence' },
+        answerRule: { defaultPoints: 1, normalization: 'exact' },
+        interactions: [{ prompt: 'Order steps.', orderingItems: ['First', 'Second'], acceptedOrder: [0, 1] }],
+        scoring: { mode: 'auto-where-possible' },
+      },
+      {
+        ...base,
+        interaction: { family: 'long-response', variant: 'draft-response' },
+        answerRule: { defaultPoints: 1, normalization: 'exact' },
+        interactions: [{ prompt: 'Summarize.', rubric: { criteria: ['Mentions main idea'] } }],
+        scoring: { mode: 'review-required' },
+      },
+    ];
+
+    for (const sample of samples) {
+      const validation = validateEditableActivity(sample, { mappedBookPageRefs });
+      expect(validation.valid, `${sample.interaction.family}: ${JSON.stringify(validation.errors)}`).toBe(true);
+    }
+  });
 });

@@ -6,6 +6,7 @@ import { ActivityAuthoringHttpError } from '../../services/book-activity/activit
 import type { UnitAssemblyRepository } from '../../services/book-assembly/unitAssembly.repository';
 import type { BookAssemblyCandidateRecord } from '../../services/book-assembly/unitAssembly.types';
 import { createComponentPdfActivationReceipt, fingerprintComponentPdfActivationValue } from '../../services/book-assembly/componentPdfActivation.service';
+import { bookScopedActivityTargetId } from '../../services/book-assembly/bookActivityTargetId.service';
 import { createBookTeacherAssemblyDocumentRoute } from '../../services/book-delivery/bookTeacherAssemblyDocument.types';
 import BookAssemblyWorkspace from './BookAssemblyWorkspace';
 
@@ -819,10 +820,10 @@ describe('BookAssemblyWorkspace', () => {
           activitySlots: [expect.objectContaining({
             activityKey: 'activity-reading-1',
             contextRequirement: 'required',
-            pageGroupKeys: ['pages-full-2-3-activity'],
+            pageGroupKeys: [expect.stringMatching(/-pages-full-2-3-activity$/u)],
           })],
           pageGroups: [expect.objectContaining({
-            pageGroupKey: 'pages-full-2-3-activity',
+            pageGroupKey: expect.stringMatching(/-pages-full-2-3-activity$/u),
             sourceKey: 'full',
             pages: [2, 3],
             defaultPhysicalPageNumber: 2,
@@ -862,7 +863,7 @@ describe('BookAssemblyWorkspace', () => {
     await user.click(screen.getByRole('button', { name: 'Add mapping' }));
 
     expect(screen.getByRole('list', { name: 'Activity slot order' })).toHaveTextContent('activity-shared');
-    expect(screen.getByRole('list', { name: 'Activity slot order' })).toHaveTextContent('pages-full-2-activity, pages-full-3-activity');
+    expect(screen.getByRole('list', { name: 'Activity slot order' })).toHaveTextContent(/-pages-full-2-activity, .+-pages-full-3-activity/u);
   });
 
   it('merges multiple Activities onto one source page without duplicating Page Group content', async () => {
@@ -1693,6 +1694,165 @@ describe('BookAssemblyWorkspace', () => {
     expect(screen.getByText('2 / 2 units ready')).toBeInTheDocument();
     expect(screen.getByLabelText('Bulk import unit status')).toHaveTextContent('Unit 1 ✓');
     expect(screen.getByLabelText('Bulk import unit status')).toHaveTextContent('Unit 2 ✓');
+  });
+
+  it('accumulates expectedActivityRevisions across multi-slot conflict retries instead of resetting earlier slots to 0', async () => {
+    const user = userEvent.setup();
+    const multiSlotCandidate: BookAssemblyCandidateRecord = {
+      candidateId: 'cand-multi-slot',
+      ownerId: 'teacher-1',
+      bookId: 'book-1',
+      bookRevision: 2,
+      sourceSetRevision: 3,
+      unitKey: 'unit-1',
+      revision: 1,
+      lifecycle: 'validated',
+      manifest: {
+        bookId: 'book-1',
+        sourceSet: {
+          sourceStrategy: 'full_pdf',
+          sources: [{ sourceKey: 'full', sourceVersionId: 'source-full', sourceOrder: 1 }],
+        },
+        nodes: [{ nodeKey: 'unit-1', parentNodeKey: null, nodeType: 'unit', order: 1 }],
+        units: [{
+          unitKey: 'unit-1',
+          activitySlots: [
+            { activityKey: 'u1-a1', order: 1, contextRequirement: 'required', pageGroupKeys: ['unit-1-p1'] },
+            { activityKey: 'u1-a2', order: 2, contextRequirement: 'required', pageGroupKeys: ['unit-1-p2'] },
+          ],
+          pageGroups: [
+            { pageGroupKey: 'unit-1-p1', sourceKey: 'full', pages: [1], defaultPhysicalPageNumber: 1, activityKeys: ['u1-a1'], mode: 'activity' },
+            { pageGroupKey: 'unit-1-p2', sourceKey: 'full', pages: [2], defaultPhysicalPageNumber: 2, activityKeys: ['u1-a2'], mode: 'activity' },
+          ],
+        }],
+      },
+      validation: { valid: true, errors: [] },
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    };
+    const repo = repository();
+    const seenExpectedBySlot: Array<{ readonly activityKey: string; readonly expectedRevision: number }> = [];
+    const existingRevisions: Record<string, number> = { 'u1-a1': 2, 'u1-a2': 3 };
+    const activityAuthoring: ActivityAuthoringService = {
+      stage: vi.fn(async (input) => {
+        const activityKey = input.unitActivityBinding!.activityKey;
+        seenExpectedBySlot.push({ activityKey, expectedRevision: input.expectedRevision });
+        const required = existingRevisions[activityKey]!;
+        if (input.expectedRevision !== required) {
+          throw new ActivityAuthoringHttpError(409, { status: 'conflict', currentRevision: required });
+        }
+        return {
+          status: 'staged' as const,
+          candidateId: `cand-${activityKey}-${input.expectedRevision}`,
+          targetActivityId: input.targetActivityId!,
+          revision: 1,
+          lifecycle: 'staged' as const,
+          validation: { valid: true, errors: [] },
+          diff: null,
+          evidenceRefs: [...(input.evidenceRefs ?? [])],
+          sourceEvidenceRefs: [...(input.sourceEvidenceRefs ?? [])],
+          answerEvidenceRefs: [...(input.answerEvidenceRefs ?? [])],
+        };
+      }),
+      validate: vi.fn(async (input) => ({
+        status: 'validated' as const,
+        candidateId: input.candidateId,
+        revision: input.expectedRevision + 1,
+        lifecycle: 'validated' as const,
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [...(input.evidenceRefs ?? [])],
+        sourceEvidenceRefs: [...(input.sourceEvidenceRefs ?? [])],
+        answerEvidenceRefs: [...(input.answerEvidenceRefs ?? [])],
+      })),
+      saveDraft: vi.fn(async (input) => ({
+        status: 'saved' as const,
+        activityId: bookScopedActivityTargetId('book-1', input.unitActivityBinding!.activityKey),
+        candidateId: input.candidateId,
+        candidateRevision: input.expectedRevision + 1,
+        revision: 1,
+        lifecycle: 'saved' as const,
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [...(input.evidenceRefs ?? [])],
+        sourceEvidenceRefs: [...(input.sourceEvidenceRefs ?? [])],
+        answerEvidenceRefs: [...(input.answerEvidenceRefs ?? [])],
+      })),
+      discard: vi.fn(async (input) => ({
+        status: 'discarded' as const,
+        candidateId: input.candidateId,
+        revision: input.expectedRevision + 1,
+        lifecycle: 'discarded' as const,
+      })),
+      loadCandidate: vi.fn(),
+    };
+
+    renderWorkspace({
+      repository: repo,
+      initialCandidate: multiSlotCandidate,
+      initialCandidatesByUnit: { 'unit-1': multiSlotCandidate },
+      initialSourceSet: multiSlotCandidate.manifest!.sourceSet,
+      activityAuthoring,
+      editingPanel: 'activity-json',
+      guided: true,
+      guidedUiVariant: 'mockup',
+      suppressGuidedChrome: true,
+      suppressModeChoice: true,
+    });
+
+    const unitPayload = JSON.stringify({
+      promptVersion: 'book-unit-json-v1',
+      schemaVersion: 'prd0062.unit_activity_import.v1',
+      bookId: 'book-1',
+      unitKey: 'unit-1',
+      slots: ['u1-a1', 'u1-a2'].map((activityKey, index) => ({
+        activityKey,
+        content: {
+          schemaVersion: 1,
+          title: `Task ${index + 1}`,
+          taskProfile: null,
+          presentationMode: 'source-assisted',
+          contextRequirement: { mode: 'required', acceptedKinds: ['book-pages'] },
+          instructions: [{ text: 'Listen.' }],
+          stimulus: null,
+          assetRefs: [],
+          interaction: { family: 'choice', variant: 'single-select' },
+          answerRule: { defaultPoints: 1, normalization: 'exact', requiredSelectionCount: 1 },
+          interactions: [{
+            prompt: `Q${index + 1}`,
+            options: ['A', 'B'],
+            acceptedOptionIndexes: [0],
+            sourceAssisted: {
+              questionLabel: `Q${index + 1}`,
+              accessiblePrompt: `Question ${index + 1}`,
+              responseShape: 'single-choice',
+              sourceExerciseLabel: `Exercise ${index + 1}`,
+            },
+          }],
+          scoring: { mode: 'auto-where-possible' },
+        },
+        evidenceRefs: [`import:${activityKey}`],
+        sourceEvidenceRefs: [`source:full:page:${index + 1}`],
+        answerEvidenceRefs: [`source:full:page:${index + 1}`],
+      })),
+    });
+
+    fireEvent.change(screen.getByLabelText('Paste Unit 1 JSON'), { target: { value: unitPayload } });
+    await user.click(screen.getByRole('button', { name: 'Import' }));
+
+    // 1st conflict on u1-a1 (rev 2) -> click Replace
+    await waitFor(() => expect(screen.getByRole('button', { name: /Replace/i })).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: /Replace/i }));
+
+    // 2nd conflict on u1-a2 (rev 3), with u1-a1 remembered at rev 2 -> click Replace
+    await waitFor(() => expect(screen.getByRole('button', { name: /Replace/i })).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: /Replace/i }));
+
+    // Both slots commit on the 3rd attempt (u1-a1: 2, u1-a2: 3)
+    await waitFor(() => expect(activityAuthoring.saveDraft).toHaveBeenCalledTimes(2));
+    expect(seenExpectedBySlot.slice(-2)).toEqual([
+      { activityKey: 'u1-a1', expectedRevision: 2 },
+      { activityKey: 'u1-a2', expectedRevision: 3 },
+    ]);
   });
 
 });

@@ -1,5 +1,6 @@
 import type {
   BookDeliveryPlacement,
+  BookDeliveryReferencePageGroup,
   BookDeliverySchedulePolicyReference,
   BookDeliveryScope,
   BookDeliverySourceSet,
@@ -20,6 +21,7 @@ export interface BookDeliveryPublishedPublicationReference {
   readonly outline: readonly BookDeliveryStructuralNodeProjection[];
   readonly sourceSet: BookDeliverySourceSet;
   readonly placements: readonly BookDeliveryPlacement[];
+  readonly referencePageGroups?: readonly BookDeliveryReferencePageGroup[];
   readonly schedulePolicy: BookDeliverySchedulePolicyReference;
 }
 
@@ -54,10 +56,16 @@ export function assertPublishedBookDeliveryPublication(
   value: unknown,
 ): asserts value is BookDeliveryPublishedPublicationReference {
   if (!isRecord(value)) throw new BookDeliveryPublicationError('publication must be a plain object.');
-  exactKeys(value, [
-    'bookId', 'bookMode', 'bookRevision', 'manifestVersionId', 'outline', 'ownerId', 'placements', 'publicationId',
-    'publicationRevision', 'publicationStatus', 'schedulePolicy', 'scope', 'sourceSet',
-  ], 'publication');
+  const expectedKeys = Object.hasOwn(value, 'referencePageGroups')
+    ? [
+      'bookId', 'bookMode', 'bookRevision', 'manifestVersionId', 'outline', 'ownerId', 'placements', 'publicationId',
+      'publicationRevision', 'publicationStatus', 'referencePageGroups', 'schedulePolicy', 'scope', 'sourceSet',
+    ]
+    : [
+      'bookId', 'bookMode', 'bookRevision', 'manifestVersionId', 'outline', 'ownerId', 'placements', 'publicationId',
+      'publicationRevision', 'publicationStatus', 'schedulePolicy', 'scope', 'sourceSet',
+    ];
+  exactKeys(value, expectedKeys, 'publication');
   const publication = value as Record<string, any>;
   if (!id(publication.bookId) || publication.bookMode !== 'pdf' || !Number.isSafeInteger(publication.bookRevision)
     || publication.bookRevision < 0 || !id(publication.manifestVersionId) || !id(publication.publicationId) || !Number.isSafeInteger(publication.publicationRevision)
@@ -98,6 +106,9 @@ export function assertPublishedBookDeliveryPublication(
     },
     sourceSet: publication.sourceSet,
     placements: publication.placements,
+    ...(Object.hasOwn(publication, 'referencePageGroups')
+      ? { referencePageGroups: publication.referencePageGroups }
+      : {}),
     schedulePolicy: publication.schedulePolicy,
     createdAt: '2000-01-01T00:00:00.000Z',
   });
