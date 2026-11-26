@@ -91,6 +91,12 @@ const exact = (
   message: string,
 ): BookAssemblyReconciliationIssue => ({ code, path, message, severity: 'warning', repair: 'exact' });
 
+const advisory = (
+  code: BookAssemblyReconciliationCode,
+  path: string,
+  message: string,
+): BookAssemblyReconciliationIssue => ({ code, path, message, severity: 'warning', repair: 'none' });
+
 const blocker = (
   code: BookAssemblyReconciliationCode,
   path: string,
@@ -181,18 +187,20 @@ const reconcileUnit = (
   }));
   pageUse.forEach((groups, page) => {
     if (groups.length > 1) {
-      issues.push(blocker('page-overlap', path, `Local page ${page} belongs to multiple Page Groups: ${groups.sort().join(', ')}.`, 'teacher-choice'));
+      issues.push(advisory('page-overlap', path, `Local page ${page} is shared across multiple Page Groups: ${groups.sort().join(', ')}.`));
     }
   });
   const bySource = new Map<string, number[]>();
-  repairedGroups.forEach((group) => {
-    bySource.set(group.sourceKey, [...(bySource.get(group.sourceKey) ?? []), ...group.pages]);
-  });
+  repairedGroups
+    .filter((group) => group.mode === 'activity')
+    .forEach((group) => {
+      bySource.set(group.sourceKey, [...(bySource.get(group.sourceKey) ?? []), ...group.pages]);
+    });
   bySource.forEach((pages, sourceKey) => {
     const ordered = [...new Set(pages)].sort(compare);
     for (let index = 1; index < ordered.length; index += 1) {
       if (ordered[index] > ordered[index - 1] + 1) {
-        issues.push(blocker('page-gap', path, `Source ${sourceKey} has an ambiguous gap between local pages ${ordered[index - 1]} and ${ordered[index]}.`, 'teacher-choice'));
+        issues.push(advisory('page-gap', path, `Source ${sourceKey} has a gap between activity pages ${ordered[index - 1]} and ${ordered[index]}.`));
       }
     }
   });
@@ -302,7 +310,7 @@ const classifyChanges = (input: AnalyzeBookAssemblyReconciliationInput): BookAss
     if (!old) return;
     ([['printedLabel', old.printedLabel, component.printedLabel], ['rotation', old.rotation, component.rotation], ['presentationMode', old.presentationMode, component.presentationMode]] as const)
       .forEach(([field, before, after]) => {
-        if (before !== after) add({ changeClass: 'page-mapping-changed', itemKey: `${component.sourceKey}:${field}`, current: String(before), proposed: String(after), resolution: 'teacher-choice', message: `${field} changed and requires source-assisted preview review before handoff.` });
+        if (before !== after) add({ changeClass: 'page-mapping-changed', itemKey: `${component.sourceKey}:${field}`, current: String(before), proposed: String(after), resolution: 'teacher-choice', message: `${field} changed and needs review in Preview before saving.` });
       });
   });
   input.fuzzySuggestions?.forEach((suggestion) => add({
@@ -357,7 +365,7 @@ export const analyzeBookAssemblyReconciliation = (
     current: 'Unresolved',
     proposed: issue.message,
     resolution: 'blocked',
-    message: 'Correct this required fact before handoff.',
+    message: 'Fix this item before saving.',
   }));
   return {
     changes,

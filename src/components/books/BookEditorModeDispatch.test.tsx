@@ -141,15 +141,15 @@ describe('Book editor persisted-mode dispatch', () => {
     expect(await screen.findByRole('heading', { name: 'Stored PDF Book' })).toBeInTheDocument();
     const tabs = screen.getByRole('tablist', { name: 'PDF Book edit sections' });
     expect(within(tabs).getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
-      'Metadata',
       'PDF files',
-      'Content tree',
-      'Activity JSON',
+      'Book outline',
+      'Unit activities',
       'Page mapping',
-      'Preview',
+      'Preview & publish',
+      'Metadata',
       'Settings',
     ]);
-    expect(within(tabs).getByRole('tab', { name: 'Metadata' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(tabs).getByRole('tab', { name: 'Book outline' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.queryByRole('tab', { name: 'Content' })).not.toBeInTheDocument();
     expect(screen.queryByText('Book content')).not.toBeInTheDocument();
     expect(screen.queryByText(/material picker/i)).not.toBeInTheDocument();
@@ -275,20 +275,19 @@ describe('Book editor persisted-mode dispatch', () => {
 
     expect(await screen.findByRole('dialog', { name: 'Modal PDF Book' })).toBeInTheDocument();
     expect(screen.getByRole('tablist', { name: 'PDF Book edit sections' })).toBeInTheDocument();
-    const metadataTab = screen.getByRole('tab', { name: 'Metadata' });
-    expect(metadataTab).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('button', { name: 'Save metadata' })).toBeInTheDocument();
+    const outlineTab = screen.getByRole('tab', { name: 'Book outline' });
+    expect(outlineTab).toHaveAttribute('aria-selected', 'true');
     expect(screen.queryByRole('button', { name: 'Request review' })).not.toBeInTheDocument();
 
-    metadataTab.focus();
-    await user.keyboard('{ArrowRight}');
+    outlineTab.focus();
+    await user.keyboard('{ArrowLeft}');
     expect(screen.getByRole('tab', { name: 'PDF files' })).toHaveAttribute('aria-selected', 'true');
     await user.keyboard('{End}');
     expect(screen.getByRole('tab', { name: 'Settings' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('button', { name: 'Save settings' })).toBeInTheDocument();
   });
 
-  it('keeps the guided PDF pipeline on the post-metadata creation handoff', async () => {
+  it('opens the unified workspace on PDF files for newly created PDF books', async () => {
     const repository = makeRepository(makeBook({
       bookMode: 'pdf',
       title: 'New PDF Book',
@@ -306,11 +305,13 @@ describe('Book editor persisted-mode dispatch', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'New PDF Book' });
     expect(dialog).toHaveAttribute('data-editor-intent', 'create');
+    expect(dialog).toHaveAttribute('data-editor-experience', 'unified-workspace');
+    expect(screen.getByRole('tablist', { name: 'PDF Book edit sections' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'PDF files' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('heading', { name: 'How will this Book use PDFs?' })).toBeInTheDocument();
-    expect(screen.queryByRole('tablist', { name: 'PDF Book edit sections' })).not.toBeInTheDocument();
   });
 
-  it('resumes guided setup for an existing PDF draft that has no persisted source strategy', async () => {
+  it('resumes the unified workspace on PDF files when a PDF draft has no persisted source strategy yet', async () => {
     const repository = makeRepository(makeBook({
       bookMode: 'pdf',
       title: 'Incomplete PDF Draft',
@@ -327,8 +328,9 @@ describe('Book editor persisted-mode dispatch', () => {
     );
 
     const dialog = await screen.findByRole('dialog', { name: 'Incomplete PDF Draft' });
-    expect(dialog).toHaveAttribute('data-editor-experience', 'guided-creation');
+    expect(dialog).toHaveAttribute('data-editor-experience', 'unified-workspace');
+    expect(within(dialog).getByRole('tablist', { name: 'PDF Book edit sections' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('tab', { name: 'PDF files' })).toHaveAttribute('aria-selected', 'true');
     expect(within(dialog).getByRole('heading', { name: 'How will this Book use PDFs?' })).toBeInTheDocument();
-    expect(within(dialog).queryByRole('tablist', { name: 'PDF Book edit sections' })).not.toBeInTheDocument();
   });
 });

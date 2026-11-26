@@ -563,6 +563,46 @@ export const createBookAssemblyWorkerHandlers = (options: {
         }
         const candidates: BookAssemblyCandidateRecord[] = [];
         const savedActivityKeysByUnit: Record<string, readonly string[]> = {};
+        const attachedAuthority = await authorityFor(repository, bookId, input.env, input.uid);
+        if (attachedAuthority?.ownerId === input.uid
+          && attachedAuthority.bookMode === 'pdf'
+          && attachedAuthority.sourceSet?.sourceStrategy === 'full_pdf') {
+          for (const unitKey of unitKeys) {
+            id(unitKey, 'unit_key');
+            const scope = await repository.readScope(bookId, unitKey);
+            const candidate = scope.current ? scope.candidates?.[scope.current.candidateId] : undefined;
+            if (!candidate || candidate.ownerId !== input.uid || candidate.bookId !== bookId
+              || candidate.unitKey !== unitKey || candidate.lifecycle !== 'validated'
+              || candidate.revision !== scope.current?.candidateRevision
+              || candidate.bookRevision !== attachedAuthority.bookRevision
+              || candidate.sourceSetRevision !== attachedAuthority.sourceSetRevision
+              || !candidate.manifest
+              || !checkManifest(candidate.manifest, attachedAuthority).valid
+              || !hasUnit(candidate.manifest, unitKey)) {
+              continue;
+            }
+            const savedKeys = await options.verifyDraftActivities?.({ env: input.env, candidate: clone(candidate) }) ?? [];
+            const [refreshedScope, refreshedAuthority] = await Promise.all([
+              repository.readScope(bookId, unitKey),
+              authorityFor(repository, bookId, input.env, input.uid),
+            ]);
+            if (!refreshedAuthority
+              || refreshedAuthority.ownerId !== input.uid
+              || refreshedAuthority.bookRevision !== attachedAuthority.bookRevision
+              || refreshedAuthority.sourceSetRevision !== attachedAuthority.sourceSetRevision
+              || refreshedScope.current?.candidateId !== candidate.candidateId
+              || refreshedScope.current?.candidateRevision !== candidate.revision) {
+              throw new BookAssemblyWorkerError('draft_discovery_divergent', 409);
+            }
+            const slots = candidate.manifest.units.find((unit) => unit.unitKey === unitKey)!.activitySlots;
+            savedActivityKeysByUnit[unitKey] = slots.map((slot) => slot.activityKey).filter((key) => savedKeys.includes(key));
+            candidates.push(clone(candidate));
+          }
+          return {
+            body: { status: 'loaded', drafts: candidates.map((candidate) => ({ candidate, savedActivityKeysByUnit })) },
+            init: { status: 200 },
+          };
+        }
         let manifestFingerprint: string | null = null;
         for (const unitKey of unitKeys) {
           id(unitKey, 'unit_key');
@@ -726,6 +766,32 @@ export const createBookAssemblyWorkerHandlers = (options: {
         const authority = await authorityFor(repository, bookId, input.env, input.uid);
         if (!authority || authority.ownerId !== input.uid || authority.bookMode !== 'pdf') {
           return { body: { status: 'not-found' }, init: { status: 404 } };
+        }
+        if (authority.sourceSet?.sourceStrategy === 'full_pdf') {
+          const fullCandidate = scope.current ? scope.candidates?.[scope.current.candidateId] : undefined;
+          if (!fullCandidate || fullCandidate.ownerId !== input.uid || fullCandidate.bookId !== bookId
+            || fullCandidate.unitKey !== unitKey || fullCandidate.lifecycle !== 'validated'
+            || fullCandidate.revision !== scope.current?.candidateRevision
+            || fullCandidate.bookRevision !== authority.bookRevision
+            || fullCandidate.sourceSetRevision !== authority.sourceSetRevision
+            || !fullCandidate.manifest
+            || !checkManifest(fullCandidate.manifest, authority).valid
+            || !hasUnit(fullCandidate.manifest, unitKey)) {
+            return { body: { status: 'empty' }, init: { status: 200 } };
+          }
+          const savedKeys = await options.verifyDraftActivities?.({ env: input.env, candidate: clone(fullCandidate) }) ?? [];
+          const slots = fullCandidate.manifest.units.find((unit) => unit.unitKey === unitKey)!.activitySlots;
+          return {
+            body: {
+              status: 'loaded',
+              candidate: clone(fullCandidate),
+              savedActivityKeysByUnit: {
+                [unitKey]: slots.map((slot) => slot.activityKey).filter((key) => savedKeys.includes(key)),
+              },
+              conflict: null,
+            },
+            init: { status: 200 },
+          };
         }
         const candidate = resolveMaterialQualifiedAssemblyCandidate(authority, unitKey, scope.candidates);
         if (!candidate) return { body: { status: 'empty' }, init: { status: 200 } };

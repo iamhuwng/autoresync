@@ -27,6 +27,7 @@ import { FULL_PDF_PRIMARY_UNIT_KEY, type TrustedBookSourceVersionProjection } fr
 import type { BookTeacherAssemblyDocumentProjection } from '../../services/book-delivery/bookTeacherAssemblyDocument.types';
 import type { CandidateUnitPreviewProjection } from '../../services/book-assembly/unitPreview.service';
 import BookPdfFlowWorkspace, { type BookCurrentPublicationStatus, type BookPdfEditorSection } from './BookPdfFlowWorkspace';
+import { formatUnitLabel, type BookPdfWorkflowSummary } from './bookPdfWorkflowState';
 import type { BookSourceInspectionAction } from './BookSourceInspectionPanel';
 import type { BookSourceUploadAction } from './BookSourceUploadPanel';
 import type { ActivityAuthoringService } from '../../services/book-activity/activityAuthoring.service';
@@ -63,6 +64,8 @@ export interface BookMode2EditorShellProps {
   readonly assemblyCandidateRuntimePreview?: CandidateUnitPreviewProjection | null;
   readonly assemblyPreviewClient?: BookAssemblyPreviewClient | null;
   readonly onDirtyChange?: (dirty: boolean) => void;
+  readonly onSectionChange?: (section: BookPdfEditorSection) => void;
+  readonly onWorkflowSummaryChange?: (summary: BookPdfWorkflowSummary) => void;
 }
 
 const getCurrentFirebaseIdToken = async (): Promise<string> => {
@@ -178,6 +181,8 @@ const BookMode2EditorShell = ({
   assemblyCandidateRuntimePreview,
   assemblyPreviewClient,
   onDirtyChange,
+  onSectionChange,
+  onWorkflowSummaryChange,
 }: BookMode2EditorShellProps) => {
   const { trackAction } = useFeatureTracking(FEATURE_IDS.bookAuthoring);
   const source = presentation === 'modal' ? 'book_editor_modal' : 'book_editor_route';
@@ -203,85 +208,114 @@ const BookMode2EditorShell = ({
     [assemblyRepository],
   );
   const sourceSetSignature = JSON.stringify(book.sourceSet ?? null);
-  const candidateOwnerKeys = useMemo(() => book.sourceSet?.sourceStrategy === 'full_pdf'
+  const isFullPdfBook = book.sourceSet?.sourceStrategy === 'full_pdf';
+  const candidateOwnerKeys = useMemo(() => isFullPdfBook
     ? [FULL_PDF_PRIMARY_UNIT_KEY]
     : [...new Set(
       (book.sourceSet?.sources ?? [])
         .map((source) => source.ownerNodeKey)
         .filter((ownerNodeKey): ownerNodeKey is string => typeof ownerNodeKey === 'string' && ownerNodeKey.length > 0),
-    )], [sourceSetSignature]);
+    )], [isFullPdfBook, sourceSetSignature]);
   const firstComponentDraft = book.bookMode === 'pdf' && book.bookRevision === 0
     && book.sourceSetRevision === 0 && !book.sourceSet && !book.setupActivations;
   const [loadedAssemblyCandidate, setLoadedAssemblyCandidate] = useState<{
     readonly bookId: string;
     readonly status: 'loading' | 'loaded' | 'error';
     readonly candidate: BookAssemblyCandidateRecord | null;
+    readonly candidatesByUnit: Readonly<Record<string, BookAssemblyCandidateRecord>>;
     readonly savedActivityKeysByUnit: Readonly<Record<string, readonly string[]>>;
   }>({
     bookId: book.bookId,
     status: assemblyInitialCandidate !== undefined || access === 'public-readonly'
       || (candidateOwnerKeys.length === 0 && !firstComponentDraft) ? 'loaded' : 'loading',
     candidate: assemblyInitialCandidate ?? null,
+    candidatesByUnit: assemblyInitialCandidate ? { [assemblyInitialCandidate.unitKey]: assemblyInitialCandidate } : {},
     savedActivityKeysByUnit: {},
   });
   useEffect(() => {
     if (assemblyInitialCandidate !== undefined
       || access === 'public-readonly'
-      || (!firstComponentDraft && (!resolvedAssemblyRepository?.loadCurrent || candidateOwnerKeys.length === 0))) {
+      || (!firstComponentDraft && !resolvedAssemblyRepository?.discoverDrafts && (!resolvedAssemblyRepository?.loadCurrent || candidateOwnerKeys.length === 0))
+      || (!firstComponentDraft && candidateOwnerKeys.length === 0)) {
       setLoadedAssemblyCandidate((current) => current.bookId === book.bookId && current.status === 'loaded'
         ? current
-        : { bookId: book.bookId, status: 'loaded', candidate: null, savedActivityKeysByUnit: {} });
+        : { bookId: book.bookId, status: 'loaded', candidate: null, candidatesByUnit: {}, savedActivityKeysByUnit: {} });
       return;
     }
     let active = true;
-    setLoadedAssemblyCandidate({ bookId: book.bookId, status: 'loading', candidate: null, savedActivityKeysByUnit: {} });
-    if (firstComponentDraft) {
-      void (resolvedAssemblyRepository?.discoverDrafts?.(book.bookId)
-        ?? Promise.reject(new Error('draft_discovery_unavailable')))
-        .then((candidates) => {
-          if (!active) return;
-          const latest = [...candidates].sort((left, right) => right.candidate.updatedAt.localeCompare(left.candidate.updatedAt))[0] ?? null;
-          setLoadedAssemblyCandidate({ bookId: book.bookId, status: 'loaded', candidate: latest?.candidate ?? null,
-            savedActivityKeysByUnit: latest?.savedActivityKeysByUnit ?? {} });
-        })
-        .catch(() => {
-          if (active) setLoadedAssemblyCandidate({ bookId: book.bookId, status: 'error', candidate: null, savedActivityKeysByUnit: {} });
-        });
-      return () => { active = false; };
-    }
-    void Promise.all(candidateOwnerKeys.map(async (unitKey) => {
-      try {
-        return await resolvedAssemblyRepository!.loadCurrent!(book.bookId, unitKey);
-      } catch (error) {
-        if (error instanceof BookAssemblyClientError && error.status === 409) return null;
-        throw error;
+    setLoadedAssemblyCandidate({ bookId: book.bookId, status: 'loading', candidate: null, candidatesByUnit: {}, savedActivityKeysByUnit: {} });
+    const commitLoadedDrafts = (drafts: readonly LoadedCurrentAssemblyDraft[]) => {
+      if (!active) return;
+      const sorted = [...drafts].sort((left, right) => right.candidate.updatedAt.localeCompare(left.candidate.updatedAt));
+      const latest = sorted[0] ?? null;
+      const candidatesByUnit: Record<string, BookAssemblyCandidateRecord> = {};
+      const savedActivityKeysByUnit: Record<string, readonly string[]> = {};
+      for (const entry of sorted) {
+        if (!candidatesByUnit[entry.candidate.unitKey]) {
+          candidatesByUnit[entry.candidate.unitKey] = entry.candidate;
+        }
+        for (const [unitKey, keys] of Object.entries(entry.savedActivityKeysByUnit)) {
+          savedActivityKeysByUnit[unitKey] = [...new Set([...(savedActivityKeysByUnit[unitKey] ?? []), ...keys])];
+        }
       }
-    }))
-      .then((candidates) => {
-        if (!active) return;
-        const draft = candidates
-          .filter((value): value is LoadedCurrentAssemblyDraft => value !== null)
-          .sort((left, right) => right.candidate.updatedAt.localeCompare(left.candidate.updatedAt))[0] ?? null;
-        setLoadedAssemblyCandidate({
-          bookId: book.bookId,
-          status: 'loaded',
-          candidate: draft?.candidate ?? null,
-          savedActivityKeysByUnit: draft?.savedActivityKeysByUnit ?? {},
-        });
-      })
-      .catch(() => {
-        if (!active) return;
-        setLoadedAssemblyCandidate({
-          bookId: book.bookId,
-          status: 'error',
-          candidate: null,
-          savedActivityKeysByUnit: {},
-        });
+      setLoadedAssemblyCandidate({
+        bookId: book.bookId,
+        status: 'loaded',
+        candidate: latest?.candidate ?? null,
+        candidatesByUnit,
+        savedActivityKeysByUnit,
       });
+    };
+    const loadByUnitKeys = async (): Promise<readonly LoadedCurrentAssemblyDraft[]> => {
+      const knownPublishedUnits = (assemblyInitialPublication?.units ?? []).map((entry) => entry.unitKey);
+      const keysToProbe = isFullPdfBook
+        ? [...new Set([...candidateOwnerKeys, ...knownPublishedUnits])]
+        : candidateOwnerKeys;
+      const candidates = await Promise.all(keysToProbe.map(async (unitKey) => {
+        try {
+          return await resolvedAssemblyRepository!.loadCurrent!(book.bookId, unitKey);
+        } catch (error) {
+          if (error instanceof BookAssemblyClientError && error.status === 409) return null;
+          throw error;
+        }
+      }));
+      return candidates.filter((value): value is LoadedCurrentAssemblyDraft => value !== null);
+    };
+    const useDiscovery = firstComponentDraft || (isFullPdfBook && Boolean(resolvedAssemblyRepository?.discoverDrafts));
+    void (async () => {
+      if (useDiscovery) {
+        try {
+          const drafts = await (resolvedAssemblyRepository?.discoverDrafts?.(book.bookId)
+            ?? Promise.reject(new Error('draft_discovery_unavailable')));
+          commitLoadedDrafts(drafts);
+          return;
+        } catch (error) {
+          const canFallbackToLoadCurrent = isFullPdfBook
+            && !firstComponentDraft
+            && error instanceof BookAssemblyClientError
+            && error.status === 409
+            && Boolean(resolvedAssemblyRepository?.loadCurrent);
+          if (!canFallbackToLoadCurrent) {
+            throw error;
+          }
+        }
+      }
+      const loadedDrafts = await loadByUnitKeys();
+      commitLoadedDrafts(loadedDrafts);
+    })().catch(() => {
+      if (!active) return;
+      setLoadedAssemblyCandidate({
+        bookId: book.bookId,
+        status: 'error',
+        candidate: null,
+        candidatesByUnit: {},
+        savedActivityKeysByUnit: {},
+      });
+    });
     return () => {
       active = false;
     };
-  }, [access, assemblyInitialCandidate, book.bookId, candidateOwnerKeys, firstComponentDraft, resolvedAssemblyRepository]);
+  }, [access, assemblyInitialCandidate, book.bookId, candidateOwnerKeys, firstComponentDraft, isFullPdfBook, resolvedAssemblyRepository]);
   const resolvedSourceSetAttachmentClient = useMemo(
     () => sourceSetAttachmentClient === undefined
       ? configuredSourceSetAttachmentClient()
@@ -378,7 +412,11 @@ const BookMode2EditorShell = ({
     : undefined;
   const candidateLoading = assemblyInitialCandidate === undefined
     && (candidateOwnerKeys.length > 0 || firstComponentDraft)
-    && Boolean(firstComponentDraft ? resolvedAssemblyRepository?.discoverDrafts : resolvedAssemblyRepository?.loadCurrent)
+    && Boolean(
+      firstComponentDraft
+        ? resolvedAssemblyRepository?.discoverDrafts
+        : (resolvedAssemblyRepository?.loadCurrent || (isFullPdfBook && resolvedAssemblyRepository?.discoverDrafts)),
+    )
     && loadedAssemblyCandidate.bookId === book.bookId
     && loadedAssemblyCandidate.status === 'loading';
   const resolvedInitialCandidate = assemblyInitialCandidate !== undefined
@@ -386,6 +424,11 @@ const BookMode2EditorShell = ({
     : loadedAssemblyCandidate.bookId === book.bookId
       ? loadedAssemblyCandidate.candidate
       : null;
+  const resolvedInitialCandidatesByUnit = assemblyInitialCandidate !== undefined
+    ? (assemblyInitialCandidate ? { [assemblyInitialCandidate.unitKey]: assemblyInitialCandidate } : {})
+    : loadedAssemblyCandidate.bookId === book.bookId
+      ? loadedAssemblyCandidate.candidatesByUnit
+      : {};
   const resolvedInitialSavedActivityKeysByUnit = assemblyInitialCandidate === undefined
     && loadedAssemblyCandidate.bookId === book.bookId
       ? loadedAssemblyCandidate.savedActivityKeysByUnit
@@ -455,7 +498,11 @@ const BookMode2EditorShell = ({
           onChange={(event) => setSelectedPublishedUnitKey(event.currentTarget.value || null)}
         >
           <option value="">Select a published unit</option>
-          {publishedUnits.map((unit) => <option key={unit.unitKey} value={unit.unitKey}>{unit.unitKey}</option>)}
+          {publishedUnits.map((unit) => (
+            <option key={unit.unitKey} value={unit.unitKey}>
+              {formatUnitLabel(resolvedInitialCandidate?.manifest?.units ?? [], unit.unitKey)}
+            </option>
+          ))}
         </select>
         <p id="book-mode2-published-unit-help">Choose the published unit to assign as homework.</p>
       </div>}
@@ -486,7 +533,8 @@ const BookMode2EditorShell = ({
         assemblySourceVersions={resolvedAssemblySourceVersions}
         assemblyInitialSourceSet={book.sourceSet ?? null}
         assemblyInitialCandidate={resolvedInitialCandidate}
-         assemblyInitialPublication={resolvedInitialPublication}
+        assemblyInitialCandidatesByUnit={resolvedInitialCandidatesByUnit}
+        assemblyInitialPublication={resolvedInitialPublication}
         assemblyInitialPublicationStatus={publicationLoadStatus}
         assemblyInitialSavedActivityKeysByUnit={assemblyInitialCandidate !== undefined
           ? (assemblyInitialSavedActivityKeysByUnit ?? {})
@@ -505,6 +553,8 @@ const BookMode2EditorShell = ({
         onHomeworkHandoff={publishedUnit ? openHomeworkHandoff : undefined}
         onRetryCurrentPublication={retryCurrentPublication}
         onCurrentPublicationChange={updateCurrentPublication}
+        onSectionChange={onSectionChange}
+        onWorkflowSummaryChange={onWorkflowSummaryChange}
       />}
     </main>
     {homeworkHandoffOpen && publishedUnit && <HomeworkCreateModal

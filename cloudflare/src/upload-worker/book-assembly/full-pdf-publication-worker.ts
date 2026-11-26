@@ -264,10 +264,21 @@ export const createFullPdfPublicationWorkerHandlers = (options: {
           readActivities: options.readActivities,
           readPreviewApproval: options.readPreviewApproval,
           sourceIsPreviewReady: options.sourceIsPreviewReady,
+          readCurrentPublicationScope: (targetBookId) => options.repository.readScope(targetBookId),
           publish: async (request) => {
-            const current = (await options.repository.readScope(request.plan.bookId)).current;
+            const [scope, freshAuthority] = await Promise.all([
+              options.repository.readScope(request.plan.bookId),
+              options.readAuthority(request.plan.bookId),
+            ]);
+            const current = scope.current;
             if ((current?.publicationId ?? null) !== request.expectedCurrentPublicationId) {
               return { status: 'conflict', failureCode: 'stale-current-pointer' };
+            }
+            if (!freshAuthority
+              || freshAuthority.ownerId !== request.plan.ownerId
+              || freshAuthority.bookRevision !== request.plan.bookRevision
+              || freshAuthority.sourceSetRevision !== request.plan.sourceSetRevision) {
+              return { status: 'conflict', failureCode: 'stale-authority-revision' };
             }
             return service.publish(request);
           },

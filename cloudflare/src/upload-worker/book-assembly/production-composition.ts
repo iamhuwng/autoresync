@@ -81,10 +81,29 @@ const savedActivityMatchesFinalManifest = (
 ): boolean => {
   const unit = manifest.units.find((entry) => entry.unitKey === unitKey);
   const slot = unit?.activitySlots.find((entry) => entry.activityKey === activityKey);
+  const isFullPdf = manifest.sourceSet.sourceStrategy === 'full_pdf';
   const seal = record(record(saved)?.assemblyDraft);
-  if (!unit || !slot || !seal || seal.bookId !== manifest.bookId
-    || seal.unitKey !== unitKey || seal.activityKey !== activityKey
-    || seal.manifestFingerprint !== fingerprintComponentPdfActivationValue(manifest)
+  const expectedManifestFingerprint = fingerprintComponentPdfActivationValue(manifest);
+  const expectedSourceSetFingerprint = fingerprintComponentPdfActivationValue(manifest.sourceSet);
+  const sealMatchesSourceSet = typeof seal?.sourceSetFingerprint === 'string'
+    ? seal.sourceSetFingerprint === expectedSourceSetFingerprint
+    : seal?.manifestFingerprint === expectedManifestFingerprint;
+  const sealValid = isFullPdf
+    ? Boolean(
+      seal
+      && seal.bookId === manifest.bookId
+      && seal.unitKey === unitKey
+      && seal.activityKey === activityKey
+      && sealMatchesSourceSet,
+    )
+    : Boolean(
+      seal
+      && seal.bookId === manifest.bookId
+      && seal.unitKey === unitKey
+      && seal.activityKey === activityKey
+      && seal.manifestFingerprint === expectedManifestFingerprint,
+    );
+  if (!unit || !slot || !sealValid
     || !activityMatchesAssemblyContract(content, { activityKey, contextRequirement: slot.contextRequirement })) return false;
   const groups = new Map(unit.pageGroups.map((group) => [group.pageGroupKey, group]));
   const allowedRefs = new Set<string>([`import:${activityKey}`]);
@@ -119,6 +138,7 @@ export const readVerifiedDraftActivityKeys = async (
   if (!manifest || !unit) return [];
   const root = await activityRepository.readOwnerRoot(ownerId);
   const savedKeys: string[] = [];
+  const isFullPdf = manifest.sourceSet.sourceStrategy === 'full_pdf';
   for (const { activityKey } of unit.activitySlots) {
     const binding = await bindingRepository.read({ ownerId, bookId, unitKey, activityKey });
     if (!binding || binding.candidateLifecycle !== 'saved'
@@ -130,7 +150,10 @@ export const readVerifiedDraftActivityKeys = async (
       ownerId, bookId, candidateId: binding.candidateId,
       activityId: binding.activityId, revision: binding.candidateRevision,
     }, root.activities?.[binding.activityId]);
-    if (seal?.candidateId === candidate.candidateId && seal.candidateRevision === candidate.revision
+    const sealMatches = isFullPdf
+      ? true
+      : seal?.candidateId === candidate.candidateId && seal.candidateRevision === candidate.revision;
+    if (sealMatches
       && content && savedActivityMatchesFinalManifest(saved, manifest, unitKey, activityKey, content)) {
       savedKeys.push(activityKey);
     }
@@ -420,11 +443,27 @@ const lineage = async (
   if (bookAuthority?.sourceSet.sourceStrategy === 'full_pdf') {
     const candidate = suppliedCandidate ?? await authoringCandidate(env, ownerId, bookId, unitKey, bookAuthority);
     const slots = candidate?.manifest?.units.find((unit) => unit.unitKey === unitKey)?.activitySlots;
-    const result: Record<string, { activityId: string }> = {};
+    const publicationScope = suppliedComponentCache?.publicationScope
+      ?? await new FirebaseRestBookAssemblyPublicationRepository({ env: env as never, ownerId }).readScope(bookId);
+    const currentManifestVersionId = publicationScope.current?.manifestVersionId ?? null;
+    const result: Record<string, { activityId: string; lastActivityVersionId?: string; lastActivityVersion?: number }> = {};
     for (const slot of slots ?? []) {
       const binding = await bindings(env).read({ ownerId, bookId, unitKey, activityKey: slot.activityKey });
       if (!binding || binding.candidateLifecycle !== 'saved') return {};
-      result[slot.activityKey] = { activityId: binding.activityId };
+      const prev = currentManifestVersionId
+        ? Object.values(publicationScope.activityVersions ?? {})
+          .filter((entry) => entry.manifestVersionId === currentManifestVersionId
+            && entry.unitKey === unitKey
+            && entry.activityKey === slot.activityKey)
+          .sort((left, right) => right.activityVersion - left.activityVersion)[0]
+        : undefined;
+      result[slot.activityKey] = prev
+        ? {
+          activityId: prev.activityId,
+          lastActivityVersionId: prev.activityVersionId,
+          lastActivityVersion: prev.activityVersion,
+        }
+        : { activityId: binding.activityId };
     }
     return result;
   }
@@ -459,6 +498,7 @@ const assemblyDraftActivityContext = async (
       bookId, unitKey, activityKey, candidateId: candidate.candidateId,
       candidateRevision: candidate.revision,
       manifestFingerprint: fingerprintComponentPdfActivationValue(candidate.manifest),
+      sourceSetFingerprint: fingerprintComponentPdfActivationValue(candidate.manifest.sourceSet),
     },
     contract: { activityKey, contextRequirement: slot.contextRequirement },
     mappedBookPageRefs,

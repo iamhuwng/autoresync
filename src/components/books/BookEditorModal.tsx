@@ -13,7 +13,6 @@ import BookEditorWorkspace, {
   type BookEditorTab,
   type BookEditorWorkspaceHandle,
 } from './BookEditorWorkspace';
-import BookMode2EditorShell from './BookMode2EditorShell';
 import BookPdfEditWorkspace from './BookPdfEditWorkspace';
 import { useBookEditorModeResolution } from './useBookEditorModeResolution';
 import './BookEditorModal.css';
@@ -225,10 +224,6 @@ const BookEditorModal = ({
 
   const resolvedBook = resolution.status === 'resolved' ? resolution.book : null;
   const isMaterialsEditor = resolvedBook?.bookMode === 'materials';
-  const pdfRequiresSetup = resolvedBook?.bookMode === 'pdf'
-    && !resolvedBook.sourceSet
-    && resolution.status === 'resolved'
-    && resolution.access !== 'public-readonly';
   const title = resolvedBook?.title || 'Book Editor';
 
   return (
@@ -249,7 +244,7 @@ const BookEditorModal = ({
         className="book-editor-modal__frame"
         data-book-mode={resolvedBook?.bookMode ?? 'loading'}
         data-editor-intent={intent}
-        data-editor-experience={pdfRequiresSetup || intent === 'create' ? 'guided-creation' : 'focused-editing'}
+        data-editor-experience="unified-workspace"
         onKeyDown={handleKeyDown}
       >
         <header className="book-editor-modal__header">
@@ -323,16 +318,7 @@ const BookEditorModal = ({
               <p>{resolution.message}</p>
             </section>
           )}
-          {resolution.status === 'resolved' && resolution.book.bookMode === 'pdf' && (intent === 'create' || pdfRequiresSetup) && (
-            <BookMode2EditorShell
-              access={resolution.access}
-              book={resolution.book}
-              presentation="modal"
-              experience="guided-creation"
-              onDirtyChange={setDirty}
-            />
-          )}
-          {resolution.status === 'resolved' && resolution.book.bookMode === 'pdf' && intent === 'edit' && !pdfRequiresSetup && (
+          {resolution.status === 'resolved' && resolution.book.bookMode === 'pdf' && (
             <BookPdfEditWorkspace
               access={resolution.access}
               book={resolution.book}

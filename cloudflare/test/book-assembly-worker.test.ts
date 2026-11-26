@@ -696,4 +696,119 @@ describe('PRD0062 ticket 13A Assembly candidate Worker', () => {
     expect(repository.root).toEqual(original);
     expect(reads).toBe(2);
   });
+
+  it('loads and discovers multi-unit Full-PDF drafts at current Book revisions', async () => {
+    const scopes = new Map<string, BookAssemblyScope>();
+    const multiUnitManifest: BookAssemblyManifestCandidate = {
+      bookId: 'book-1',
+      sourceSet: {
+        sourceStrategy: 'full_pdf',
+        sources: [{ sourceKey: 'full', sourceVersionId: 'source-1', sourceOrder: 1 }],
+      },
+      nodes: [
+        { nodeKey: 'root', parentNodeKey: null, nodeType: 'section', order: 1 },
+        { nodeKey: 'unit-01', parentNodeKey: 'root', nodeType: 'unit', order: 1 },
+        { nodeKey: 'unit-02', parentNodeKey: 'root', nodeType: 'unit', order: 2 },
+      ],
+      units: [
+        {
+          unitKey: 'unit-01',
+          activitySlots: [{ activityKey: 'u01-ex1', order: 1, contextRequirement: 'required', pageGroupKeys: ['u01-p1'] }],
+          pageGroups: [{ pageGroupKey: 'u01-p1', sourceKey: 'full', pages: [1], activityKeys: ['u01-ex1'], mode: 'activity' }],
+        },
+        {
+          unitKey: 'unit-02',
+          activitySlots: [{ activityKey: 'u02-ex1', order: 1, contextRequirement: 'required', pageGroupKeys: ['u02-p2'] }],
+          pageGroups: [{ pageGroupKey: 'u02-p2', sourceKey: 'full', pages: [2], activityKeys: ['u02-ex1'], mode: 'activity' }],
+        },
+      ],
+    };
+    const multiRepo: BookAssemblyRepositoryPort = {
+      readValue: async (path) => (
+        path === 'users/teacher-1' ? { role: 'teacher', status: 'active' } : null
+      ),
+      listUnitKeys: async () => Array.from(scopes.keys()),
+      readScope: async (_bookId, unitKey) => structuredClone(scopes.get(unitKey) ?? {}),
+      transaction: async (_bookId, unitKey, mutate, options = {}) => {
+        const current = structuredClone(scopes.get(unitKey) ?? {});
+        const output = mutate(current);
+        if (output.write) await options.beforeWrite?.();
+        if (output.write) scopes.set(unitKey, structuredClone(output.next ?? current));
+        return output.outcome;
+      },
+    };
+    let nextId = 0;
+    const bookAuth = authority({ bookRevision: 4, sourceSetRevision: 2 });
+    const handlers = createBookAssemblyWorkerHandlers({
+      repository: multiRepo,
+      readBookAuthority: async () => bookAuth,
+      createCandidateId: () => `candidate-${++nextId}`,
+      verifyDraftActivities: async ({ candidate }) => (
+        candidate.unitKey === 'unit-01' ? ['u01-ex1'] : ['u02-ex1']
+      ),
+    });
+
+    for (const unitKey of ['unit-01', 'unit-02']) {
+      const created = await handlers.create({
+        request: request({
+          operationId: op(`f1${nextId}`),
+          bookId: 'book-1',
+          expectedBookRevision: 4,
+          expectedSourceSetRevision: 2,
+          unitKey,
+          manifest: multiUnitManifest,
+        }),
+        env: mutationEnv() as never,
+        uid: 'teacher-1',
+        bookId: 'book-1',
+      });
+      expect(created.init.status).toBe(200);
+      const createdCandidate = (created.body as { candidate: { candidateId: string; revision: number } }).candidate;
+      const validated = await handlers.validate({
+        request: request({
+          operationId: op(`f2${nextId}`),
+          bookId: 'book-1',
+          unitKey,
+          candidateId: createdCandidate.candidateId,
+          expectedCandidateRevision: createdCandidate.revision,
+        }),
+        env: mutationEnv() as never,
+        uid: 'teacher-1',
+        bookId: 'book-1',
+      });
+      expect(validated.init.status).toBe(200);
+    }
+
+    const loadedUnit2 = await handlers.loadCurrent({
+      request: new Request('https://assembly.example'),
+      env: mutationEnv() as never,
+      uid: 'teacher-1',
+      bookId: 'book-1',
+      unitKey: 'unit-02',
+    });
+    expect(loadedUnit2.init.status).toBe(200);
+    expect(loadedUnit2.body).toEqual(expect.objectContaining({
+      status: 'loaded',
+      candidate: expect.objectContaining({ unitKey: 'unit-02', lifecycle: 'validated' }),
+      savedActivityKeysByUnit: { 'unit-02': ['u02-ex1'] },
+    }));
+
+    const discovered = await handlers.discoverDrafts({
+      request: new Request('https://assembly.example'),
+      env: mutationEnv() as never,
+      uid: 'teacher-1',
+      bookId: 'book-1',
+    });
+    expect(discovered.init.status).toBe(200);
+    expect((discovered.body as { drafts: Array<{ candidate: { unitKey: string }; savedActivityKeysByUnit: Record<string, string[]> }> }).drafts).toEqual([
+      expect.objectContaining({
+        candidate: expect.objectContaining({ unitKey: 'unit-01' }),
+        savedActivityKeysByUnit: { 'unit-01': ['u01-ex1'], 'unit-02': ['u02-ex1'] },
+      }),
+      expect.objectContaining({
+        candidate: expect.objectContaining({ unitKey: 'unit-02' }),
+        savedActivityKeysByUnit: { 'unit-01': ['u01-ex1'], 'unit-02': ['u02-ex1'] },
+      }),
+    ]);
+  });
 });

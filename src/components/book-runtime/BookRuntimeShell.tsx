@@ -158,9 +158,38 @@ interface ActivityResolution {
   readonly error: string | null;
 }
 
+const placementUnitKey = (
+  placement: BookRuntimeProjection['activities'][number],
+): string => ('unitKey' in placement && typeof placement.unitKey === 'string' ? placement.unitKey : '');
+
+const scopedRuntimePageGroupKey = (
+  placement: BookRuntimeProjection['activities'][number],
+  pageGroupKey: string,
+  hasCrossUnitCollision: boolean,
+): string => {
+  const unitKey = placementUnitKey(placement);
+  return hasCrossUnitCollision && unitKey ? `${unitKey}::${pageGroupKey}` : pageGroupKey;
+};
+
+const detectCrossUnitPageGroupCollision = (
+  deliveryProjection: BookRuntimeProjection,
+): boolean => {
+  const ownerUnitByGroupKey = new Map<string, string>();
+  for (const placement of deliveryProjection.activities) {
+    const unitKey = placementUnitKey(placement);
+    for (const key of placement.sourceContext.pageGroupKeys) {
+      const prevUnit = ownerUnitByGroupKey.get(key);
+      if (prevUnit !== undefined && prevUnit !== unitKey) return true;
+      ownerUnitByGroupKey.set(key, unitKey);
+    }
+  }
+  return false;
+};
+
 const deriveFullPdfPageGroups = (
   deliveryProjection: BookRuntimeProjection,
   request: BookRuntimeDeliveryDocumentRequest | BookRuntimeStudentDocumentRequest | null,
+  hasCrossUnitCollision: boolean,
 ): readonly BookRuntimePageGroupContext[] => {
   if (deliveryProjection.sourceSet.strategy !== 'full_pdf' || !request || !('sourceKey' in request)) return [];
   const byKey = new Map<string, Set<number>>();
@@ -170,7 +199,8 @@ const deriveFullPdfPageGroups = (
       .flatMap((scope) => scope.pages)
       .filter((page) => Number.isSafeInteger(page) && page >= 1);
     if (pages.length === 0) continue;
-    for (const pageGroupKey of placement.sourceContext.pageGroupKeys) {
+    for (const rawKey of placement.sourceContext.pageGroupKeys) {
+      const pageGroupKey = scopedRuntimePageGroupKey(placement, rawKey, hasCrossUnitCollision);
       let set = byKey.get(pageGroupKey);
       if (!set) {
         set = new Set<number>();
@@ -200,9 +230,10 @@ const resolveActivities = (
         && source.sourceVersionId === candidateRequest.sourceVersionId)
     ? candidateRequest : null;
   const declaredPageGroups = Array.isArray(deliveryProjection.pageGroups) ? deliveryProjection.pageGroups : [];
+  const hasCrossUnitCollision = declaredPageGroups.length === 0 && detectCrossUnitPageGroupCollision(deliveryProjection);
   const pageGroups = declaredPageGroups.length > 0
     ? declaredPageGroups
-    : deriveFullPdfPageGroups(deliveryProjection, request);
+    : deriveFullPdfPageGroups(deliveryProjection, request, hasCrossUnitCollision);
   if (!request || pageGroups.length === 0) return { activities: [], pageGroups, request, error: 'Book document context is unavailable or stale.' };
   const byId = new Map<string, BookRuntimeShellActivity[]>();
   for (const activity of activities) {
@@ -234,9 +265,11 @@ const resolveActivities = (
         && (content.activityVersion === undefined || content.activityVersion === placement.activityVersion);
     });
     if (!activity) return null;
-    const declaredPageGroupKeys = placement.sourceContext.pageGroupKeys.filter((pageGroupKey) => (
-      pageGroups.some((pageGroup) => pageGroup.pageGroupKey === pageGroupKey)
-    ));
+    const declaredPageGroupKeys = placement.sourceContext.pageGroupKeys
+      .map((pageGroupKey) => scopedRuntimePageGroupKey(placement, pageGroupKey, hasCrossUnitCollision))
+      .filter((pageGroupKey) => (
+        pageGroups.some((pageGroup) => pageGroup.pageGroupKey === pageGroupKey)
+      ));
     const pageGroupKeys = declaredPageGroupKeys.length > 0
       ? declaredPageGroupKeys
       : placement.contextMode === 'none'

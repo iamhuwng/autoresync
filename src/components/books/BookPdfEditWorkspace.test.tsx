@@ -50,19 +50,24 @@ const book: MaterialBookMetadata = {
 };
 
 describe('BookPdfEditWorkspace', () => {
-  it('switches between editing-specific tabs with keyboard navigation', async () => {
+  it('opens configured drafts on Book outline and switches tabs with keyboard navigation', async () => {
     const user = userEvent.setup();
     render(<BookPdfEditWorkspace access="owner" book={book} presentation="modal" />);
 
-    const metadataTab = screen.getByRole('tab', { name: 'Metadata' });
-    metadataTab.focus();
-    await user.keyboard('{ArrowRight}');
+    const outlineTab = screen.getByRole('tab', { name: 'Book outline' });
+    expect(outlineTab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('Assembly surface: content-tree')).toBeInTheDocument();
+
+    outlineTab.focus();
+    await user.keyboard('{ArrowLeft}');
     expect(screen.getByRole('tab', { name: 'PDF files' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText('Assembly surface: pdf-files')).toBeInTheDocument();
 
     await user.keyboard('{End}');
     expect(screen.getByRole('tab', { name: 'Settings' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText('Metadata surface: settings')).toBeInTheDocument();
+    // Returning to Details/Settings keeps the assembly section mounted without resetting it.
+    expect(screen.getByText('Assembly surface: pdf-files')).toBeInTheDocument();
   });
 
   it('keeps the editor dirty until both mounted editing surfaces are clean', async () => {
@@ -70,8 +75,9 @@ describe('BookPdfEditWorkspace', () => {
     const onDirtyChange = vi.fn();
     render(<BookPdfEditWorkspace access="owner" book={book} presentation="modal" onDirtyChange={onDirtyChange} />);
 
+    await user.click(screen.getByRole('tab', { name: 'Metadata' }));
     await user.click(screen.getByRole('button', { name: 'Dirty metadata' }));
-    await user.click(screen.getByRole('tab', { name: 'Content tree' }));
+    await user.click(screen.getByRole('tab', { name: 'Book outline' }));
     await user.click(screen.getByRole('button', { name: 'Dirty assembly' }));
     await user.click(screen.getByRole('button', { name: 'Clean assembly' }));
     expect(onDirtyChange).toHaveBeenLastCalledWith(true);

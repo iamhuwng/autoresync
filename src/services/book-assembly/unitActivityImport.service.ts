@@ -174,19 +174,32 @@ const assertSourceRefs = (refs: readonly string[], allowed: Set<string>, label: 
   }
 };
 
+const stripCodeFences = (value: string): string => {
+  const trimmed = value.trim();
+  const match = /^```(?:json)?\s*\r?\n([\s\S]*?)\r?\n```\s*$/iu.exec(trimmed);
+  return match ? match[1]!.trim() : trimmed;
+};
+
 export const parseUnitActivityImportBundle = (
   text: string,
   manifest: BookAssemblyManifestCandidate,
   unitKey: string,
 ): UnitActivityImportBundle => {
-  if (byteLength(text) > MAX_IMPORT_BYTES) {
+  const normalizedText = stripCodeFences(text);
+  if (byteLength(normalizedText) > MAX_IMPORT_BYTES) {
     throw new UnitActivityImportError('payload-too-large', 'Import bundle is too large.');
   }
   let parsed: unknown;
-  try { parsed = JSON.parse(text); } catch {
-    throw new UnitActivityImportError('invalid-json', 'Import bundle is malformed JSON.');
+  try { parsed = JSON.parse(normalizedText); } catch {
+    throw new UnitActivityImportError('invalid-json', 'That text is not valid JSON. Copy only the JSON object returned by your AI tool and try again.');
   }
   const bundle = record(parsed);
+  if (Array.isArray(bundle.nodes) && Array.isArray(bundle.units) && !('slots' in bundle)) {
+    throw new UnitActivityImportError(
+      'wrong-import-surface',
+      'This looks like Book Outline JSON, not Unit Activity JSON. Paste it in the Book outline tab instead.',
+    );
+  }
   exact(bundle, ['promptVersion', 'schemaVersion', 'bookId', 'unitKey', 'slots']);
   if (bundle.promptVersion !== UNIT_ACTIVITY_IMPORT_PROMPT_VERSION) {
     throw new UnitActivityImportError('invalid-prompt-version', 'Import bundle prompt version is unsupported.');
