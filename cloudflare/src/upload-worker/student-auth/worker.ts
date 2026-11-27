@@ -192,6 +192,7 @@ const createLocalDatabase = (
 const createProductionDatabase = (
   env: StudentAuthWorkerEnv,
   fetchImpl: typeof fetch,
+  now: () => number,
 ): StudentAuthDatabase => {
   const serviceIdentity = requiredString(env.BOOK_HOMEWORK_SERVICE_IDENTITY, 'service_identity_missing');
   const serviceAccountJson = requiredString(env.BOOK_HOMEWORK_GOOGLE_SA_KEY, 'service_account_missing', 64 * 1024);
@@ -219,6 +220,7 @@ const createProductionDatabase = (
     serviceAccountEmail: serviceIdentity,
     serviceAccountPrivateKey: serviceAccount.private_key.replace(/\\n/gu, '\n'),
     fetchImpl,
+    now,
   });
   const client = new FirebaseRtdbRestClient({
     env: {
@@ -260,22 +262,36 @@ const createFirebaseCustomToken = async (
   uid: string,
   env: StudentAuthWorkerEnv,
   now: () => number,
+  keyCache?: Map<string, Promise<CryptoKey>>,
 ): Promise<string> => {
   const serviceIdentity = requiredString(env.BOOK_HOMEWORK_SERVICE_IDENTITY, 'service_identity_missing');
   const raw = requiredString(env.BOOK_HOMEWORK_GOOGLE_SA_KEY, 'service_account_missing', 64 * 1024);
-  let serviceAccount: Record<string, unknown> | null = null;
-  try {
-    serviceAccount = asRecord(JSON.parse(raw));
-  } catch {
-    throw new Error('service_account_invalid');
-  }
-  if (serviceAccount?.client_email !== serviceIdentity
-    || typeof serviceAccount.private_key !== 'string'
-    || !serviceAccount.private_key.trim()) {
-    throw new Error('service_account_identity_mismatch');
+  const cacheKey = `${serviceIdentity}\0${raw}`;
+  let privateKeyPromise = keyCache?.get(cacheKey);
+  if (!privateKeyPromise) {
+    let serviceAccount: Record<string, unknown> | null = null;
+    try {
+      serviceAccount = asRecord(JSON.parse(raw));
+    } catch {
+      throw new Error('service_account_invalid');
+    }
+    if (serviceAccount?.client_email !== serviceIdentity
+      || typeof serviceAccount.private_key !== 'string'
+      || !serviceAccount.private_key.trim()) {
+      throw new Error('service_account_identity_mismatch');
+    }
+    privateKeyPromise = importPKCS8(serviceAccount.private_key.replace(/\\n/gu, '\n'), 'RS256')
+      .catch((error) => {
+        keyCache?.delete(cacheKey);
+        throw error;
+      });
+    if (keyCache) {
+      if (keyCache.size >= 8) keyCache.clear();
+      keyCache.set(cacheKey, privateKeyPromise);
+    }
   }
   const issuedAt = Math.floor(now() / 1000);
-  const privateKey = await importPKCS8(serviceAccount.private_key.replace(/\\n/gu, '\n'), 'RS256');
+  const privateKey = await privateKeyPromise;
   return new SignJWT({ uid })
     .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
     .setIssuer(serviceIdentity)
@@ -435,15 +451,31 @@ const identityErrorCode = (result: IdentityToolkitResult): string => {
 export const createStudentAuthWorkerHandlers = (options: StudentAuthWorkerOptions = {}) => {
   const fetchImpl = options.fetchImpl ?? fetch;
   const now = options.now ?? Date.now;
+  const productionDatabaseCache = new Map<string, StudentAuthDatabase>();
+  const customTokenKeyCache = new Map<string, Promise<CryptoKey>>();
+  const resolveProductionDatabase = (env: StudentAuthWorkerEnv): StudentAuthDatabase => {
+    const cacheKey = [
+      String(env.BOOK_HOMEWORK_SERVICE_IDENTITY ?? ''),
+      String(env.FIREBASE_DB_URL ?? ''),
+      String(env.FIREBASE_PROJECT_ID ?? ''),
+      String(env.BOOK_HOMEWORK_GOOGLE_SA_KEY ?? ''),
+    ].join('\0');
+    const cached = productionDatabaseCache.get(cacheKey);
+    if (cached) return cached;
+    const database = createProductionDatabase(env, fetchImpl, now);
+    if (productionDatabaseCache.size >= 8) productionDatabaseCache.clear();
+    productionDatabaseCache.set(cacheKey, database);
+    return database;
+  };
   const resolveDatabase = options.databaseFactory ?? ((env: StudentAuthWorkerEnv) => (
     isLocalEmulator(env)
       ? createLocalDatabase(env, fetchImpl)
-      : createProductionDatabase(env, fetchImpl)
+      : resolveProductionDatabase(env)
   ));
   const callIdentityToolkit = options.identityToolkit
     ?? ((operation, body, origin, env) => identityToolkitRequest(operation, body, origin, env, fetchImpl));
   const signCustomToken = options.createCustomToken
-    ?? ((uid, env) => createFirebaseCustomToken(uid, env, now));
+    ?? ((uid, env) => createFirebaseCustomToken(uid, env, now, customTokenKeyCache));
   const enforceRateLimit = options.rateLimit ?? (async (request, env) => {
     const limiter = env.UPLOAD_RATE_LIMITER ?? env.BOOK_ROUTE_RATE_LIMITER;
     if (!limiter || typeof limiter.limit !== 'function') return isLocalEmulator(env);
@@ -737,6 +769,7 @@ export const createStudentAuthWorkerHandlers = (options: StudentAuthWorkerOption
             'Access-Control-Allow-Origin': origin,
             'Access-Control-Allow-Methods': 'POST, OPTIONS',
             'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+            'Access-Control-Max-Age': '86400',
             'Cache-Control': 'no-store',
             Vary: 'Origin',
           },

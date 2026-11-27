@@ -281,18 +281,105 @@ describe('AuthContext', () => {
       return vi.fn();
     });
     vi.stubEnv('VITE_R2_UPLOAD_WORKER_URL', 'https://student-auth.example');
-    vi.stubGlobal('fetch', vi.fn(async (url) => ({
+    const mockFetch = vi.fn(async (url) => ({
       ok: true,
       json: async () => String(url).endsWith('/auth/student/login')
         ? { customToken: 'one-time-custom-token' }
         : { studentId: 'student-7' },
-    })));
+    }));
+    vi.stubGlobal('fetch', mockFetch);
 
     render(<AuthProvider><TestComponent /></AuthProvider>);
     await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('ready'));
     await act(async () => screen.getByTestId('student-id-login-btn').click());
 
     expect(mockSignInWithCustomToken).toHaveBeenCalledWith({}, 'one-time-custom-token');
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledWith('https://student-auth.example/auth/student/login', expect.any(Object));
+  });
+
+  it('skips the ensure-id Worker call on email login when student_identifiers already exists', async () => {
+    const mockUser = {
+      uid: 'returning-student-uid',
+      emailVerified: true,
+      email: 'student@test.com',
+      displayName: 'Returning Student',
+      photoURL: null,
+      getIdToken: vi.fn().mockResolvedValue('firebase-id-token'),
+    };
+    mockSignInWithEmailAndPassword.mockResolvedValue({ user: mockUser });
+    mockGet
+      .mockResolvedValueOnce({
+        exists: () => true,
+        val: () => ({ uid: mockUser.uid, email: mockUser.email, role: 'student', status: 'active' }),
+      })
+      .mockResolvedValueOnce({
+        exists: () => true,
+        val: () => ({ studentId: 'STU-EXISTING' }),
+      });
+    mockOnValue.mockImplementation((_ref, callback) => {
+      callback({ exists: () => true, val: () => ({ uid: mockUser.uid, email: mockUser.email, role: 'student', status: 'active' }) });
+      return vi.fn();
+    });
+    vi.stubEnv('VITE_R2_UPLOAD_WORKER_URL', 'https://student-auth.example');
+    const mockFetch = vi.fn();
+    vi.stubGlobal('fetch', mockFetch);
+
+    render(<AuthProvider><TestComponent /></AuthProvider>);
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('ready'));
+    await act(async () => screen.getByTestId('email-login-btn').click());
+
+    expect(mockSignInWithEmailAndPassword).toHaveBeenCalledWith({}, 'student@test.com', 'student');
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('ignores stale ensure-id results if the user signs out before the background check resolves', async () => {
+    const mockUser = {
+      uid: 'stale-student-uid',
+      emailVerified: true,
+      email: 'student@test.com',
+      displayName: 'Stale Student',
+      photoURL: null,
+      getIdToken: vi.fn().mockResolvedValue('firebase-id-token'),
+    };
+    let resolveIdentifierRead: (value: unknown) => void = () => {};
+    mockSignInWithEmailAndPassword.mockResolvedValue({ user: mockUser });
+    mockGet
+      .mockResolvedValueOnce({
+        exists: () => true,
+        val: () => ({ uid: mockUser.uid, email: mockUser.email, role: 'student', status: 'active' }),
+      })
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolveIdentifierRead = resolve;
+      }));
+    mockOnValue.mockImplementation((_ref, callback) => {
+      callback({ exists: () => true, val: () => ({ uid: mockUser.uid, email: mockUser.email, role: 'student', status: 'active' }) });
+      return vi.fn();
+    });
+    vi.stubEnv('VITE_R2_UPLOAD_WORKER_URL', 'https://student-auth.example');
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ studentId: 'STU-STALE' }),
+    });
+    vi.stubGlobal('fetch', mockFetch);
+
+    const StudentIdProbe = () => {
+      const { studentId } = useAuth();
+      return <div data-testid="student-id">{studentId ?? 'none'}</div>;
+    };
+
+    render(<AuthProvider><TestComponent /><StudentIdProbe /></AuthProvider>);
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('ready'));
+    await act(async () => screen.getByTestId('email-login-btn').click());
+    await act(async () => screen.getByTestId('logout-btn').click());
+
+    await act(async () => {
+      resolveIdentifierRead({ exists: () => true, val: () => ({ studentId: 'STU-STALE' }) });
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId('student-id')).toHaveTextContent('none');
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it('rejects changing an assigned ID before updating the password', async () => {

@@ -527,4 +527,109 @@ describe('student authentication Worker', () => {
     expect(limited.status).toBe(429);
     expect(databaseFactory).not.toHaveBeenCalled();
   });
+
+  it('caches CORS preflight responses with Access-Control-Max-Age', async () => {
+    const worker = createStudentAuthWorkerHandlers({ rateLimit: async () => true });
+    const response = await worker.fetch(new Request('https://worker.example/auth/student/login', {
+      method: 'OPTIONS',
+      headers: {
+        Origin: allowedOrigin,
+        'Access-Control-Request-Method': 'POST',
+        'Access-Control-Request-Headers': 'Content-Type',
+      },
+    }), makeEnv());
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get('Access-Control-Max-Age')).toBe('86400');
+  });
+
+  it('reuses cached OAuth tokens and custom-token keys, isolates rotated credentials, and evicts rejected key imports', async () => {
+    const generatePem = async () => {
+      const pair = await crypto.subtle.generateKey(
+        { name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' },
+        true,
+        ['sign', 'verify'],
+      );
+      const der = new Uint8Array(await crypto.subtle.exportKey('pkcs8', pair.privateKey));
+      let binary = '';
+      der.forEach((byte) => { binary += String.fromCharCode(byte); });
+      const b64 = btoa(binary).match(/.{1,64}/gu)!.join('\n');
+      return `-----BEGIN PRIVATE KEY-----\n${b64}\n-----END PRIVATE KEY-----`;
+    };
+
+    const [pemA, pemB] = await Promise.all([generatePem(), generatePem()]);
+    const studentHash = createHash('sha256').update('student-7').digest('hex');
+    let oauthCalls = 0;
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === 'https://oauth2.googleapis.com/token') {
+        oauthCalls += 1;
+        return new Response(JSON.stringify({ access_token: `oauth-token-${oauthCalls}`, expires_in: 3600 }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (url.includes(`/student_login_ids/${studentHash}.json`)) {
+        return new Response(JSON.stringify({ uid: 'student-uid' }), { status: 200 });
+      }
+      if (url.includes('/users/student-uid.json')) {
+        return new Response(JSON.stringify({
+          uid: 'student-uid', email: 'student@example.com', role: 'student', status: 'active',
+        }), { status: 200 });
+      }
+      if (url.includes('/student_identifiers/student-uid.json')) {
+        return new Response(JSON.stringify({ studentId: 'student-7' }), { status: 200 });
+      }
+      if (url.includes('accounts:signInWithPassword')) {
+        return new Response(JSON.stringify({ localId: 'student-uid', email: 'student@example.com' }), { status: 200 });
+      }
+      return new Response('null', { status: 404 });
+    });
+
+    const worker = createStudentAuthWorkerHandlers({
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      rateLimit: async () => true,
+      now: () => 1_800_000_000_000,
+    });
+
+    const envA = {
+      ...makeEnv(),
+      BOOK_HOMEWORK_GOOGLE_SA_KEY: JSON.stringify({
+        client_email: makeEnv().BOOK_HOMEWORK_SERVICE_IDENTITY,
+        private_key: pemA,
+      }),
+    };
+    const envB = {
+      ...makeEnv(),
+      BOOK_HOMEWORK_GOOGLE_SA_KEY: JSON.stringify({
+        client_email: makeEnv().BOOK_HOMEWORK_SERVICE_IDENTITY,
+        private_key: pemB,
+      }),
+    };
+    const envBadKey = {
+      ...makeEnv(),
+      BOOK_HOMEWORK_GOOGLE_SA_KEY: JSON.stringify({
+        client_email: makeEnv().BOOK_HOMEWORK_SERVICE_IDENTITY,
+        private_key: 'not-a-valid-pem-key',
+      }),
+    };
+
+    const first = await worker.fetch(makeRequest('/auth/student/login', { studentId: 'student-7', password: 'password123' }), envA);
+    const second = await worker.fetch(makeRequest('/auth/student/login', { studentId: 'student-7', password: 'password123' }), envA);
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(typeof (await readJson(first)).customToken).toBe('string');
+    expect(typeof (await readJson(second)).customToken).toBe('string');
+    expect(oauthCalls).toBe(1);
+
+    const rotated = await worker.fetch(makeRequest('/auth/student/login', { studentId: 'student-7', password: 'password123' }), envB);
+    expect(rotated.status).toBe(200);
+    expect(oauthCalls).toBe(2);
+
+    const bad = await worker.fetch(makeRequest('/auth/student/login', { studentId: 'student-7', password: 'password123' }), envBadKey);
+    expect(bad.status).toBe(503);
+    const recovered = await worker.fetch(makeRequest('/auth/student/login', { studentId: 'student-7', password: 'password123' }), envA);
+    expect(recovered.status).toBe(200);
+    expect(oauthCalls).toBe(2);
+  });
 });
