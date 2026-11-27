@@ -42,6 +42,7 @@ export interface BookAssemblyRepositoryPort {
   readValue(path: string): Promise<unknown>;
   readScope(bookId: string, unitKey: string): Promise<BookAssemblyScope>;
   listUnitKeys?(bookId: string): Promise<readonly string[]>;
+  readBookScopes(bookId: string): Promise<Readonly<Record<string, BookAssemblyScope>>>;
   transaction<T>(
     bookId: string,
     unitKey: string,
@@ -181,6 +182,28 @@ const assertAuthorityUnchanged = (
     throw new BookAssemblyWorkerError('assembly_authority_changed', 409);
   }
 };
+const MAX_RETAINED_CANDIDATES_PER_SCOPE = 8;
+
+const pruneCandidates = (
+  scope: BookAssemblyScope,
+  keepIds: ReadonlySet<string>,
+  maxCandidates = MAX_RETAINED_CANDIDATES_PER_SCOPE,
+): void => {
+  const candidates = scope.candidates;
+  if (!candidates) return;
+  const entries = Object.entries(candidates);
+  if (entries.length < maxCandidates) return;
+  const kept = entries.filter(([candidateId]) => keepIds.has(candidateId));
+  const evictable = entries
+    .filter(([candidateId]) => !keepIds.has(candidateId))
+    .sort((left, right) => right[1].updatedAt.localeCompare(left[1].updatedAt));
+  const allowedEvictable = Math.max(0, maxCandidates - kept.length - 1);
+  scope.candidates = Object.fromEntries([
+    ...kept,
+    ...evictable.slice(0, allowedEvictable),
+  ]);
+};
+
 const replay = (
   scope: BookAssemblyScope,
   ownerId: string,
@@ -192,10 +215,21 @@ const replay = (
   if (stored.ownerId !== ownerId || stored.fingerprint !== fingerprint) {
     return output(operation, fingerprint, 'idempotency-conflict', stored.createdAt);
   }
+  const hydrated = clone(stored.result);
+  const liveCandidate = hydrated.candidate && hydrated.candidate.manifest === null
+    ? scope.candidates?.[hydrated.candidate.candidateId]
+    : undefined;
+  const candidate = hydrated.candidate && liveCandidate?.manifest
+    ? {
+      ...hydrated.candidate,
+      manifest: clone(liveCandidate.manifest),
+    }
+    : hydrated.candidate;
   return {
-    ...clone(stored.result),
+    ...hydrated,
+    ...(candidate ? { candidate } : {}),
     status: 'replayed',
-    receipt: { ...stored.result.receipt, status: 'replayed' },
+    receipt: { ...hydrated.receipt, status: 'replayed' },
   };
 };
 const remember = (
@@ -206,10 +240,19 @@ const remember = (
   value: BookAssemblyMutationResult,
   at: string,
 ): void => {
+  const compactResult: BookAssemblyMutationResult = value.candidate
+    ? {
+      ...clone(value),
+      candidate: {
+        ...clone(value.candidate),
+        manifest: null,
+      },
+    }
+    : clone(value);
   const entries = Object.entries(scope.operations ?? {}).slice(-31);
   scope.operations = {
     ...Object.fromEntries(entries),
-    [operation]: { ownerId, fingerprint, result: clone(value), createdAt: at },
+    [operation]: { ownerId, fingerprint, result: compactResult, createdAt: at },
   };
 };
 const pointer = (candidate: BookAssemblyCandidateRecord): NonNullable<BookAssemblyScope['current']> => ({
@@ -242,6 +285,17 @@ export const createBookAssemblyWorkerHandlers = (options: {
     readonly candidate: BookAssemblyCandidateRecord;
     readonly requestCache?: Map<string, Promise<unknown>>;
   }) => Promise<readonly string[]>;
+  verifyDraftActivityCandidateIds?: (input: {
+    readonly env: BookAssemblyRepositoryEnv;
+    readonly candidate: BookAssemblyCandidateRecord;
+    readonly requestCache?: Map<string, Promise<unknown>>;
+  }) => Promise<Readonly<Record<string, string>>>;
+  isCandidatePublished?: (input: {
+    readonly env: BookAssemblyRepositoryEnv;
+    readonly ownerId: string;
+    readonly bookId: string;
+    readonly candidateId: string;
+  }) => Promise<boolean>;
 } = {}) => {
   const now = options.now ?? nowDefault;
   const repositoryFor = (env: BookAssemblyRepositoryEnv, ownerId: string): BookAssemblyRepositoryPort =>
@@ -288,7 +342,16 @@ export const createBookAssemblyWorkerHandlers = (options: {
         : action === 'rebase'
           ? ['operationId', 'bookId', 'unitKey', 'expectedBookRevision',
             'expectedSourceSetRevision', 'candidateId', 'expectedCandidateRevision']
-          : ['operationId', 'bookId', 'unitKey', 'candidateId', 'expectedCandidateRevision']);
+          : action === 'discard'
+            ? ['operationId', 'bookId', 'unitKey', 'candidateId', 'expectedCandidateRevision', 'allowUnpublishedValidatedRollback']
+            : ['operationId', 'bookId', 'unitKey', 'candidateId', 'expectedCandidateRevision']);
+      if (action === 'discard'
+        && parsed.allowUnpublishedValidatedRollback !== undefined
+        && parsed.allowUnpublishedValidatedRollback !== true) {
+        throw new BookAssemblyWorkerError('invalid_request', 400);
+      }
+      const allowUnpublishedValidatedRollback = action === 'discard'
+        && parsed.allowUnpublishedValidatedRollback === true;
       const operation = operationId(parsed.operationId);
       const bookId = id(parsed.bookId, 'book_id');
       if (input.bookId !== undefined && id(input.bookId, 'route_book_id') !== bookId) {
@@ -311,6 +374,50 @@ export const createBookAssemblyWorkerHandlers = (options: {
       if (currentBefore && currentBefore.ownerId !== input.uid) {
         return { body: { status: 'not-found' }, init: { status: 404 } };
       }
+      const checkUnpublishedValidatedRollbackSafe = async (
+        candidateToDiscard: BookAssemblyCandidateRecord,
+      ): Promise<boolean> => {
+        if (options.isCandidatePublished) {
+          const published = await options.isCandidatePublished({
+            env: input.env,
+            ownerId: input.uid,
+            bookId,
+            candidateId: candidateToDiscard.candidateId,
+          });
+          if (published) return false;
+        }
+        if (options.bindingRepositoryFactory) {
+          const bindingRepo = options.bindingRepositoryFactory(input.env);
+          if (typeof bindingRepo.readBookBindings === 'function') {
+            const bookBindings = await bindingRepo.readBookBindings(input.uid, bookId);
+            const unitBindings = bookBindings[unitKey];
+            if (unitBindings && Object.keys(unitBindings).length > 0) return false;
+          } else {
+            const unit = candidateToDiscard.manifest?.units.find((entry) => entry.unitKey === unitKey);
+            for (const slot of unit?.activitySlots ?? []) {
+              const existingBinding = await bindingRepo.read({
+                ownerId: input.uid,
+                bookId,
+                unitKey,
+                activityKey: slot.activityKey,
+              });
+              if (existingBinding) return false;
+            }
+          }
+        }
+        if (options.verifyDraftActivities) {
+          const savedKeys = await options.verifyDraftActivities({
+            env: input.env,
+            candidate: clone(candidateToDiscard),
+          });
+          if (savedKeys.length > 0) return false;
+        }
+        return true;
+      };
+      const validatedRollbackSafeBefore = allowUnpublishedValidatedRollback
+        && currentBefore?.lifecycle === 'validated'
+        ? await checkUnpublishedValidatedRollbackSafe(currentBefore)
+        : false;
       const outputValue = await repository.transaction(bookId, unitKey, (scope) => {
         const fingerprint = stable({ action, ...parsed });
         const replayed = replay(scope, input.uid, operation, fingerprint);
@@ -389,9 +496,18 @@ export const createBookAssemblyWorkerHandlers = (options: {
           return { outcome: conflict, next: scope, write: true };
         }
         if (current.lifecycle === 'validated' && action === 'discard') {
-          const conflict = output(operation, fingerprint, 'conflict', at, current, { currentRevision: current.revision });
-          remember(scope, input.uid, operation, fingerprint, conflict, at);
-          return { outcome: conflict, next: scope, write: true };
+          const soleActiveCandidate = scope.current?.candidateId === current.candidateId
+            && Object.values(scope.candidates ?? {}).filter((entry) => entry.lifecycle !== 'discarded').length === 1;
+          const canRollbackValidated = allowUnpublishedValidatedRollback
+            && validatedRollbackSafeBefore
+            && currentBefore?.candidateId === current.candidateId
+            && currentBefore?.revision === current.revision
+            && soleActiveCandidate;
+          if (!canRollbackValidated) {
+            const conflict = output(operation, fingerprint, 'conflict', at, current, { currentRevision: current.revision });
+            remember(scope, input.uid, operation, fingerprint, conflict, at);
+            return { outcome: conflict, next: scope, write: true };
+          }
         }
         if (action !== 'rebase' && (authority.bookRevision !== current.bookRevision
           || authority.sourceSetRevision !== current.sourceSetRevision)) {
@@ -443,6 +559,9 @@ export const createBookAssemblyWorkerHandlers = (options: {
           const nextId = activated
             ? options.createCandidateId?.() ?? `candidate-${crypto.randomUUID()}`
             : current.candidateId;
+          if (activated) {
+            pruneCandidates(scope, new Set([current.candidateId]));
+          }
           if (activated && (!ID.test(nextId) || scope.candidates?.[nextId]
             || Object.keys(scope.candidates ?? {}).length >= BOOK_ASSEMBLY_MAX_CANDIDATES_PER_SCOPE)) {
             const conflict = output(operation, fingerprint, 'conflict', at, current);
@@ -477,7 +596,9 @@ export const createBookAssemblyWorkerHandlers = (options: {
           }
           if (action === 'replace' && current.lifecycle === 'validated') {
             const successorId = options.createCandidateId?.() ?? `candidate-${crypto.randomUUID()}`;
-            if (!ID.test(successorId) || scope.candidates?.[successorId]) {
+            pruneCandidates(scope, new Set([current.candidateId]));
+            if (!ID.test(successorId) || scope.candidates?.[successorId]
+              || Object.keys(scope.candidates ?? {}).length >= BOOK_ASSEMBLY_MAX_CANDIDATES_PER_SCOPE) {
               const conflict = output(operation, fingerprint, 'conflict', at, current);
               remember(scope, input.uid, operation, fingerprint, conflict, at);
               return { outcome: conflict, next: scope, write: true };
@@ -529,6 +650,10 @@ export const createBookAssemblyWorkerHandlers = (options: {
       }, {
         beforeWrite: async () => {
           assertAuthorityUnchanged(authority, await authorityFor(repository, bookId, input.env, input.uid, proposal));
+          if (allowUnpublishedValidatedRollback && currentBefore?.lifecycle === 'validated'
+            && !(await checkUnpublishedValidatedRollbackSafe(currentBefore))) {
+            throw new BookAssemblyWorkerError('assembly_validated_rollback_blocked', 409);
+          }
         },
       });
       const status = outputValue.status === 'not-found' ? 404
@@ -564,19 +689,51 @@ export const createBookAssemblyWorkerHandlers = (options: {
         }
         const candidates: BookAssemblyCandidateRecord[] = [];
         const savedActivityKeysByUnit: Record<string, readonly string[]> = {};
+        const savedCandidateIdsByUnit: Record<string, Readonly<Record<string, string>>> = {};
+        const buildDiscoveryPayload = (
+          discoveredCandidates: readonly BookAssemblyCandidateRecord[],
+          savedByUnit: Readonly<Record<string, readonly string[]>>,
+          candidateIdsByUnit: Readonly<Record<string, Readonly<Record<string, string>>>>,
+        ) => {
+          const manifestsById: Record<string, BookAssemblyManifestCandidate> = {};
+          const refByFingerprint = new Map<string, string>();
+          let manifestCounter = 0;
+          const drafts = discoveredCandidates.map((candidate) => {
+            const manifest = candidate.manifest!;
+            const fp = stable(manifest);
+            let manifestRef = refByFingerprint.get(fp);
+            if (!manifestRef) {
+              manifestRef = `m${manifestCounter}`;
+              manifestCounter += 1;
+              refByFingerprint.set(fp, manifestRef);
+              manifestsById[manifestRef] = manifest;
+            }
+            return {
+              candidate: { ...candidate, manifest: null },
+              manifestRef,
+            };
+          });
+          return {
+            status: 'loaded' as const,
+            savedActivityKeysByUnit: savedByUnit,
+            ...(Object.keys(candidateIdsByUnit).length > 0 ? { savedCandidateIdsByUnit: candidateIdsByUnit } : {}),
+            manifestsById,
+            drafts,
+          };
+        };
+        const readAllUnitScopes = async (
+          keys: readonly string[],
+        ): Promise<Map<string, BookAssemblyScope>> => {
+          const all = await repository.readBookScopes(bookId);
+          return new Map(keys.map((unitKey) => [unitKey, all[unitKey] ?? {}] as const));
+        };
+        const requestCache = new Map<string, Promise<unknown>>();
         const attachedAuthority = await authorityFor(repository, bookId, input.env, input.uid);
         if (attachedAuthority?.ownerId === input.uid
           && attachedAuthority.bookMode === 'pdf'
           && attachedAuthority.sourceSet?.sourceStrategy === 'full_pdf') {
-          const requestCache = new Map<string, Promise<unknown>>();
           for (const unitKey of unitKeys) id(unitKey, 'unit_key');
-          // Read all unit scopes in bounded parallel batches instead of serially.
-          const initialScopes = new Map<string, BookAssemblyScope>();
-          for (let offset = 0; offset < unitKeys.length; offset += 8) {
-            const slice = unitKeys.slice(offset, offset + 8);
-            const loaded = await Promise.all(slice.map(async (unitKey) => [unitKey, await repository.readScope(bookId, unitKey)] as const));
-            for (const [unitKey, scope] of loaded) initialScopes.set(unitKey, scope);
-          }
+          const initialScopes = await readAllUnitScopes(unitKeys);
           const matched: Array<{ readonly unitKey: string; readonly candidate: BookAssemblyCandidateRecord }> = [];
           for (const unitKey of unitKeys) {
             const scope = initialScopes.get(unitKey);
@@ -593,28 +750,51 @@ export const createBookAssemblyWorkerHandlers = (options: {
             }
             matched.push({ unitKey, candidate });
           }
-          for (let offset = 0; offset < matched.length; offset += 4) {
-            const slice = matched.slice(offset, offset + 4);
+          const verifiedByUnit = new Map<string, { readonly savedKeys: readonly string[]; readonly candidateIds: Readonly<Record<string, string>> }>();
+          for (let offset = 0; offset < matched.length; offset += 8) {
+            const slice = matched.slice(offset, offset + 8);
             const verified = await Promise.all(slice.map(async ({ unitKey, candidate }) => {
-              const savedKeys = await options.verifyDraftActivities?.({
-                env: input.env,
-                candidate: clone(candidate),
-                requestCache,
-              }) ?? [];
-              const refreshedScope = await repository.readScope(bookId, unitKey);
-              return { unitKey, candidate, savedKeys, refreshedScope };
+              const candidateIds = options.verifyDraftActivityCandidateIds
+                ? await options.verifyDraftActivityCandidateIds({
+                  env: input.env,
+                  candidate: clone(candidate),
+                  requestCache,
+                })
+                : {};
+              const savedKeys = options.verifyDraftActivities
+                ? await options.verifyDraftActivities({
+                  env: input.env,
+                  candidate: clone(candidate),
+                  requestCache,
+                })
+                : Object.keys(candidateIds);
+              return { unitKey, savedKeys, candidateIds };
             }));
-            for (const { unitKey, candidate, savedKeys, refreshedScope } of verified) {
-              if (refreshedScope.current?.candidateId !== candidate.candidateId
-                || refreshedScope.current?.candidateRevision !== candidate.revision) {
-                throw new BookAssemblyWorkerError('draft_discovery_divergent', 409);
-              }
-              const slots = candidate.manifest!.units.find((unit) => unit.unitKey === unitKey)!.activitySlots;
-              savedActivityKeysByUnit[unitKey] = slots.map((slot) => slot.activityKey).filter((key) => savedKeys.includes(key));
-              candidates.push(clone(candidate));
-            }
+            for (const entry of verified) verifiedByUnit.set(entry.unitKey, entry);
           }
           if (matched.length > 0) {
+            const refreshedScopes = await readAllUnitScopes(matched.map((entry) => entry.unitKey));
+            for (const { unitKey, candidate } of matched) {
+              const refreshedScope = refreshedScopes.get(unitKey);
+              if (refreshedScope?.current?.candidateId !== candidate.candidateId
+                || refreshedScope?.current?.candidateRevision !== candidate.revision) {
+                throw new BookAssemblyWorkerError('draft_discovery_divergent', 409);
+              }
+              const verifiedEntry = verifiedByUnit.get(unitKey);
+              const savedKeys = verifiedEntry?.savedKeys ?? [];
+              const slots = candidate.manifest!.units.find((unit) => unit.unitKey === unitKey)!.activitySlots;
+              const allowedKeys = slots.map((slot) => slot.activityKey).filter((key) => savedKeys.includes(key));
+              savedActivityKeysByUnit[unitKey] = allowedKeys;
+              const unitCandidateIds = Object.fromEntries(
+                allowedKeys
+                  .map((key) => [key, verifiedEntry?.candidateIds[key]] as const)
+                  .filter((pair): pair is readonly [string, string] => typeof pair[1] === 'string'),
+              );
+              if (Object.keys(unitCandidateIds).length > 0) {
+                savedCandidateIdsByUnit[unitKey] = unitCandidateIds;
+              }
+              candidates.push(clone(candidate));
+            }
             const refreshedAuthority = await authorityFor(repository, bookId, input.env, input.uid);
             if (!refreshedAuthority
               || refreshedAuthority.ownerId !== input.uid
@@ -624,7 +804,7 @@ export const createBookAssemblyWorkerHandlers = (options: {
             }
           }
           return {
-            body: { status: 'loaded', drafts: candidates.map((candidate) => ({ candidate, savedActivityKeysByUnit })) },
+            body: buildDiscoveryPayload(candidates, savedActivityKeysByUnit, savedCandidateIdsByUnit),
             init: { status: 200 },
           };
         }
@@ -653,7 +833,20 @@ export const createBookAssemblyWorkerHandlers = (options: {
             throw new BookAssemblyWorkerError('draft_discovery_divergent', 409);
           }
           manifestFingerprint = fingerprint;
-          const savedKeys = await options.verifyDraftActivities?.({ env: input.env, candidate: clone(candidate) }) ?? [];
+          const candidateIds = options.verifyDraftActivityCandidateIds
+            ? await options.verifyDraftActivityCandidateIds({
+              env: input.env,
+              candidate: clone(candidate),
+              requestCache,
+            })
+            : {};
+          const savedKeys = options.verifyDraftActivities
+            ? await options.verifyDraftActivities({
+              env: input.env,
+              candidate: clone(candidate),
+              requestCache,
+            })
+            : Object.keys(candidateIds);
           const refreshed = await repository.readScope(bookId, unitKey);
           const refreshedAuthority = await authorityFor(repository, bookId, input.env, input.uid, candidate.manifest.sourceSet);
           await authenticate(repository, input.uid);
@@ -667,10 +860,19 @@ export const createBookAssemblyWorkerHandlers = (options: {
             throw new BookAssemblyWorkerError('draft_discovery_unqualified', 409);
           }
           const slots = candidate.manifest.units.find((unit) => unit.unitKey === unitKey)!.activitySlots;
-          savedActivityKeysByUnit[unitKey] = slots.map((slot) => slot.activityKey).filter((key) => savedKeys.includes(key));
+          const allowedKeys = slots.map((slot) => slot.activityKey).filter((key) => savedKeys.includes(key));
+          savedActivityKeysByUnit[unitKey] = allowedKeys;
+          const unitCandidateIds = Object.fromEntries(
+            allowedKeys
+              .map((key) => [key, candidateIds[key]] as const)
+              .filter((pair): pair is readonly [string, string] => typeof pair[1] === 'string'),
+          );
+          if (Object.keys(unitCandidateIds).length > 0) {
+            savedCandidateIdsByUnit[unitKey] = unitCandidateIds;
+          }
           candidates.push(clone(candidate));
         }
-        return { body: { status: 'loaded', drafts: candidates.map((candidate) => ({ candidate, savedActivityKeysByUnit })) }, init: { status: 200 } };
+        return { body: buildDiscoveryPayload(candidates, savedActivityKeysByUnit, savedCandidateIdsByUnit), init: { status: 200 } };
       } catch (error) {
         return { body: { code: error instanceof BookAssemblyWorkerError ? error.code : 'draft_discovery_failed' },
           init: { status: error instanceof BookAssemblyWorkerError ? error.status : 409 } };
@@ -804,15 +1006,38 @@ export const createBookAssemblyWorkerHandlers = (options: {
             || !hasUnit(fullCandidate.manifest, unitKey)) {
             return { body: { status: 'empty' }, init: { status: 200 } };
           }
-          const savedKeys = await options.verifyDraftActivities?.({ env: input.env, candidate: clone(fullCandidate) }) ?? [];
+          const requestCache = new Map<string, Promise<unknown>>();
+          const candidateIds = options.verifyDraftActivityCandidateIds
+            ? await options.verifyDraftActivityCandidateIds({
+              env: input.env,
+              candidate: clone(fullCandidate),
+              requestCache,
+            })
+            : {};
+          const savedKeys = options.verifyDraftActivities
+            ? await options.verifyDraftActivities({
+              env: input.env,
+              candidate: clone(fullCandidate),
+              requestCache,
+            })
+            : Object.keys(candidateIds);
           const slots = fullCandidate.manifest.units.find((unit) => unit.unitKey === unitKey)!.activitySlots;
+          const allowedKeys = slots.map((slot) => slot.activityKey).filter((key) => savedKeys.includes(key));
+          const unitCandidateIds = Object.fromEntries(
+            allowedKeys
+              .map((key) => [key, candidateIds[key]] as const)
+              .filter((pair): pair is readonly [string, string] => typeof pair[1] === 'string'),
+          );
           return {
             body: {
               status: 'loaded',
               candidate: clone(fullCandidate),
               savedActivityKeysByUnit: {
-                [unitKey]: slots.map((slot) => slot.activityKey).filter((key) => savedKeys.includes(key)),
+                [unitKey]: allowedKeys,
               },
+              ...(Object.keys(unitCandidateIds).length > 0
+                ? { savedCandidateIdsByUnit: { [unitKey]: unitCandidateIds } }
+                : {}),
               conflict: null,
             },
             init: { status: 200 },

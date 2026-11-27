@@ -80,6 +80,7 @@ export interface BookDeliverySourceBinding {
   readonly lifecycle: 'verified-usable';
   readonly sourceOrder?: number;
   readonly ownerNodeKey?: string;
+  readonly physicalPageCount?: number;
   readonly localPageScope: BookDeliverySourcePageScope;
 }
 
@@ -101,6 +102,12 @@ export interface BookDeliveryPlacement {
     readonly sourceKey: string;
     readonly pages: readonly number[];
   }[];
+  /** Trusted navigation mapping for context-free (`contextMode: 'none'`) Activities without granting source-context authority. */
+  readonly navigationPageGroupKeys?: readonly string[];
+  readonly navigationPageScopes?: readonly {
+    readonly sourceKey: string;
+    readonly pages: readonly number[];
+  }[];
 }
 
 /** Trusted, student-safe structural context supplied by Book Delivery. */
@@ -119,6 +126,13 @@ export interface BookDeliveryStructuralNodeProjection {
   readonly titleSnapshot?: string;
 }
 
+export interface BookDeliveryReferencePageGroup {
+  readonly nodeKey: string;
+  readonly pageGroupKey: string;
+  readonly sourceKey: string;
+  readonly pages: readonly number[];
+}
+
 export interface BookDeliveryBinding {
   readonly schemaVersion: typeof BOOK_DELIVERY_SCHEMA_VERSION;
   readonly bindingId: string;
@@ -132,6 +146,10 @@ export interface BookDeliveryBinding {
   readonly context: BookDeliveryContext;
   readonly sourceSet: BookDeliverySourceSet;
   readonly placements: readonly BookDeliveryPlacement[];
+  /** Per-group Activity Page Group definitions from the pinned manifest for full_pdf delivery (prevents multi-group union bleed). */
+  readonly activityPageGroups?: readonly BookDeliveryReferencePageGroup[];
+  /** Student-visible reference_only page groups (never teacher_only) for full_pdf delivery. */
+  readonly referencePageGroups?: readonly BookDeliveryReferencePageGroup[];
   readonly schedulePolicy: BookDeliverySchedulePolicyReference;
   readonly createdAt: string;
 }
@@ -141,6 +159,7 @@ export interface BookRuntimeDeliveryDocumentRequest {
   readonly sourceVersionId: string;
   readonly opaqueRouteKey: string;
   readonly localPageScope: BookDeliverySourcePageScope;
+  readonly physicalPageCount?: number;
   readonly expectedByteLength?: number;
   readonly expectedEtag?: string;
 }
@@ -152,6 +171,8 @@ export interface BookRuntimeStudentDocumentRequest {
 }
 
 export interface BookRuntimePageGroupContext {
+  /** Present when a full_pdf Page Group key is reused across multiple Units so runtime rendering isolates each Unit unambiguously. */
+  readonly nodeKey?: string;
   readonly pageGroupKey: string;
   readonly combinedPhysicalPages: readonly number[];
 }
@@ -169,6 +190,9 @@ export interface BookRuntimeActivityPlacementProjection {
     readonly pageGroupKeys: readonly string[];
     readonly sourcePageScopes: BookDeliveryPlacement['sourcePageScopes'];
   };
+  /** Trusted navigation mapping for context-free Activities when sourceContext is unavailable. */
+  readonly navigationPageGroupKeys?: readonly string[];
+  readonly navigationPageScopes?: BookDeliveryPlacement['sourcePageScopes'];
   /** Required on trusted Homework projections; absent on non-scheduled contexts. */
   readonly scheduleWindow?: import('./bookScheduleWindow.service').BookScheduleWindowDecision;
 }

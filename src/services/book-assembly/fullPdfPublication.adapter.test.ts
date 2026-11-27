@@ -523,8 +523,8 @@ describe('full-PDF publication adapter', () => {
     })).toThrow('full_pdf_predecessor_unit_topology_changed');
   });
 
-  it('strips teacher_only pageGroups from studentSafeProjection and unitProjections while preserving them in manifest across incremental publication', async () => {
-    const manifestWithAnswerKeys: BookAssemblyManifestCandidate = {
+  it('fails closed when a Full-PDF manifest contains teacher_only pageGroups while preserving reference_only across incremental publication', async () => {
+    const manifestWithAnswerKey: BookAssemblyManifestCandidate = {
       bookId: 'book-1',
       sourceSet: {
         sourceStrategy: 'full_pdf',
@@ -550,25 +550,66 @@ describe('full-PDF publication adapter', () => {
           pageGroups: [
             { pageGroupKey: 'pages-b', sourceKey: 'full', pages: [4, 5], activityKeys: ['slot-b'], mode: 'activity' },
             { pageGroupKey: 'pages-b-transcript', sourceKey: 'full', pages: [10], activityKeys: [], mode: 'reference_only' },
-            { pageGroupKey: 'pages-b-answer-key', sourceKey: 'full', pages: [11], activityKeys: [], mode: 'teacher_only' },
           ],
         },
+      ],
+    };
+
+    // Publishing unit-1 (contains teacher_only directly) MUST fail closed
+    expect(() => createFullPdfPublicationCommandOutput({
+      ...adapterInput({
+        operationId: '66666666-6666-4666-8666-666666666666',
+        candidate: candidate(manifestWithAnswerKey),
+        authority: authority(manifestWithAnswerKey),
+      }),
+      allocateId: (kind, key) => `tk-fail1:${kind}:${key}`,
+    })).toThrow('full_pdf_teacher_only_unstripped_forbidden');
+
+    // Publishing unit-2 when sibling unit-1 contains teacher_only in the same raw PDF MUST also fail closed
+    expect(() => createFullPdfPublicationCommandOutput({
+      ...adapterInput({
+        operationId: '66666666-6666-4666-8666-666666666667',
+        unitKey: 'unit-2',
+        candidate: { ...candidate(manifestWithAnswerKey), candidateId: 'candidate-2', unitKey: 'unit-2', revision: 1 },
+        authority: authority(manifestWithAnswerKey),
+        expectedCandidateRevision: 1,
+        activitiesByKey: {
+          'slot-b': {
+            activityKey: 'slot-b',
+            ownerId: 'teacher-1',
+            revision: 1,
+            lifecycle: 'draft',
+            activity: adapterInput().activitiesByKey['slot-a']!.activity,
+          },
+        },
+      }),
+      allocateId: (kind, key) => `tk-fail2:${kind}:${key}`,
+    })).toThrow('full_pdf_teacher_only_unstripped_forbidden');
+
+    // Without teacher_only pages, reference_only pageGroups publish and carry forward cleanly
+    const studentSafeManifest: BookAssemblyManifestCandidate = {
+      ...manifestWithAnswerKey,
+      units: [
+        {
+          ...manifestWithAnswerKey.units[0]!,
+          pageGroups: manifestWithAnswerKey.units[0]!.pageGroups.filter((g) => g.mode !== 'teacher_only'),
+        },
+        manifestWithAnswerKey.units[1]!,
       ],
     };
     const repository = new InMemoryBookAssemblyPublicationRepository();
     const canonicalWriter = new InMemoryCanonicalActivityVersionRepository();
     const service = createCanonicalBookAssemblyPublicationService(repository, canonicalWriter);
 
-    const op1 = '66666666-6666-4666-8666-666666666666';
+    const op1 = '66666666-6666-4666-8666-666666666668';
     const first = createFullPdfPublicationCommandOutput({
       ...adapterInput({
         operationId: op1,
-        candidate: candidate(manifestWithAnswerKeys),
-        authority: authority(manifestWithAnswerKeys),
+        candidate: candidate(studentSafeManifest),
+        authority: authority(studentSafeManifest),
       }),
       allocateId: (kind, key) => `tk1:${kind}:${key}`,
     });
-    expect(first.plan.manifest.units[0]!.pageGroups.map((g) => g.pageGroupKey)).toEqual(['pages-a', 'pages-a-answer-key']);
     expect(first.plan.studentSafeProjection.units[0]!.pageGroups.map((g) => g.pageGroupKey)).toEqual(['pages-a']);
     expect(first.plan.atomicWrites.unitProjections[0]!.sourcePages.map((p) => p.physicalPageNumber)).toEqual([1, 2]);
 
@@ -584,15 +625,14 @@ describe('full-PDF publication adapter', () => {
     });
     expect(pub1.status).toBe('published');
 
-    // Incremental Unit 2 publish carries Unit 1 forward cleanly even though Unit 1 has teacher_only pageGroups
     const op2 = '77777777-7777-4777-8777-777777777777';
     const scopeAfterFirst = await repository.readScope('book-1');
     const second = createFullPdfPublicationCommandOutput({
       ...adapterInput({
         operationId: op2,
         unitKey: 'unit-2',
-        candidate: { ...candidate(manifestWithAnswerKeys), candidateId: 'candidate-2', unitKey: 'unit-2', revision: 1 },
-        authority: authority(manifestWithAnswerKeys),
+        candidate: { ...candidate(studentSafeManifest), candidateId: 'candidate-2', unitKey: 'unit-2', revision: 1 },
+        authority: authority(studentSafeManifest),
         expectedCandidateRevision: 1,
         activitiesByKey: {
           'slot-b': {
@@ -608,8 +648,6 @@ describe('full-PDF publication adapter', () => {
       predecessorScope: scopeAfterFirst,
       allocateId: (kind, key) => `tk2:${kind}:${key}`,
     });
-    expect(second.plan.manifest.units.flatMap((u) => u.pageGroups.map((g) => g.pageGroupKey)))
-      .toEqual(['pages-a', 'pages-a-answer-key', 'pages-b', 'pages-b-transcript', 'pages-b-answer-key']);
     expect(second.plan.studentSafeProjection.units.flatMap((u) => u.pageGroups.map((g) => g.pageGroupKey)))
       .toEqual(['pages-a', 'pages-b', 'pages-b-transcript']);
     const unit2Proj = second.plan.atomicWrites.unitProjections.find((p) => p.unitKey === 'unit-2');

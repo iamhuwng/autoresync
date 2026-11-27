@@ -119,6 +119,15 @@ const normalizeRtdbRecord = (value: unknown): unknown => {
       }
     });
   }
+  if (Array.isArray(binding.placements)) {
+    binding.placements.forEach((placement: Record<string, any>) => {
+      if (placement && typeof placement === 'object' && !Array.isArray(placement)
+        && (placement.contextMode === 'none' || placement.contextMode === 'optional')) {
+        placement.pageGroupKeys ??= [];
+        placement.sourcePageScopes ??= [];
+      }
+    });
+  }
   return record;
 };
 

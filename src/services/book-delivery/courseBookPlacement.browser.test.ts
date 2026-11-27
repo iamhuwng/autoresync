@@ -257,4 +257,234 @@ describe('Course Book placement browser client', () => {
     expect(() => assertCourseBookRuntimeProjection(runtime)).not.toThrow();
     expect(() => assertCourseBookRuntimeProjection({ ...runtime, documentRequests: [{ ...runtime.documentRequests[0], expectedEtag: { private: true } }] })).toThrow('invalid_response');
   });
+
+  it('accepts full_pdf physicalPageCount and context-free navigation mapping fields while rejecting invalid combinations', () => {
+    const fullPdfRuntime = {
+      schemaVersion: 1,
+      projectionKind: 'book-runtime-delivery',
+      bindingId: 'binding-full-1',
+      bindingRevision: 1,
+      recipientId: 'student-1',
+      context: { contextId: 'course-material-1', kind: 'course', entitlementBasis: 'enrollment' },
+      book: { bookId: 'book-1', bookMode: 'pdf', bookRevision: 2, manifestVersionId: 'manifest-1', publicationId: 'pub-1', publicationRevision: 1, publicationStatus: 'published' },
+      scope: { kind: 'placements', nodeKeys: [], placementIds: ['placement-1'] },
+      outline: [{ nodeKey: 'unit-1', parentNodeKey: null, nodeType: 'unit', order: 1 }],
+      pageGroups: [{ pageGroupKey: 'group-1', combinedPhysicalPages: [4] }],
+      sourceSet: {
+        strategy: 'full_pdf',
+        sources: [{ sourceKey: 'full', sourceVersionId: 'source-v1', lifecycle: 'verified-usable', physicalPageCount: 20, localPageScope: { kind: 'all', pages: [] } }],
+      },
+      documentRequests: [{ sourceKey: 'full', sourceVersionId: 'source-v1', opaqueRouteKey: 'route-full-1', physicalPageCount: 20, localPageScope: { kind: 'all', pages: [] } }],
+      activities: [{
+        placementId: 'placement-1',
+        activityId: 'activity-1',
+        activityVersion: 1,
+        activityVersionId: 'version-1',
+        nodeKey: 'unit-1',
+        order: 1,
+        contextMode: 'none',
+        sourceContext: { available: false, description: 'No source context required.', pageGroupKeys: [], sourcePageScopes: [] },
+        navigationPageGroupKeys: ['group-1'],
+        navigationPageScopes: [{ sourceKey: 'full', pages: [4] }],
+      }],
+      actionFlags: { canAutosave: true, canSubmit: true, canReview: false },
+      provenance: { publicationId: 'pub-1', publicationRevision: 1, bindingId: 'binding-full-1', bindingRevision: 1 },
+    };
+    expect(() => assertCourseBookRuntimeProjection(fullPdfRuntime)).not.toThrow();
+    expect(() => assertCourseBookRuntimeProjection({
+      ...fullPdfRuntime,
+      sourceSet: {
+        strategy: 'full_pdf',
+        sources: [{ ...fullPdfRuntime.sourceSet.sources[0], physicalPageCount: 0 }],
+      },
+    })).toThrow('invalid_response');
+    expect(() => assertCourseBookRuntimeProjection({
+      ...fullPdfRuntime,
+      activities: [{ ...fullPdfRuntime.activities[0], contextMode: 'required' }],
+    })).toThrow('invalid_response');
+    expect(() => assertCourseBookRuntimeProjection({
+      ...fullPdfRuntime,
+      activities: [{
+        ...fullPdfRuntime.activities[0],
+        navigationPageScopes: undefined,
+      }],
+    })).toThrow('invalid_response');
+  });
+
+  it('decodes actual Worker-style projections for context-free Component-PDF and colliding-key Full-PDF courses', async () => {
+    const { createBookDeliveryProjectionResolver } = await import('./bookDelivery.service');
+    const now = '2026-07-24T00:00:00.000Z';
+    const componentBinding = {
+      schemaVersion: 3 as const,
+      bindingId: 'binding-comp-none-1',
+      revision: 1,
+      status: 'active' as const,
+      recipient: { recipientId: 'student-1', recipientKind: 'student' as const },
+      issuer: { ownerId: 'teacher-1', authorityBoundary: 'book-owner' as const },
+      book: {
+        bookId: 'book-comp-1',
+        bookMode: 'pdf' as const,
+        bookRevision: 2,
+        manifestVersionId: 'manifest-comp-1',
+        publicationId: 'pub-comp-1',
+        publicationRevision: 1,
+        publicationStatus: 'published' as const,
+      },
+      scope: { kind: 'placements' as const, nodeKeys: [], placementIds: ['placement-comp-1'] },
+      outline: [{ nodeKey: 'unit-1', parentNodeKey: null, nodeType: 'unit' as const, order: 1 }],
+      context: {
+        kind: 'course' as const,
+        contextId: 'course-material-1',
+        recipientId: 'student-1',
+        ownerId: 'teacher-1',
+        entitlementBasis: 'enrollment' as const,
+      },
+      sourceSet: {
+        strategy: 'component_pdfs' as const,
+        sources: [{
+          sourceKey: 'comp-a',
+          sourceVersionId: 'comp-a-v1',
+          lifecycle: 'verified-usable' as const,
+          sourceOrder: 1,
+          ownerNodeKey: 'unit-1',
+          localPageScope: { kind: 'pages' as const, pages: [1, 2] },
+        }],
+      },
+      placements: [{
+        placementId: 'placement-comp-1',
+        activityId: 'activity-comp-1',
+        activityVersionId: 'activity-comp-1-v1',
+        activityVersion: 1,
+        nodeKey: 'unit-1',
+        order: 1,
+        contextMode: 'none' as const,
+        pageGroupKeys: [],
+        sourcePageScopes: [],
+        navigationPageGroupKeys: ['comp-group-1'],
+        navigationPageScopes: [{ sourceKey: 'comp-a', pages: [1] }],
+      }],
+      schedulePolicy: { policyId: 'course:1', policyRevision: 1, basis: 'immutable-reference' as const },
+      createdAt: now,
+    };
+    const componentProjection = await createBookDeliveryProjectionResolver({
+      allowedAdapterContexts: ['course'],
+      repository: {
+        resolveCurrent: async () => ({
+          record: { binding: componentBinding, recordRevision: 1, status: 'active', createdAt: now, updatedAt: now },
+          pointer: {
+            bindingId: componentBinding.bindingId,
+            bindingRevision: 1,
+            recipientId: 'student-1',
+            contextId: 'course-material-1',
+            contextKind: 'course',
+            status: 'active',
+            updatedAt: now,
+          },
+        }),
+      } as never,
+      resolveStudentDocument: async () => ({
+        expectedByteLength: 2048,
+        expectedEtag: `"${'b'.repeat(64)}"`,
+        physicalPageCount: 2,
+        pageGroups: [{ pageGroupKey: 'comp-group-1', combinedPhysicalPages: [1] }],
+      }),
+    }).resolve({
+      recipientId: 'student-1',
+      contextId: 'course-material-1',
+      actor: { uid: 'student-1' },
+    });
+
+    expect(componentProjection.activities[0]?.navigationPageGroupKeys).toEqual(['comp-group-1']);
+    expect(componentProjection.activities[0]?.navigationPageScopes).toEqual([]);
+    expect(() => assertCourseBookRuntimeProjection(componentProjection)).not.toThrow();
+
+    // Non-empty navigationPageScopes must be rejected for component_pdfs combined-document projections
+    expect(() => assertCourseBookRuntimeProjection({
+      ...componentProjection,
+      activities: [{
+        ...componentProjection.activities[0],
+        navigationPageScopes: [{ sourceKey: 'comp-a', pages: [1] }],
+      }],
+    })).toThrow('invalid_response');
+
+    // Full-PDF projection with colliding cross-unit pageGroupKey emits nodeKey and decodes cleanly
+    const fullBinding = {
+      ...componentBinding,
+      bindingId: 'binding-full-collide-1',
+      book: { ...componentBinding.book, bookId: 'book-full-1', manifestVersionId: 'manifest-full-1', publicationId: 'pub-full-1' },
+      scope: { kind: 'placements' as const, nodeKeys: [], placementIds: ['p-u1', 'p-u2'] },
+      outline: [
+        { nodeKey: 'unit-1', parentNodeKey: null, nodeType: 'unit' as const, order: 1 },
+        { nodeKey: 'unit-2', parentNodeKey: null, nodeType: 'unit' as const, order: 2 },
+      ],
+      sourceSet: {
+        strategy: 'full_pdf' as const,
+        sources: [{
+          sourceKey: 'full',
+          sourceVersionId: 'full-v1',
+          lifecycle: 'verified-usable' as const,
+          physicalPageCount: 12,
+          localPageScope: { kind: 'all' as const, pages: [] },
+        }],
+      },
+      placements: [
+        {
+          placementId: 'p-u1',
+          activityId: 'a-u1',
+          activityVersionId: 'a-u1-v1',
+          activityVersion: 1,
+          nodeKey: 'unit-1',
+          order: 1,
+          contextMode: 'required' as const,
+          pageGroupKeys: ['intro', 'practice'],
+          sourcePageScopes: [{ sourceKey: 'full', pages: [4, 7] }],
+        },
+        {
+          placementId: 'p-u2',
+          activityId: 'a-u2',
+          activityVersionId: 'a-u2-v1',
+          activityVersion: 1,
+          nodeKey: 'unit-2',
+          order: 2,
+          contextMode: 'none' as const,
+          pageGroupKeys: [],
+          sourcePageScopes: [],
+          navigationPageGroupKeys: ['intro'],
+          navigationPageScopes: [{ sourceKey: 'full', pages: [10] }],
+        },
+      ],
+      activityPageGroups: [
+        { nodeKey: 'unit-1', pageGroupKey: 'intro', sourceKey: 'full', pages: [4] },
+        { nodeKey: 'unit-1', pageGroupKey: 'practice', sourceKey: 'full', pages: [7] },
+        { nodeKey: 'unit-2', pageGroupKey: 'intro', sourceKey: 'full', pages: [10] },
+      ],
+    };
+    const fullProjection = await createBookDeliveryProjectionResolver({
+      allowedAdapterContexts: ['course'],
+      repository: {
+        resolveCurrent: async () => ({
+          record: { binding: fullBinding, recordRevision: 1, status: 'active', createdAt: now, updatedAt: now },
+          pointer: {
+            bindingId: fullBinding.bindingId,
+            bindingRevision: 1,
+            recipientId: 'student-1',
+            contextId: 'course-material-1',
+            contextKind: 'course',
+            status: 'active',
+            updatedAt: now,
+          },
+        }),
+      } as never,
+    }).resolve({
+      recipientId: 'student-1',
+      contextId: 'course-material-1',
+      actor: { uid: 'student-1' },
+    });
+    expect(fullProjection.pageGroups).toEqual([
+      { nodeKey: 'unit-1', pageGroupKey: 'intro', combinedPhysicalPages: [4] },
+      { pageGroupKey: 'practice', combinedPhysicalPages: [7] },
+      { nodeKey: 'unit-2', pageGroupKey: 'intro', combinedPhysicalPages: [10] },
+    ]);
+    expect(() => assertCourseBookRuntimeProjection(fullProjection)).not.toThrow();
+  });
 });

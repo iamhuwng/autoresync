@@ -237,6 +237,7 @@ const sourceDescription = (unit: BookUnitCandidate, activityKey: string): string
 const runtimeProjection = (
   candidate: BookAssemblyCandidateRecord,
   unit: BookUnitCandidate,
+  sourceById: ReadonlyMap<string, TrustedBookSourceVersionProjection>,
   studentDocument?: {
     readonly descriptor: ComponentStudentDocument;
     readonly request: BookRuntimeStudentDocumentRequest;
@@ -256,21 +257,28 @@ const runtimeProjection = (
   const sources = selectedSources
     .slice()
     .sort((left, right) => left.sourceOrder - right.sourceOrder || left.sourceKey.localeCompare(right.sourceKey))
-    .map((source, index) => ({
-      sourceKey: source.sourceKey,
-      sourceVersionId: source.sourceVersionId,
-      lifecycle: 'verified-usable' as const,
-      sourceOrder: index + 1,
-      ...('ownerNodeKey' in source ? { ownerNodeKey: source.ownerNodeKey } : {}),
-      localPageScope: manifest.sourceSet.sourceStrategy === 'full_pdf'
-        ? { kind: 'all' as const, pages: [] }
-        : { kind: 'pages' as const, pages: sourceScopes.get(source.sourceKey) ?? [] },
-    }));
+    .map((source, index) => {
+      const authority = sourceById.get(source.sourceVersionId);
+      return {
+        sourceKey: source.sourceKey,
+        sourceVersionId: source.sourceVersionId,
+        lifecycle: 'verified-usable' as const,
+        sourceOrder: index + 1,
+        ...('ownerNodeKey' in source ? { ownerNodeKey: source.ownerNodeKey } : {}),
+        ...(manifest.sourceSet.sourceStrategy === 'full_pdf' && authority?.physicalPageCount
+          ? { physicalPageCount: authority.physicalPageCount }
+          : {}),
+        localPageScope: manifest.sourceSet.sourceStrategy === 'full_pdf'
+          ? { kind: 'all' as const, pages: [] }
+          : { kind: 'pages' as const, pages: sourceScopes.get(source.sourceKey) ?? [] },
+      };
+    });
   const requests = studentDocument ? [studentDocument.request] : sources.map((source) => ({
     sourceKey: source.sourceKey,
     sourceVersionId: source.sourceVersionId,
     opaqueRouteKey: source.sourceKey,
     localPageScope: source.localPageScope,
+    ...(source.physicalPageCount !== undefined ? { physicalPageCount: source.physicalPageCount } : {}),
   }));
   const placements = unit.activitySlots
     .slice()
@@ -279,6 +287,10 @@ const runtimeProjection = (
       const groups = slot.pageGroupKeys
         .map((key) => unit.pageGroups.find((group) => group.pageGroupKey === key))
         .filter((group): group is NonNullable<typeof group> => group !== undefined);
+      const contextFree = slot.contextRequirement === 'none';
+      const mappedScopes = studentDocument
+        ? []
+        : groups.map((group) => ({ sourceKey: group.sourceKey, pages: group.pages }));
       return {
         placementId: `${candidate.candidateId}:${slot.activityKey}`,
         activityId: slot.activityKey,
@@ -286,13 +298,17 @@ const runtimeProjection = (
         order: slot.order,
         contextMode: slot.contextRequirement,
         sourceContext: {
-          available: groups.length > 0,
-          description: studentDocument ? 'Combined student document.' : sourceDescription(unit, slot.activityKey),
-          pageGroupKeys: slot.pageGroupKeys,
-          sourcePageScopes: studentDocument
-            ? []
-            : groups.map((group) => ({ sourceKey: group.sourceKey, pages: group.pages })),
+          available: !contextFree && groups.length > 0,
+          description: contextFree
+            ? 'No source context required.'
+            : studentDocument ? 'Combined student document.' : sourceDescription(unit, slot.activityKey),
+          pageGroupKeys: contextFree ? [] : slot.pageGroupKeys,
+          sourcePageScopes: contextFree ? [] : mappedScopes,
         },
+        ...(contextFree && slot.pageGroupKeys.length > 0 ? {
+          navigationPageGroupKeys: slot.pageGroupKeys,
+          navigationPageScopes: mappedScopes,
+        } : {}),
       };
     });
   return Object.freeze({
@@ -393,7 +409,7 @@ export const createCandidateUnitPreview = (input: {
       compositionFingerprint: input.studentDocument.descriptor.compositionFingerprint,
     }) } : {}),
     activities: Object.freeze(activities),
-    runtime: runtimeProjection(input.candidate, unit, input.studentDocument),
+    runtime: runtimeProjection(input.candidate, unit, sourceById, input.studentDocument),
   });
 };
 

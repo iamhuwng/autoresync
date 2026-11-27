@@ -334,4 +334,70 @@ describe('Book Delivery binding schema', () => {
     });
     expect(readLegacyBookDeliveryV1(accessor)).toBeNull();
   });
+
+  it('validates context-free navigation mapping, full_pdf physicalPageCount, and non-colliding referencePageGroups', () => {
+    const contextFreePub = {
+      ...publication('full_pdf'),
+      sourceSet: {
+        strategy: 'full_pdf' as const,
+        sources: [{
+          sourceKey: 'full',
+          sourceVersionId: 'source-v1',
+          lifecycle: 'verified-usable' as const,
+          localPageScope: { kind: 'all' as const, pages: [] },
+          physicalPageCount: 24,
+        }],
+      },
+      placements: [{
+        placementId: 'placement-1',
+        activityId: 'activity-1',
+        activityVersionId: 'activity-1-v2',
+        activityVersion: 2,
+        nodeKey: 'unit-1',
+        order: 1,
+        contextMode: 'none' as const,
+        pageGroupKeys: [],
+        sourcePageScopes: [],
+        navigationPageGroupKeys: ['group-1'],
+        navigationPageScopes: [{ sourceKey: 'full', pages: [1] }],
+      }],
+      referencePageGroups: [{
+        nodeKey: 'unit-1',
+        pageGroupKey: 'ref:unit-1:transcript',
+        sourceKey: 'full',
+        pages: [12, 13],
+      }],
+    };
+    const validBinding = binding({ publication: contextFreePub });
+    expect(validateBookDeliveryBinding(validBinding).valid).toBe(true);
+
+    // Rejects navigationPageGroupKeys on contextMode: 'required'
+    const requiredWithNav = structuredClone(binding()) as any;
+    requiredWithNav.placements[0].navigationPageGroupKeys = ['group-1'];
+    expect(validateBookDeliveryBinding(requiredWithNav).errors.some(
+      (item) => item.code === 'source-scope-mismatch' && item.path === 'placements[0]',
+    )).toBe(true);
+
+    // Rejects non-positive physicalPageCount or physicalPageCount on component_pdfs
+    const badPageCount = structuredClone(validBinding) as any;
+    badPageCount.sourceSet.sources[0].physicalPageCount = 0;
+    expect(validateBookDeliveryBinding(badPageCount).errors.some(
+      (item) => item.code === 'invalid-value' && item.path === 'sourceSet.sources[0].physicalPageCount',
+    )).toBe(true);
+
+    const componentWithPageCount = structuredClone(binding({ publication: publication('component_pdfs') })) as any;
+    componentWithPageCount.sourceSet.sources[0].physicalPageCount = 10;
+    const componentPageCountResult = validateBookDeliveryBinding(componentWithPageCount);
+    expect(componentPageCountResult.valid).toBe(false);
+    expect(componentPageCountResult.errors.some(
+      (item) => item.path.startsWith('sourceSet.sources[0]'),
+    )).toBe(true);
+
+    // Rejects referencePageGroups colliding with placement pageGroupKeys or navigationPageGroupKeys
+    const collidingRef = structuredClone(validBinding) as any;
+    collidingRef.referencePageGroups[0].pageGroupKey = 'group-1';
+    expect(validateBookDeliveryBinding(collidingRef).errors.some(
+      (item) => item.code === 'duplicate-id' && item.path === 'binding.referencePageGroups[0].pageGroupKey',
+    )).toBe(true);
+  });
 });

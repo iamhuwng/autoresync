@@ -398,4 +398,69 @@ describe('Book Delivery Firebase repository', () => {
     expect((await repository.readBinding('binding-worker'))?.status).toBe('draft');
     expect(await repository.readCurrent('teacher-1', 'preview-1')).toBeNull();
   });
+
+  it('round-trips context-free (contextMode: none) bindings through Firebase RTDB empty-array erasure on create, activate, and resolve', async () => {
+    const stripRtdbEmptyArrays = (value: unknown): unknown => {
+      if (Array.isArray(value)) {
+        if (value.length === 0) return undefined;
+        return value.map(stripRtdbEmptyArrays);
+      }
+      if (value && typeof value === 'object') {
+        const next: Record<string, unknown> = {};
+        for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+          const stripped = stripRtdbEmptyArrays(entry);
+          if (stripped !== undefined) next[key] = stripped;
+        }
+        return next;
+      }
+      return value;
+    };
+    const firebase = createFirebase();
+    const rtdbStrippingFetch: typeof fetch = async (input, init) => {
+      if (init?.method === 'PUT' && typeof init.body === 'string') {
+        const stripped = stripRtdbEmptyArrays(JSON.parse(init.body));
+        return firebase.fetchImpl(input, { ...init, body: JSON.stringify(stripped) });
+      }
+      return firebase.fetchImpl(input, init);
+    };
+    const repository = new FirebaseRestBookDeliveryRepository({
+      env,
+      fetchImpl: rtdbStrippingFetch,
+      getAccessToken: async () => 'test-token',
+    });
+    const base = makeBookDeliveryTestBinding();
+    const contextFreeBinding = {
+      ...base,
+      bindingId: 'binding-context-free',
+      placements: [{
+        ...base.placements[0]!,
+        contextMode: 'none' as const,
+        pageGroupKeys: [],
+        sourcePageScopes: [],
+        navigationPageGroupKeys: ['pages-1'],
+        navigationPageScopes: [{ sourceKey: 'full', pages: [1] }],
+      }],
+    };
+    const created = await repository.createDraft({
+      binding: contextFreeBinding,
+      operationId: operation(90),
+      now: '2026-07-25T00:00:00.000Z',
+    });
+    expect(created.status).toBe('created');
+    const activated = await repository.activate({
+      bindingId: 'binding-context-free',
+      expectedRecordRevision: 0,
+      operationId: operation(91),
+      now: '2026-07-25T00:01:00.000Z',
+    });
+    expect(activated.status).toBe('activated');
+    const resolved = await repository.resolveCurrent('teacher-1', 'preview-1');
+    expect(resolved?.record.binding.placements[0]).toMatchObject({
+      contextMode: 'none',
+      pageGroupKeys: [],
+      sourcePageScopes: [],
+      navigationPageGroupKeys: ['pages-1'],
+      navigationPageScopes: [{ sourceKey: 'full', pages: [1] }],
+    });
+  });
 });

@@ -2,6 +2,7 @@ import {
   type BookAssemblyPublicationResult,
 } from '../../../../src/services/book-assembly/publicationTransaction.service.ts';
 import {
+  canonicalActivityVersionReferenceKey,
   createCanonicalBookAssemblyPublicationService,
 } from '../../../../src/services/book-assembly/canonicalPublication.service.ts';
 import type {
@@ -235,7 +236,8 @@ export const createFullPdfPublicationWorkerHandlers = (options: {
         const requestOperationId = operationId(input.request, allocateOperationId);
         const bookId = id(body.bookId, 'invalid_book_id');
         const fingerprint = await requestFingerprint(input.uid, body);
-        const stored = (await options.repository.readScope(bookId)).operations?.[requestOperationId];
+        const scope = await options.repository.readScope(bookId);
+        const stored = scope.operations?.[requestOperationId];
         if (stored) {
           if (stored.ownerId !== input.uid || stored.fingerprint !== fingerprint) {
             return { body: { code: 'idempotency_conflict' }, init: { status: 409 } };
@@ -254,6 +256,67 @@ export const createFullPdfPublicationWorkerHandlers = (options: {
                 result: replayed,
               },
               init: { status: statusFor(replayed) },
+            };
+          }
+        }
+        if (scope.current?.updatedByCommandId === requestOperationId) {
+          const committedVersion = scope.versions?.[scope.current.manifestVersionId];
+          if (scope.current.operationFingerprint !== fingerprint
+            || (committedVersion && committedVersion.ownerId !== input.uid)) {
+            return { body: { code: 'idempotency_conflict' }, init: { status: 409 } };
+          }
+          const recovered = await options.repository.transaction<BookAssemblyPublicationResult>(
+            bookId,
+            (recoveredScope) => {
+              const recoveredOp = recoveredScope.operations?.[requestOperationId];
+              if (recoveredOp) {
+                if (recoveredOp.ownerId !== input.uid || recoveredOp.fingerprint !== fingerprint) {
+                  return {
+                    outcome: { status: 'idempotency-conflict', failureCode: 'idempotency-conflict' },
+                    write: false,
+                  };
+                }
+                return {
+                  outcome: { ...structuredClone(recoveredOp.result), status: 'replayed' },
+                  write: false,
+                };
+              }
+              const current = recoveredScope.current;
+              const version = current ? recoveredScope.versions?.[current.manifestVersionId] : undefined;
+              if (current?.updatedByCommandId === requestOperationId
+                && current.operationFingerprint === fingerprint
+                && version
+                && version.ownerId === input.uid) {
+                return {
+                  outcome: {
+                    status: 'replayed',
+                    pointer: structuredClone(current),
+                    version: structuredClone(version),
+                  },
+                  write: false,
+                };
+              }
+              return {
+                outcome: { status: 'conflict', failureCode: 'stale-current-pointer' },
+                write: false,
+              };
+            },
+            requestOperationId,
+            fingerprint,
+          );
+          if (recovered.status === 'idempotency-conflict') {
+            return { body: { code: 'idempotency_conflict' }, init: { status: 409 } };
+          }
+          if (recovered.pointer && recovered.version) {
+            return {
+              body: {
+                operationId: requestOperationId,
+                manifestVersionId: recovered.pointer.manifestVersionId,
+                publicationId: recovered.pointer.publicationId,
+                publicationRevision: recovered.pointer.publicationRevision,
+                result: recovered,
+              },
+              init: { status: statusFor(recovered) },
             };
           }
         }
@@ -280,7 +343,30 @@ export const createFullPdfPublicationWorkerHandlers = (options: {
               || freshAuthority.sourceSetRevision !== request.plan.sourceSetRevision) {
               return { status: 'conflict', failureCode: 'stale-authority-revision' };
             }
-            return service.publish(request);
+            const verifiedCommittedReferences = new Set<string>();
+            const currentVersion = current ? scope.versions?.[current.manifestVersionId] : undefined;
+            if (current && currentVersion
+              && currentVersion.lifecycle === 'published'
+              && currentVersion.ownerId === request.plan.ownerId
+              && currentVersion.bookId === request.plan.bookId
+              && currentVersion.publicationId === current.publicationId
+              && currentVersion.publicationRevision === current.publicationRevision) {
+              for (const record of Object.values(scope.activityVersions ?? {})) {
+                if (record.ownerId === request.plan.ownerId
+                  && record.bookId === request.plan.bookId
+                  && record.manifestVersionId === current.manifestVersionId
+                  && record.publicationId === current.publicationId
+                  && record.publicationRevision === current.publicationRevision
+                  && typeof record.canonicalPayloadFingerprint === 'string'
+                  && record.canonicalPayloadFingerprint.length > 0) {
+                  verifiedCommittedReferences.add(canonicalActivityVersionReferenceKey(record));
+                }
+              }
+            }
+            return service.publish({
+              ...request,
+              ...(verifiedCommittedReferences.size > 0 ? { verifiedCommittedReferences } : {}),
+            });
           },
           allocateOperationId: () => requestOperationId,
           allocateId,

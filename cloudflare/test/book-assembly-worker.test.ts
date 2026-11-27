@@ -123,6 +123,10 @@ class MemoryRepository implements BookAssemblyRepositoryPort {
     this.readScopeCalls += 1;
     return structuredClone(this.root);
   }
+  async readBookScopes(): Promise<Readonly<Record<string, BookAssemblyScope>>> {
+    this.readScopeCalls += 1;
+    return Object.fromEntries(this.unitKeys.map((key) => [key, structuredClone(this.root)]));
+  }
   async transaction<T>(
     _bookId: string,
     _unitKey: string,
@@ -169,10 +173,19 @@ describe('PRD0062 ticket 13A Assembly candidate Worker', () => {
     });
     expect(validated.body).toMatchObject({ status: 'validated' });
     await expect(handlers.discoverDrafts({ env: mutationEnv() as never, uid: 'teacher-1', bookId: 'book-1' }))
-      .resolves.toMatchObject({ body: { status: 'loaded', drafts: [
-        { candidate: { candidateId: 'candidate-first', lifecycle: 'validated' },
-          savedActivityKeysByUnit: { 'unit-1': ['activity-1'] } },
-      ] } });
+      .resolves.toMatchObject({
+        body: {
+          status: 'loaded',
+          savedActivityKeysByUnit: { 'unit-1': ['activity-1'] },
+          manifestsById: { m0: expect.objectContaining({ bookId: 'book-1' }) },
+          drafts: [
+            {
+              candidate: { candidateId: 'candidate-first', lifecycle: 'validated', manifest: null },
+              manifestRef: 'm0',
+            },
+          ],
+        },
+      });
     await expect(handlers.loadCurrent({ env: mutationEnv() as never, uid: 'teacher-1', bookId: 'book-1', unitKey: 'unit-1' }))
       .resolves.toMatchObject({ body: { status: 'empty' } });
     const beforeDiscovery = structuredClone(repository.root);
@@ -729,6 +742,7 @@ describe('PRD0062 ticket 13A Assembly candidate Worker', () => {
       ),
       listUnitKeys: async () => Array.from(scopes.keys()),
       readScope: async (_bookId, unitKey) => structuredClone(scopes.get(unitKey) ?? {}),
+      readBookScopes: async () => Object.fromEntries(Array.from(scopes.entries()).map(([k, v]) => [k, structuredClone(v)])),
       transaction: async (_bookId, unitKey, mutate, options = {}) => {
         const current = structuredClone(scopes.get(unitKey) ?? {});
         const output = mutate(current);
@@ -800,15 +814,239 @@ describe('PRD0062 ticket 13A Assembly candidate Worker', () => {
       bookId: 'book-1',
     });
     expect(discovered.init.status).toBe(200);
-    expect((discovered.body as { drafts: Array<{ candidate: { unitKey: string }; savedActivityKeysByUnit: Record<string, string[]> }> }).drafts).toEqual([
+    expect(discovered.body).toMatchObject({
+      status: 'loaded',
+      savedActivityKeysByUnit: { 'unit-01': ['u01-ex1'], 'unit-02': ['u02-ex1'] },
+      manifestsById: { m0: multiUnitManifest },
+    });
+    expect((discovered.body as { drafts: Array<{ candidate: { unitKey: string; manifest: unknown }; manifestRef: string }> }).drafts).toEqual([
       expect.objectContaining({
-        candidate: expect.objectContaining({ unitKey: 'unit-01' }),
-        savedActivityKeysByUnit: { 'unit-01': ['u01-ex1'], 'unit-02': ['u02-ex1'] },
+        candidate: expect.objectContaining({ unitKey: 'unit-01', manifest: null }),
+        manifestRef: 'm0',
       }),
       expect.objectContaining({
-        candidate: expect.objectContaining({ unitKey: 'unit-02' }),
-        savedActivityKeysByUnit: { 'unit-01': ['u01-ex1'], 'unit-02': ['u02-ex1'] },
+        candidate: expect.objectContaining({ unitKey: 'unit-02', manifest: null }),
+        manifestRef: 'm0',
       }),
     ]);
+  });
+
+  it('prunes superseded candidates and strips operation manifests across 35+ sequential replaces without hitting scope caps', async () => {
+    const repository = new MemoryRepository();
+    const validManifest = manifest();
+    let seq = 0;
+    const handlers = createBookAssemblyWorkerHandlers({
+      repository,
+      readBookAuthority: async () => repository.book,
+      now: () => `2026-07-26T00:00:${String(seq++).padStart(2, '0')}.000Z`,
+      createCandidateId: () => `candidate-seq-${seq}`,
+    });
+    const created = await handlers.create({
+      request: request({
+        operationId: op('e001'),
+        bookId: 'book-1',
+        expectedBookRevision: 4,
+        expectedSourceSetRevision: 2,
+        unitKey: 'unit-1',
+        manifest: validManifest,
+      }),
+      env: mutationEnv() as never,
+      uid: 'teacher-1',
+      bookId: 'book-1',
+    });
+    expect(created.init.status).toBe(200);
+    let current = (created.body as { candidate: { candidateId: string; revision: number } }).candidate;
+    const validated = await handlers.validate({
+      request: request({
+        operationId: op('e002'),
+        bookId: 'book-1',
+        unitKey: 'unit-1',
+        candidateId: current.candidateId,
+        expectedCandidateRevision: current.revision,
+      }),
+      env: mutationEnv() as never,
+      uid: 'teacher-1',
+      bookId: 'book-1',
+    });
+    expect(validated.init.status).toBe(200);
+    current = (validated.body as { candidate: { candidateId: string; revision: number } }).candidate;
+
+    let lastOpId = '';
+    for (let edit = 1; edit <= 36; edit += 1) {
+      lastOpId = op(`f${String(edit).padStart(3, '0')}`);
+      const replaced = await handlers.replace({
+        request: request({
+          operationId: lastOpId,
+          bookId: 'book-1',
+          expectedBookRevision: 4,
+          expectedSourceSetRevision: 2,
+          unitKey: 'unit-1',
+          candidateId: current.candidateId,
+          expectedCandidateRevision: current.revision,
+          manifest: validManifest,
+        }),
+        env: mutationEnv() as never,
+        uid: 'teacher-1',
+        bookId: 'book-1',
+      });
+      expect(replaced.init.status).toBe(200);
+      current = (replaced.body as { candidate: { candidateId: string; revision: number } }).candidate;
+    }
+
+    expect(Object.keys(repository.root.candidates ?? {}).length).toBeLessThanOrEqual(8);
+    expect(repository.root.current?.candidateId).toBe(current.candidateId);
+    for (const storedOp of Object.values(repository.root.operations ?? {})) {
+      if (storedOp.result.candidate) {
+        expect(storedOp.result.candidate.manifest).toBeNull();
+      }
+    }
+    const replayed = await handlers.replace({
+      request: request({
+        operationId: lastOpId,
+        bookId: 'book-1',
+        expectedBookRevision: 4,
+        expectedSourceSetRevision: 2,
+        unitKey: 'unit-1',
+        candidateId: current.candidateId,
+        expectedCandidateRevision: current.revision,
+        manifest: validManifest,
+      }),
+      env: mutationEnv() as never,
+      uid: 'teacher-1',
+      bookId: 'book-1',
+    });
+    // Replaying exact prior op (with same fingerprint) returns hydrated manifest
+    const lastOp = repository.root.operations![lastOpId]!;
+    expect(lastOp).toBeDefined();
+    expect(replayed.init.status).toBe(409); // different expected candidateId/revision => idempotency conflict check intact
+  });
+
+  it('guards allowUnpublishedValidatedRollback discard to newly created unpublished unbound validated drafts', async () => {
+    const repository = new MemoryRepository();
+    let published = false;
+    let bound = false;
+    const handlers = createBookAssemblyWorkerHandlers({
+      repository,
+      readBookAuthority: async () => repository.book,
+      createCandidateId: () => 'candidate-rollback-1',
+      isCandidatePublished: async () => published,
+      bindingRepositoryFactory: () => ({
+        read: async () => null,
+        readBookBindings: async () => (bound ? {
+          'unit-1': {
+            'activity-1': {
+              schemaVersion: 1,
+              ownerId: 'teacher-1',
+              bookId: 'book-1',
+              unitKey: 'unit-1',
+              activityKey: 'activity-1',
+              activityId: 'activity-target-1',
+              candidateId: 'act-cand-1',
+              candidateRevision: 3,
+              candidateLifecycle: 'saved',
+            },
+          },
+        } : {}),
+        bindCandidate: async () => 'created',
+        recordPublication: async () => 'updated',
+      }),
+    });
+
+    const created = await handlers.create({
+      request: request({
+        operationId: op('c101'),
+        bookId: 'book-1',
+        expectedBookRevision: 4,
+        expectedSourceSetRevision: 2,
+        unitKey: 'unit-1',
+        manifest: manifest(),
+      }),
+      env: mutationEnv() as never,
+      uid: 'teacher-1',
+      bookId: 'book-1',
+    });
+    expect(created.init.status).toBe(200);
+    const validated = await handlers.validate({
+      request: request({
+        operationId: op('c102'),
+        bookId: 'book-1',
+        unitKey: 'unit-1',
+        candidateId: 'candidate-rollback-1',
+        expectedCandidateRevision: 1,
+      }),
+      env: mutationEnv() as never,
+      uid: 'teacher-1',
+      bookId: 'book-1',
+    });
+    expect(validated.init.status).toBe(200);
+
+    // Default discard of validated candidate stays rejected with 409 conflict
+    const defaultDiscard = await handlers.discard({
+      request: request({
+        operationId: op('c103'),
+        bookId: 'book-1',
+        unitKey: 'unit-1',
+        candidateId: 'candidate-rollback-1',
+        expectedCandidateRevision: 2,
+      }),
+      env: mutationEnv() as never,
+      uid: 'teacher-1',
+      bookId: 'book-1',
+    });
+    expect(defaultDiscard.init.status).toBe(409);
+
+    // Blocked when a saved Unit-Activity binding exists
+    bound = true;
+    const blockedByBinding = await handlers.discard({
+      request: request({
+        operationId: op('c104'),
+        bookId: 'book-1',
+        unitKey: 'unit-1',
+        candidateId: 'candidate-rollback-1',
+        expectedCandidateRevision: 2,
+        allowUnpublishedValidatedRollback: true,
+      }),
+      env: mutationEnv() as never,
+      uid: 'teacher-1',
+      bookId: 'book-1',
+    });
+    expect(blockedByBinding.init.status).toBe(409);
+    bound = false;
+
+    // Blocked when published
+    published = true;
+    const blockedByPublish = await handlers.discard({
+      request: request({
+        operationId: op('c105'),
+        bookId: 'book-1',
+        unitKey: 'unit-1',
+        candidateId: 'candidate-rollback-1',
+        expectedCandidateRevision: 2,
+        allowUnpublishedValidatedRollback: true,
+      }),
+      env: mutationEnv() as never,
+      uid: 'teacher-1',
+      bookId: 'book-1',
+    });
+    expect(blockedByPublish.init.status).toBe(409);
+    published = false;
+
+    // Succeeds when sole unpublished, unactivated, unbound validated candidate
+    const allowedDiscard = await handlers.discard({
+      request: request({
+        operationId: op('c106'),
+        bookId: 'book-1',
+        unitKey: 'unit-1',
+        candidateId: 'candidate-rollback-1',
+        expectedCandidateRevision: 2,
+        allowUnpublishedValidatedRollback: true,
+      }),
+      env: mutationEnv() as never,
+      uid: 'teacher-1',
+      bookId: 'book-1',
+    });
+    expect(allowedDiscard.init.status).toBe(200);
+    expect(allowedDiscard.body).toMatchObject({ status: 'discarded' });
+    expect(repository.root.current).toBeUndefined();
   });
 });

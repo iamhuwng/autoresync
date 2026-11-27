@@ -346,6 +346,24 @@ export class FirebaseRestBookAssemblyRepository {
     return keys.sort();
   }
 
+  async readBookScopes(bookId: string): Promise<Readonly<Record<string, BookAssemblyScope>>> {
+    const value = await this.rtdb.readValue(unitParentPath(bookId));
+    if (value === null || value === undefined) return {};
+    if (typeof value !== 'object' || Array.isArray(value)) {
+      throw new Error('invalid_book_assembly_draft_keys');
+    }
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length > BOOK_ASSEMBLY_MAX_DRAFT_UNITS) {
+      throw new Error('invalid_book_assembly_draft_keys');
+    }
+    const scopes: Record<string, BookAssemblyScope> = {};
+    for (const [unitKey, rawScope] of entries) {
+      assertId(unitKey, 'unit_key');
+      scopes[unitKey] = parseScope(rawScope, bookId, unitKey, { hydrate: true });
+    }
+    return scopes;
+  }
+
   async readValue(path: string): Promise<unknown> {
     const match = /^users\/([A-Za-z0-9][A-Za-z0-9._:@-]{0,255})$/u.exec(path);
     if (!match || match[1] !== this.options.ownerId?.trim()) {

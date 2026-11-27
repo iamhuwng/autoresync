@@ -175,6 +175,7 @@ export interface BookAssemblyPublicationRouteOptions {
   /** #64 exact immutable Activity Version writer. Uses its dedicated identity. */
   readonly activityVersionWriterFactory?: (
     env: BookRouterEnv,
+    ownerId?: string,
   ) => CanonicalActivityVersionWriter;
   /** #55 candidate repository/read seam. */
   readonly candidateRepositoryFactory?: (
@@ -235,9 +236,11 @@ const defaultCandidateRepositoryFactory = (
 
 const defaultActivityVersionWriterFactory = (
   env: BookRouterEnv,
+  ownerId?: string,
 ): CanonicalActivityVersionWriter => (
   new FirebaseRestCanonicalActivityVersionWriter({
     env: env as CanonicalActivityVersionWriterEnv,
+    ownerId,
   })
 );
 
@@ -262,6 +265,7 @@ const recordPublishedBindings = async (
   input: BookAssemblyPublicationRouteInput,
   result: PublicationWorkerResult,
   requestBody: Record<string, unknown> | null,
+  readWholeActivationApprovalInputOverride?: NonNullable<BookAssemblyPublicationRouteOptions['componentPdf']>['readWholeActivationApprovalInput'],
 ): Promise<PublicationWorkerResult> => {
   if (!options.bindingRepositoryFactory) return result;
   const workerReceipt = result.body as {
@@ -350,8 +354,10 @@ const recordPublishedBindings = async (
     throw new Error('book_assembly_activity_binding_committed_version_unavailable');
   }
   const activityVersions = scope.activityVersions ?? {};
+  const activationReader = readWholeActivationApprovalInputOverride
+    ?? options.componentPdf?.readWholeActivationApprovalInput;
   const activation = Array.isArray(requestBody.unitApprovals)
-    ? await options.componentPdf?.readWholeActivationApprovalInput({
+    ? await activationReader?.({
       env: input.env, actorId: input.uid, bookId: requestBody.bookId,
     })
     : null;
@@ -361,6 +367,13 @@ const recordPublishedBindings = async (
     || activation.sourceSetRevision !== version.sourceSetRevision)) {
     throw new Error('book_assembly_activity_binding_conflict');
   }
+  const firstUnitKey = requestUnits[0]?.unitKey;
+  const bookBindingRepo = firstUnitKey
+    ? options.bindingRepositoryFactory(input.env, input.uid, requestBody.bookId, firstUnitKey)
+    : null;
+  const cachedBookBindings = bookBindingRepo?.readBookBindings
+    ? await bookBindingRepo.readBookBindings(input.uid, requestBody.bookId)
+    : null;
   for (const requestUnit of requestUnits) {
     const unitKey = requestUnit!.unitKey;
     const expectedKeys = version.manifest.units.find((unit) => unit.unitKey === unitKey)
@@ -377,10 +390,14 @@ const recordPublishedBindings = async (
       committed.set(candidate.activityKey, candidate);
     }
     if (committed.size !== expectedKeys.length) throw new Error('book_assembly_activity_binding_committed_version_missing');
-    const repository = options.bindingRepositoryFactory(input.env, input.uid, requestBody.bookId, unitKey);
+    const repository = unitKey === firstUnitKey && bookBindingRepo
+      ? bookBindingRepo
+      : options.bindingRepositoryFactory(input.env, input.uid, requestBody.bookId, unitKey);
     for (const activityKey of expectedKeys) {
       const versionRecord = committed.get(activityKey)!;
-      const binding = await repository.read({ ownerId: input.uid, bookId: requestBody.bookId, unitKey, activityKey });
+      const binding = cachedBookBindings !== null
+        ? (cachedBookBindings[unitKey]?.[activityKey] ?? null)
+        : await repository.read({ ownerId: input.uid, bookId: requestBody.bookId, unitKey, activityKey });
       const pinned = activation?.activationReceipt.activities.find((activity) =>
         activity.unitKey === unitKey && activity.activityKey === activityKey);
       if (!binding || binding.activityId !== versionRecord.activityId
@@ -389,6 +406,12 @@ const recordPublishedBindings = async (
           || binding.candidateId !== pinned.activityCandidateId
           || binding.candidateRevision !== pinned.activityCandidateRevision))) {
         throw new Error('book_assembly_activity_binding_conflict');
+      }
+      // Skip unchanged/already-recorded bindings (e.g., carried-forward units or idempotent replays)
+      // to stay well under the Cloudflare Workers Free 50-subrequest ceiling.
+      if (binding.activityVersionId === versionRecord.activityVersionId
+        && binding.activityVersion === versionRecord.activityVersion) {
+        continue;
       }
       const status = await repository.recordPublication({
         ownerId: input.uid, bookId: requestBody.bookId, unitKey, activityKey,
@@ -414,7 +437,7 @@ const createFullPdfHandler = (
         repository: (options.repositoryFactory ?? defaultRepositoryFactory)(input.env, input.uid),
         activityVersionWriter: (
           options.activityVersionWriterFactory ?? defaultActivityVersionWriterFactory
-        )(input.env),
+        )(input.env, input.uid),
         readCandidate: (bookId, unitKey, candidateId) => readCandidate(
           options,
           input,
@@ -481,6 +504,7 @@ const createComponentPdfHandler = (
   if (!ports) return unavailable('book_component_pdf_publication_dependencies_unavailable');
   return async (input) => {
     let worker: ReturnType<typeof createComponentPdfPublicationWorkerHandlers>;
+    let reconciliationActivationReader: NonNullable<BookAssemblyPublicationRouteOptions['componentPdf']>['readWholeActivationApprovalInput'] | undefined;
     try {
       const baseRepository = (options.repositoryFactory ?? defaultRepositoryFactory)(input.env, input.uid);
       const initialScopeByBook = new Map<string, Promise<BookAssemblyPublicationScope<BookAssemblyPublicationResult>>>();
@@ -494,17 +518,19 @@ const createComponentPdfHandler = (
       };
       const repository: BookAssemblyPublicationRepository<BookAssemblyPublicationResult> = {
         readScope: readInitialScope,
-        transaction: (bookId, mutate, txOptions) => baseRepository.transaction(bookId, mutate, txOptions),
+        transaction: (bookId, mutate, operationId, operationFingerprint) =>
+          baseRepository.transaction(bookId, mutate, operationId, operationFingerprint),
       };
-      const requestPorts = ports.createRequestScope
+      const scopedPorts = ports.createRequestScope
         ? ports.createRequestScope({ readPublicationScope: readInitialScope })
         : ports;
+      reconciliationActivationReader = scopedPorts.readWholeActivationApprovalInput;
       worker = createComponentPdfPublicationWorkerHandlers({
-        readUser: (uid) => requestPorts.readUser({ env: input.env, actorId: uid }),
+        readUser: (uid) => scopedPorts.readUser({ env: input.env, actorId: uid }),
         repository,
         activityVersionWriter: (
           options.activityVersionWriterFactory ?? defaultActivityVersionWriterFactory
-        )(input.env),
+        )(input.env, input.uid),
         readCandidate: (bookId, unitKey, candidateId) => readCandidate(
           options,
           input,
@@ -512,32 +538,32 @@ const createComponentPdfHandler = (
           unitKey,
           candidateId,
           input.uid,
-          requestPorts.readCandidate,
+          scopedPorts.readCandidate,
         ),
-        readAuthority: (bookId) => requestPorts.readAuthority({ env: input.env, actorId: input.uid, bookId }),
-        readWholeActivationApprovalInput: (bookId) => requestPorts.readWholeActivationApprovalInput({
+        readAuthority: (bookId) => scopedPorts.readAuthority({ env: input.env, actorId: input.uid, bookId }),
+        readWholeActivationApprovalInput: (bookId) => scopedPorts.readWholeActivationApprovalInput({
           env: input.env, actorId: input.uid, bookId,
         }),
-        readActivities: ({ ownerId, bookId, unitKey, activityKeys }) => requestPorts.readActivities({
+        readActivities: ({ ownerId, bookId, unitKey, activityKeys }) => scopedPorts.readActivities({
           env: input.env, actorId: input.uid,
           bookId,
           unitKey,
           ownerId,
           activityKeys,
         }),
-        readPreviewApproval: ({ bookId, unitKey, approvalId }) => requestPorts.readPreviewApproval({
+        readPreviewApproval: ({ bookId, unitKey, approvalId }) => scopedPorts.readPreviewApproval({
           env: input.env, actorId: input.uid,
           bookId,
           unitKey,
           approvalId,
         }).then(normalizePreviewApproval),
-        sourceIsPreviewReady: ({ bookId, sourceVersionId }) => requestPorts.sourceIsPreviewReady({
+        sourceIsPreviewReady: ({ bookId, sourceVersionId }) => scopedPorts.sourceIsPreviewReady({
           env: input.env, actorId: input.uid,
           bookId,
           sourceVersionId,
         }),
-        ...(requestPorts.readLineage ? {
-          readLineage: (bookId: string, unitKey: string) => requestPorts.readLineage!({
+        ...(scopedPorts.readLineage ? {
+          readLineage: (bookId: string, unitKey: string) => scopedPorts.readLineage!({
             env: input.env, actorId: input.uid,
             bookId,
             unitKey,
@@ -556,7 +582,15 @@ const createComponentPdfHandler = (
       env: input.env,
       uid: input.uid,
     });
-    try { return await recordPublishedBindings(options, input, result, requestBody); } catch {
+    try {
+      return await recordPublishedBindings(
+        options,
+        input,
+        result,
+        requestBody,
+        reconciliationActivationReader,
+      );
+    } catch {
       return { body: { code: 'book_assembly_activity_binding_unavailable' }, init: { status: 503 } };
     }
   };

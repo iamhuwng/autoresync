@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ActivityAuthoringService } from '../book-activity/activityAuthoring.service';
-import { ActivityAuthoringHttpError } from '../book-activity/activityStorage.service';
+import {
+  ActivityAuthoringAmbiguousTransportError,
+  ActivityAuthoringHttpError,
+} from '../book-activity/activityStorage.service';
 import type { EditableActivity } from '../../types/bookActivity.types';
 import type { BookAssemblyManifestCandidate } from '../../types/bookAssembly.types';
 import {
@@ -12,6 +15,7 @@ import {
   stageUnitActivityImportBundle,
   UnitActivityImportConflictError,
   UnitActivityImportError,
+  UnitActivityImportPartialCommitError,
 } from './unitActivityImport.service';
 import {
   BULK_UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
@@ -123,9 +127,12 @@ describe('unit Activity JSON import', () => {
       .not.toBe(bookScopedActivityTargetId('book-1', 'activity_3aa'));
   });
 
-  it('fails closed when a Book-scoped Activity target cannot fit the authoring ID contract', () => {
-    expect(() => bookScopedActivityTargetId('b'.repeat(128), 'a'.repeat(128)))
-      .toThrowError(expect.objectContaining({ code: 'activity-target-too-long' }));
+  it('keeps long Book and Activity slot identifiers bounded and collision-free within the 160-char authoring ID contract', () => {
+    const first = bookScopedActivityTargetId('b'.repeat(128), 'a'.repeat(128));
+    const second = bookScopedActivityTargetId('b'.repeat(128), `${'a'.repeat(127)}c`);
+    expect(first.length).toBeLessThanOrEqual(160);
+    expect(first).toMatch(/^ba_h_[0-9a-f]{48}$/u);
+    expect(first).not.toBe(second);
   });
 
   it('parses one bounded exact-slot bundle for the selected Unit', () => {
@@ -656,6 +663,473 @@ describe('unit Activity JSON import', () => {
         expectedRevision: 2,
         unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-a' },
       });
+    });
+
+    it('discards only remaining uncommitted slots if Phase 2 saveDraft fails mid-way without touching committed slots', async () => {
+      const discard = vi.fn().mockResolvedValue({ status: 'discarded', candidateId: 'cand-b', revision: 3, lifecycle: 'discarded' });
+      const saveDraft = vi.fn()
+        .mockResolvedValueOnce({
+          status: 'saved',
+          activityId: bookScopedActivityTargetId('book-1', 'activity-a'),
+          candidateId: 'cand-a',
+          candidateRevision: 3,
+          revision: 1,
+          lifecycle: 'saved',
+          validation: { valid: true, errors: [] },
+          diff: null,
+          evidenceRefs: [],
+          sourceEvidenceRefs: [],
+          answerEvidenceRefs: [],
+        })
+        .mockRejectedValueOnce(new Error('network_failure_slot_2'));
+      const stage = vi.fn()
+        .mockResolvedValueOnce({
+          status: 'staged',
+          candidateId: 'cand-a',
+          targetActivityId: bookScopedActivityTargetId('book-1', 'activity-a'),
+          revision: 1,
+          lifecycle: 'staged',
+          validation: { valid: true, errors: [] },
+          diff: null,
+          evidenceRefs: [],
+          sourceEvidenceRefs: [],
+          answerEvidenceRefs: [],
+        })
+        .mockResolvedValueOnce({
+          status: 'staged',
+          candidateId: 'cand-b',
+          targetActivityId: bookScopedActivityTargetId('book-1', 'activity-b'),
+          revision: 1,
+          lifecycle: 'staged',
+          validation: { valid: true, errors: [] },
+          diff: null,
+          evidenceRefs: [],
+          sourceEvidenceRefs: [],
+          answerEvidenceRefs: [],
+        });
+      const validate = vi.fn(async (input: { candidateId: string; expectedRevision: number }) => ({
+        status: 'validated' as const,
+        candidateId: input.candidateId,
+        revision: input.expectedRevision + 1,
+        lifecycle: 'validated' as const,
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [],
+        sourceEvidenceRefs: [],
+        answerEvidenceRefs: [],
+      }));
+
+      await expect(stageUnitActivityImportBundle({
+        text: bundle(),
+        manifest,
+        unitKey: 'unit-1',
+        activityAuthoring: { stage, validate, saveDraft, discard, loadCandidate: vi.fn() },
+        resolveActivityTargetId: (slot) => bookScopedActivityTargetId('book-1', slot.activityKey),
+      })).rejects.toThrow('network_failure_slot_2');
+
+      expect(discard).toHaveBeenCalledTimes(1);
+      expect(discard).toHaveBeenCalledWith({
+        candidateId: 'cand-b',
+        expectedRevision: 2,
+        unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-b' },
+      });
+    });
+
+    it('invokes onCommitPhaseStart before Phase 2 and compensates already-committed slots using previousSnapshotsBySlot on Phase 2 failure', async () => {
+      const events: string[] = [];
+      const discard = vi.fn().mockResolvedValue({ status: 'discarded', candidateId: 'cand-b', revision: 3, lifecycle: 'discarded' });
+      const stage = vi.fn()
+        .mockResolvedValueOnce({
+          status: 'staged',
+          candidateId: 'cand-a',
+          targetActivityId: bookScopedActivityTargetId('book-1', 'activity-a'),
+          revision: 1,
+          lifecycle: 'staged',
+          validation: { valid: true, errors: [] },
+          diff: null,
+          evidenceRefs: [],
+          sourceEvidenceRefs: [],
+          answerEvidenceRefs: [],
+        })
+        .mockResolvedValueOnce({
+          status: 'staged',
+          candidateId: 'cand-b',
+          targetActivityId: bookScopedActivityTargetId('book-1', 'activity-b'),
+          revision: 1,
+          lifecycle: 'staged',
+          validation: { valid: true, errors: [] },
+          diff: null,
+          evidenceRefs: [],
+          sourceEvidenceRefs: [],
+          answerEvidenceRefs: [],
+        })
+        .mockResolvedValueOnce({
+          status: 'staged',
+          candidateId: 'cand-a-rollback',
+          targetActivityId: bookScopedActivityTargetId('book-1', 'activity-a'),
+          revision: 1,
+          lifecycle: 'staged',
+          validation: { valid: true, errors: [] },
+          diff: null,
+          evidenceRefs: [],
+          sourceEvidenceRefs: [],
+          answerEvidenceRefs: [],
+        });
+      const validate = vi.fn(async (input: { candidateId: string; expectedRevision: number }) => {
+        events.push(`validate:${input.candidateId}`);
+        return {
+          status: 'validated' as const,
+          candidateId: input.candidateId,
+          revision: input.expectedRevision + 1,
+          lifecycle: 'validated' as const,
+          validation: { valid: true, errors: [] },
+          diff: null,
+          evidenceRefs: [],
+          sourceEvidenceRefs: [],
+          answerEvidenceRefs: [],
+        };
+      });
+      const saveDraft = vi.fn()
+        .mockImplementationOnce(async () => {
+          events.push('save:cand-a');
+          return {
+            status: 'saved' as const,
+            activityId: bookScopedActivityTargetId('book-1', 'activity-a'),
+            candidateId: 'cand-a',
+            candidateRevision: 3,
+            revision: 2,
+            lifecycle: 'saved' as const,
+            validation: { valid: true, errors: [] },
+            diff: null,
+            evidenceRefs: [],
+            sourceEvidenceRefs: [],
+            answerEvidenceRefs: [],
+          };
+        })
+        .mockImplementationOnce(async () => {
+          events.push('save:cand-b-fail');
+          throw new Error('network_failure_slot_2');
+        })
+        .mockImplementationOnce(async () => {
+          events.push('save:cand-a-rollback');
+          return {
+            status: 'saved' as const,
+            activityId: bookScopedActivityTargetId('book-1', 'activity-a'),
+            candidateId: 'cand-a-rollback',
+            candidateRevision: 3,
+            revision: 3,
+            lifecycle: 'saved' as const,
+            validation: { valid: true, errors: [] },
+            diff: null,
+            evidenceRefs: [],
+            sourceEvidenceRefs: [],
+            answerEvidenceRefs: [],
+          };
+        });
+
+      const previousA = activity('Previous A');
+      let caught: unknown;
+      try {
+        await stageUnitActivityImportBundle({
+          text: bundle(),
+          manifest,
+          unitKey: 'unit-1',
+          activityAuthoring: { stage, validate, saveDraft, discard, loadCandidate: vi.fn() },
+          resolveActivityTargetId: (slot) => bookScopedActivityTargetId('book-1', slot.activityKey),
+          expectedActivityRevisions: { 'activity-a': 1 },
+          previousSnapshotsBySlot: {
+            'activity-a': {
+              content: previousA,
+              evidenceRefs: ['import:prev-a'],
+              sourceEvidenceRefs: ['source:full:page:2'],
+              answerEvidenceRefs: ['pageGroup:pages-full-2'],
+            },
+          },
+          onCommitPhaseStart: () => {
+            events.push('commit-phase-start');
+          },
+        });
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught).toBeInstanceOf(UnitActivityImportPartialCommitError);
+      expect(caught).toMatchObject({
+        code: 'partial-commit-rolled-back',
+        committedActivityKeys: ['activity-a'],
+        rolledBackActivityKeys: ['activity-a'],
+        failedActivityKey: 'activity-b',
+      });
+      // onCommitPhaseStart runs strictly after Phase 1 validation and before Phase 2 saveDraft
+      expect(events).toEqual([
+        'validate:cand-a',
+        'validate:cand-b',
+        'commit-phase-start',
+        'save:cand-a',
+        'save:cand-b-fail',
+        'validate:cand-a-rollback',
+        'save:cand-a-rollback',
+      ]);
+      // Uncommitted slot 2 candidate discarded
+      expect(discard).toHaveBeenCalledWith({
+        candidateId: 'cand-b',
+        expectedRevision: 2,
+        unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-b' },
+      });
+      // Compensating rollback re-staged slot 1's previous content at the new revision (2) and saved with replaceExistingUnitActivityBinding: true
+      expect(stage).toHaveBeenNthCalledWith(3, expect.objectContaining({
+        targetActivityId: bookScopedActivityTargetId('book-1', 'activity-a'),
+        expectedRevision: 2,
+        content: previousA,
+        sourceEvidenceRefs: ['source:full:page:2'],
+      }));
+      expect(saveDraft).toHaveBeenNthCalledWith(3, expect.objectContaining({
+        candidateId: 'cand-a-rollback',
+        replaceExistingUnitActivityBinding: true,
+        unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-a' },
+      }));
+    });
+
+    it('records binding-pending (HTTP 202 ambiguous error or pending receipt) as committed instead of discarding it', async () => {
+      for (const mode of ['ambiguous-202', 'pending-receipt'] as const) {
+        const discard = vi.fn().mockResolvedValue({ status: 'discarded', candidateId: 'cand-b', revision: 3, lifecycle: 'discarded' });
+        const stage = vi.fn()
+          .mockResolvedValueOnce({
+            status: 'staged',
+            candidateId: 'cand-a',
+            targetActivityId: bookScopedActivityTargetId('book-1', 'activity-a'),
+            revision: 1,
+            lifecycle: 'staged',
+            validation: { valid: true, errors: [] },
+            diff: null,
+            evidenceRefs: [],
+            sourceEvidenceRefs: [],
+            answerEvidenceRefs: [],
+          })
+          .mockResolvedValueOnce({
+            status: 'staged',
+            candidateId: 'cand-b',
+            targetActivityId: bookScopedActivityTargetId('book-1', 'activity-b'),
+            revision: 1,
+            lifecycle: 'staged',
+            validation: { valid: true, errors: [] },
+            diff: null,
+            evidenceRefs: [],
+            sourceEvidenceRefs: [],
+            answerEvidenceRefs: [],
+          });
+        const validate = vi.fn(async (input: { candidateId: string; expectedRevision: number }) => ({
+          status: 'validated' as const,
+          candidateId: input.candidateId,
+          revision: input.expectedRevision + 1,
+          lifecycle: 'validated' as const,
+          validation: { valid: true, errors: [] },
+          diff: null,
+          evidenceRefs: [],
+          sourceEvidenceRefs: [],
+          answerEvidenceRefs: [],
+        }));
+        const saveDraft = mode === 'ambiguous-202'
+          ? vi.fn().mockRejectedValueOnce(new ActivityAuthoringAmbiguousTransportError())
+          : vi.fn().mockResolvedValueOnce({
+            status: 'saved' as const,
+            activityId: bookScopedActivityTargetId('book-1', 'activity-a'),
+            candidateId: 'cand-a',
+            candidateRevision: 3,
+            revision: 1,
+            lifecycle: 'saved' as const,
+            validation: { valid: true, errors: [] },
+            diff: null,
+            evidenceRefs: [],
+            sourceEvidenceRefs: [],
+            answerEvidenceRefs: [],
+            binding: {
+              schemaVersion: 1 as const,
+              ownerId: 'teacher-1',
+              bookId: 'book-1',
+              unitKey: 'unit-1',
+              activityKey: 'activity-a',
+              activityId: bookScopedActivityTargetId('book-1', 'activity-a'),
+              candidateId: 'cand-a',
+              candidateRevision: 3,
+              candidateLifecycle: 'saved' as const,
+              phase: 'binding-pending' as const,
+            },
+          });
+
+        let caught: unknown = null;
+        try {
+          await stageUnitActivityImportBundle({
+            text: bundle(),
+            manifest,
+            unitKey: 'unit-1',
+            activityAuthoring: { stage, validate, saveDraft, discard, loadCandidate: vi.fn() },
+            resolveActivityTargetId: (slot) => bookScopedActivityTargetId('book-1', slot.activityKey),
+          });
+        } catch (error) {
+          caught = error;
+        }
+
+        expect(caught).toBeInstanceOf(UnitActivityImportPartialCommitError);
+        expect(caught).toMatchObject({
+          code: 'partial-commit-failed',
+          committedActivityKeys: ['activity-a'],
+          rolledBackActivityKeys: [],
+          failedActivityKey: 'activity-a',
+        });
+        expect(discard).toHaveBeenCalledTimes(1);
+        expect(discard).toHaveBeenCalledWith({
+          candidateId: 'cand-b',
+          expectedRevision: 2,
+          unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-b' },
+        });
+      }
+    });
+
+    it('carries HTTP 409 binding-conflict durable commit receipt through HTTP transport so Slot 1 is not discarded', async () => {
+      const { createActivityAuthoringTransport } = await import('../book-activity/activityStorage.service');
+      const { createActivityAuthoringRepository } = await import('../book-activity/activityAuthoring.repository');
+      const { createActivityAuthoringService } = await import('../book-activity/activityAuthoring.service');
+
+      const discardedCandidates: string[] = [];
+      let stageCount = 0;
+      const fetchImpl: typeof fetch = async (input, init) => {
+        const url = String(input);
+        const body = init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : {};
+        if (url.endsWith('/stage')) {
+          stageCount += 1;
+          const candidateId = stageCount === 1 ? 'cand-http-a' : 'cand-http-b';
+          return new Response(JSON.stringify({
+            status: 'staged',
+            candidateId,
+            targetActivityId: body.targetActivityId,
+            revision: 1,
+            lifecycle: 'staged',
+            validation: { valid: true, errors: [] },
+            diff: null,
+            evidenceRefs: body.evidenceRefs ?? [],
+            sourceEvidenceRefs: body.sourceEvidenceRefs ?? [],
+            answerEvidenceRefs: body.answerEvidenceRefs ?? [],
+          }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (url.endsWith('/validate')) {
+          return new Response(JSON.stringify({
+            status: 'validated',
+            candidateId: body.candidateId,
+            revision: 2,
+            lifecycle: 'validated',
+            validation: { valid: true, errors: [] },
+            diff: null,
+            evidenceRefs: body.evidenceRefs ?? [],
+            sourceEvidenceRefs: body.sourceEvidenceRefs ?? [],
+            answerEvidenceRefs: body.answerEvidenceRefs ?? [],
+          }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (url.endsWith('/save-draft')) {
+          return new Response(JSON.stringify({
+            status: 'binding-conflict',
+            activityId: bookScopedActivityTargetId('book-1', 'activity-a'),
+            revision: 1,
+            candidateId: 'cand-http-a',
+            candidateRevision: 3,
+            lifecycle: 'saved',
+            validation: { valid: true, errors: [] },
+            diff: null,
+            evidenceRefs: [],
+            binding: {
+              schemaVersion: 1,
+              ownerId: 'teacher-1',
+              bookId: 'book-1',
+              unitKey: 'unit-1',
+              activityKey: 'activity-a',
+              activityId: bookScopedActivityTargetId('book-1', 'activity-a'),
+              candidateId: 'cand-http-a',
+              candidateRevision: 3,
+              candidateLifecycle: 'saved',
+              phase: 'binding-conflict',
+            },
+          }), { status: 409, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (url.endsWith('/discard')) {
+          discardedCandidates.push(String(body.candidateId));
+          return new Response(JSON.stringify({
+            status: 'discarded',
+            candidateId: body.candidateId,
+            revision: 3,
+            lifecycle: 'discarded',
+          }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        return new Response('{}', { status: 404 });
+      };
+
+      const authoring = createActivityAuthoringService(
+        createActivityAuthoringRepository(
+          createActivityAuthoringTransport({
+            baseUrl: 'https://authoring.example',
+            getIdToken: async () => 'token-1',
+            fetchImpl,
+          }),
+        ),
+        { bookId: 'book-1' },
+      );
+
+      let caught: unknown;
+      try {
+        await stageUnitActivityImportBundle({
+          text: bundle(),
+          manifest,
+          unitKey: 'unit-1',
+          activityAuthoring: authoring,
+          resolveActivityTargetId: (slot) => bookScopedActivityTargetId('book-1', slot.activityKey),
+        });
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught).toBeInstanceOf(UnitActivityImportPartialCommitError);
+      expect(caught).toMatchObject({
+        code: 'partial-commit-failed',
+        committedActivityKeys: ['activity-a'],
+        rolledBackActivityKeys: [],
+        failedActivityKey: 'activity-a',
+      });
+      // Slot 1 durably committed before 409 binding-conflict -> ONLY uncommitted Slot 2 discarded
+      expect(discardedCandidates).toEqual(['cand-http-b']);
+    });
+
+    it('allows ordinary textbook URLs in activity prompts while still blocking private storage URLs and script tags', () => {
+      const textbookUrlBundle = bundle({
+        slots: [
+          {
+            activityKey: 'activity-a',
+            content: {
+              ...activity('Check schedule'),
+              instructions: [{ text: 'Read https://example.org/timetable before listening.' }],
+            },
+          },
+          { activityKey: 'activity-b', content: activity('B') },
+        ],
+      });
+      expect(parseUnitActivityImportBundle(textbookUrlBundle, manifest, 'unit-1').slots).toHaveLength(2);
+
+      for (const badText of [
+        'Download from b2://private-bucket/file.pdf',
+        'Link https://f002.backblazeb2.com/file/secret',
+        'Link https://mybucket.r2.cloudflarestorage.com/obj',
+        '<script>alert(1)</script>',
+      ]) {
+        const forbiddenBundle = bundle({
+          slots: [
+            {
+              activityKey: 'activity-a',
+              content: { ...activity('Bad'), instructions: [{ text: badText }] },
+            },
+            { activityKey: 'activity-b', content: activity('B') },
+          ],
+        });
+        expect(() => parseUnitActivityImportBundle(forbiddenBundle, manifest, 'unit-1'))
+          .toThrowError(expect.objectContaining({ code: 'forbidden-field' }));
+      }
     });
   });
 });

@@ -1,6 +1,7 @@
+import { useEffect } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { NormalizedActivity } from '../../../types/bookActivity.types';
 import { projectStudentActivity } from '../../../services/book-activity/activityProjection.service';
 import type { CandidateUnitPreviewProjection } from '../../../services/book-assembly/unitPreview.service';
@@ -10,11 +11,44 @@ vi.mock('../../../hooks/useFeatureTracking', () => ({
   useFeatureTracking: () => ({ trackAction: vi.fn() }),
 }));
 
+let mockAutoPageReady = true;
+let lastOnPageReady: ((page: number) => void) | undefined;
+
 vi.mock('../../book-runtime/BookPdfViewerHost', () => ({
-  BookPdfViewerHost: ({ title, initialPage, route }: { title: string; initialPage?: number; route: { url: string } }) => (
-    <div data-testid="candidate-pdf" data-route={route.url}>{title} page {initialPage}</div>
-  ),
+  BookPdfViewerHost: ({
+    title,
+    initialPage,
+    route,
+    onPageReady,
+  }: {
+    title: string;
+    initialPage?: number;
+    route: { url: string };
+    onPageReady?: (page: number) => void;
+  }) => {
+    lastOnPageReady = onPageReady;
+    useEffect(() => {
+      if (mockAutoPageReady && initialPage !== undefined) {
+        onPageReady?.(initialPage);
+      }
+    }, [initialPage, onPageReady]);
+    return (
+      <div data-testid="candidate-pdf" data-route={route.url}>
+        {title} page {initialPage}
+        {!mockAutoPageReady && initialPage !== undefined ? (
+          <button type="button" onClick={() => onPageReady?.(initialPage)}>
+            Confirm page {initialPage} rendered
+          </button>
+        ) : null}
+      </div>
+    );
+  },
 }));
+
+afterEach(() => {
+  mockAutoPageReady = true;
+  lastOnPageReady = undefined;
+});
 
 const activity = (key: string) => projectStudentActivity({
   schemaVersion: 1,
@@ -173,5 +207,29 @@ describe('BookAssemblyStudentPreviewHost', () => {
     render(<BookAssemblyStudentPreviewHost bookTitle="Old" preview={{ ...preview(), runtime: undefined }} />);
     expect(screen.getByRole('alert')).toHaveTextContent('Refresh preview');
     expect(screen.queryByTestId('book-runtime-shell')).not.toBeInTheDocument();
+  });
+
+  it('holds Activity switch until the PDF viewer signals onPageReady for the target page', async () => {
+    mockAutoPageReady = false;
+    const user = userEvent.setup();
+    render(
+      <BookAssemblyStudentPreviewHost bookTitle="Component Book" preview={preview()} workerOrigin="https://worker.example" />,
+    );
+    expect(lastOnPageReady).toBeTypeOf('function');
+    // Before initial page 2 finishes rendering, shell waits on PDF ready instead of displaying Activities prematurely
+    expect(screen.getByText('Preparing the Book page…')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Activity one' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Confirm page 2 rendered' }));
+    expect(screen.getByRole('heading', { name: 'Activity one' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Page Group 2 · 8/i }));
+    // Target PDF page advances to 8, while Activity panel stays on Activity one until PDF renders page 8
+    expect(screen.getByTestId('candidate-pdf')).toHaveTextContent('page 8');
+    expect(screen.getByRole('heading', { name: 'Activity one' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Activity two' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Confirm page 8 rendered' }));
+    expect(screen.getByRole('heading', { name: 'Activity two' })).toBeInTheDocument();
   });
 });

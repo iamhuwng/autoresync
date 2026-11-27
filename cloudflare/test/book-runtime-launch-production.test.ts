@@ -312,4 +312,308 @@ describe('Book Runtime launch production composition', () => {
     const handlers = createBookRuntimeLaunchCanonicalHandlers({ createDependencies: () => dependencies() });
     expect(handlers.launch).toEqual(expect.any(Function));
   });
+
+  it('launches a carried-forward Full-PDF Activity whose successor manifest allocated a new placementId', async () => {
+    const carriedScope = scope();
+    carriedScope.current = {
+      ...carriedScope.current!,
+      manifestVersionId: 'manifest-2',
+      publicationId: 'publication-2',
+      publicationRevision: 2,
+    };
+    carriedScope.versions = {
+      'manifest-2': {
+        ...carriedScope.versions!['manifest-1']!,
+        manifestVersionId: 'manifest-2',
+        publicationId: 'publication-2',
+        publicationRevision: 2,
+      },
+    };
+    carriedScope.activityVersions = {
+      'manifest-2:activity-version-1': {
+        ...carriedScope.activityVersions!['manifest-1:activity-version-1']!,
+        manifestVersionId: 'manifest-2',
+        publicationId: 'publication-2',
+        publicationRevision: 2,
+        safeProjectionId: 'projection-2',
+        canonicalOriginManifestVersionId: 'manifest-1',
+        canonicalOriginPublicationId: 'publication-1',
+        canonicalOriginOperationId: 'operation-1',
+      },
+    };
+    carriedScope.activitySafeProjections = {
+      'projection-2': {
+        schemaVersion: 1,
+        projectionId: 'projection-2',
+        activityId: 'activity-1',
+        activityVersionId: 'activity-version-1',
+        ownerId: 'teacher-1',
+        bookId: 'book-1',
+        manifestVersionId: 'manifest-2',
+        publicationId: 'publication-2',
+        publicationRevision: 2,
+        placementIds: ['placement-successor-1'],
+        sourcePages: [{ sourceKey: 'full', sourceVersionId: 'source-v1', physicalPageNumber: 1 }],
+        payloadFingerprint: 'fnv1a64:2222222222222222',
+      },
+    };
+    carriedScope.placements = {
+      'placement-successor-1': {
+        ...carriedScope.placements!['placement-1']!,
+        placementId: 'placement-successor-1',
+        manifestVersionId: 'manifest-2',
+        publicationId: 'publication-2',
+        publicationRevision: 2,
+      },
+    };
+    const carriedBinding = {
+      ...binding(),
+      book: {
+        ...binding().book,
+        manifestVersionId: 'manifest-2',
+        publicationId: 'publication-2',
+        publicationRevision: 2,
+      },
+      scope: { kind: 'placements' as const, nodeKeys: [], placementIds: ['placement-successor-1'] },
+      placements: [{
+        ...binding().placements[0]!,
+        placementId: 'placement-successor-1',
+      }],
+    };
+    const carriedCanonical = {
+      ...canonical(),
+      placementIds: ['placement-1'],
+      provenance: {
+        kind: 'initial-book-publication' as const,
+        bookId: 'book-1',
+        manifestVersionId: 'manifest-1',
+        publicationId: 'publication-1',
+        publicationRevision: 1,
+        unitKey: 'unit-1',
+        activityKey: 'activity-1',
+        sourcePages: [{ sourceKey: 'full', sourceVersionId: 'source-v1', physicalPageNumber: 1 }],
+      },
+    };
+    const production = dependencies({
+      delivery: {
+        resolveCurrent: vi.fn(async () => ({
+          pointer: {
+            bindingId: carriedBinding.bindingId,
+            bindingRevision: carriedBinding.revision,
+            recipientId: carriedBinding.recipient.recipientId,
+            contextId: carriedBinding.context.contextId,
+            contextKind: carriedBinding.context.kind,
+            status: 'active' as const,
+            updatedAt: carriedBinding.createdAt,
+          },
+          record: {
+            status: 'active' as const,
+            recordRevision: 1,
+            binding: carriedBinding,
+            createdAt: carriedBinding.createdAt,
+            updatedAt: carriedBinding.createdAt,
+          },
+        })) as never,
+      },
+      publications: { readScope: vi.fn(async () => carriedScope) },
+      exactReader: { readExact: vi.fn(async () => carriedCanonical as never) },
+    });
+    const { handlers } = handlersFor(production);
+    const launched = await handlers.launch({
+      request: request(),
+      env,
+      uid: 'student-1',
+    });
+    expect(launched).toMatchObject({
+      init: { status: 200 },
+      body: { activities: [{ activityId: 'activity-1', activityVersionId: 'activity-version-1' }] },
+    });
+  });
+
+  it('launches a carried-forward revised Full-PDF Activity (activity-revision v2) when committed Book-local origin validates, and fails closed without origin proof', async () => {
+    const revOpId = '00000000-0000-4000-8000-000000000888';
+    const baseScope = scope();
+    const carriedScope = scope();
+    carriedScope.current = {
+      ...carriedScope.current!,
+      manifestVersionId: 'manifest-3',
+      publicationId: 'publication-3',
+      publicationRevision: 3,
+    };
+    carriedScope.versions = {
+      'manifest-2': {
+        ...baseScope.versions!['manifest-1']!,
+        manifestVersionId: 'manifest-2',
+        publicationId: 'publication-2',
+        publicationRevision: 2,
+      },
+      'manifest-3': {
+        ...baseScope.versions!['manifest-1']!,
+        manifestVersionId: 'manifest-3',
+        publicationId: 'publication-3',
+        publicationRevision: 3,
+      },
+    };
+    carriedScope.operations = {
+      [revOpId]: {
+        ownerId: 'teacher-1',
+        fingerprint: 'fnv1a64:0123456789abcdef',
+        createdAt: '2026-07-24T00:00:00.000Z',
+        result: {
+          status: 'published',
+          pointer: {
+            manifestVersionId: 'manifest-2',
+            publicationId: 'publication-2',
+            publicationRevision: 2,
+          },
+        },
+      } as never,
+    };
+    carriedScope.activityVersions = {
+      'manifest-2:activity-version-2': {
+        ...baseScope.activityVersions!['manifest-1:activity-version-1']!,
+        manifestVersionId: 'manifest-2',
+        publicationId: 'publication-2',
+        publicationRevision: 2,
+        activityVersionId: 'activity-version-2',
+        activityVersion: 2,
+        createdByCommandId: revOpId,
+        safeProjectionId: 'projection-v2-origin',
+        canonicalOriginManifestVersionId: 'manifest-2',
+        canonicalOriginPublicationId: 'publication-2',
+        canonicalOriginOperationId: revOpId,
+      },
+      'manifest-3:activity-version-2': {
+        ...baseScope.activityVersions!['manifest-1:activity-version-1']!,
+        manifestVersionId: 'manifest-3',
+        publicationId: 'publication-3',
+        publicationRevision: 3,
+        activityVersionId: 'activity-version-2',
+        activityVersion: 2,
+        safeProjectionId: 'projection-v3-successor',
+        canonicalOriginManifestVersionId: 'manifest-2',
+        canonicalOriginPublicationId: 'publication-2',
+        canonicalOriginOperationId: revOpId,
+      },
+    };
+    carriedScope.activitySafeProjections = {
+      'projection-v2-origin': {
+        schemaVersion: 1,
+        projectionId: 'projection-v2-origin',
+        activityId: 'activity-1',
+        activityVersionId: 'activity-version-2',
+        ownerId: 'teacher-1',
+        bookId: 'book-1',
+        manifestVersionId: 'manifest-2',
+        publicationId: 'publication-2',
+        publicationRevision: 2,
+        placementIds: ['placement-v2-origin'],
+        sourcePages: [{ sourceKey: 'full', sourceVersionId: 'source-v1', physicalPageNumber: 1 }],
+        payloadFingerprint: 'fnv1a64:1111111111111111',
+      },
+      'projection-v3-successor': {
+        schemaVersion: 1,
+        projectionId: 'projection-v3-successor',
+        activityId: 'activity-1',
+        activityVersionId: 'activity-version-2',
+        ownerId: 'teacher-1',
+        bookId: 'book-1',
+        manifestVersionId: 'manifest-3',
+        publicationId: 'publication-3',
+        publicationRevision: 3,
+        placementIds: ['placement-v3-successor'],
+        sourcePages: [{ sourceKey: 'full', sourceVersionId: 'source-v1', physicalPageNumber: 1 }],
+        payloadFingerprint: 'fnv1a64:2222222222222222',
+      },
+    };
+    carriedScope.placements = {
+      'placement-v3-successor': {
+        ...baseScope.placements!['placement-1']!,
+        placementId: 'placement-v3-successor',
+        manifestVersionId: 'manifest-3',
+        publicationId: 'publication-3',
+        publicationRevision: 3,
+        activityVersionId: 'activity-version-2',
+      },
+    };
+    const carriedBinding = {
+      ...binding(),
+      book: {
+        ...binding().book,
+        manifestVersionId: 'manifest-3',
+        publicationId: 'publication-3',
+        publicationRevision: 3,
+      },
+      scope: { kind: 'placements' as const, nodeKeys: [], placementIds: ['placement-v3-successor'] },
+      placements: [{
+        ...binding().placements[0]!,
+        placementId: 'placement-v3-successor',
+        activityVersionId: 'activity-version-2',
+        activityVersion: 2,
+      }],
+    };
+    const revisionCanonical = {
+      ...canonical(),
+      activityVersionId: 'activity-version-2',
+      activityVersion: 2,
+      predecessorActivityVersionId: 'activity-version-1',
+      placementIds: ['placement-v2-origin'],
+      createdByOperationId: revOpId,
+      provenance: {
+        kind: 'activity-revision' as const,
+        candidateId: 'cand-rev-2',
+        candidateRevision: 2,
+        evidenceRefs: [],
+        sourceContext: { fingerprint: 'fnv1a64:0123456789abcdef' },
+      },
+    };
+    const makeDeps = (overrideScope: typeof carriedScope) => dependencies({
+      delivery: {
+        resolveCurrent: vi.fn(async () => ({
+          pointer: {
+            bindingId: carriedBinding.bindingId,
+            bindingRevision: carriedBinding.revision,
+            recipientId: carriedBinding.recipient.recipientId,
+            contextId: carriedBinding.context.contextId,
+            contextKind: carriedBinding.context.kind,
+            status: 'active' as const,
+            updatedAt: carriedBinding.createdAt,
+          },
+          record: {
+            status: 'active' as const,
+            recordRevision: 1,
+            binding: carriedBinding,
+            createdAt: carriedBinding.createdAt,
+            updatedAt: carriedBinding.createdAt,
+          },
+        })) as never,
+      },
+      publications: { readScope: vi.fn(async () => overrideScope) },
+      exactReader: { readExact: vi.fn(async () => revisionCanonical as never) },
+    });
+
+    const revRequest = () => request({
+      activityPins: [{ activityId: 'activity-1', activityVersionId: 'activity-version-2' }],
+    });
+    const launched = await handlersFor(makeDeps(carriedScope)).handlers.launch({
+      request: revRequest(),
+      env,
+      uid: 'student-1',
+    });
+    expect(launched).toMatchObject({
+      init: { status: 200 },
+      body: { activities: [{ activityId: 'activity-1', activityVersionId: 'activity-version-2' }] },
+    });
+
+    // Without committed origin operation/audit, launch fails closed
+    const uncommittedScope = structuredClone(carriedScope);
+    uncommittedScope.operations = {};
+    uncommittedScope.audits = {};
+    const denied = await handlersFor(makeDeps(uncommittedScope)).handlers.launch({
+      request: revRequest(),
+      env,
+      uid: 'student-1',
+    });
+    expect(denied).toMatchObject({ init: { status: 409 }, body: { code: 'projection_mismatch' } });
+  });
 });

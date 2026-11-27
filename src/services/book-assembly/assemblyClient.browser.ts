@@ -190,6 +190,27 @@ const savedActivityKeysByUnit = (value: unknown): Readonly<Record<string, readon
     return [unitKey, activityKeys.map((activityKey) => safeId(activityKey, 'activity_key'))];
   }));
 };
+const savedCandidateIdsByUnit = (
+  value: unknown,
+): Readonly<Record<string, Readonly<Record<string, string>>>> | undefined => {
+  if (value === undefined) return undefined;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new BookAssemblyClientError('invalid_response', 502);
+  }
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([unitKey, slots]) => {
+    safeId(unitKey, 'unit_key');
+    if (!slots || typeof slots !== 'object' || Array.isArray(slots)) {
+      throw new BookAssemblyClientError('invalid_response', 502);
+    }
+    return [
+      unitKey,
+      Object.fromEntries(Object.entries(slots as Record<string, unknown>).map(([activityKey, candidateId]) => [
+        safeId(activityKey, 'activity_key'),
+        safeId(candidateId, 'candidate_id'),
+      ])),
+    ];
+  }));
+};
 const result = (value: Record<string, unknown>): BookAssemblyMutationResult => {
   const receipt = value.receipt;
   if (typeof value.status !== 'string'
@@ -348,32 +369,67 @@ export const createBookAssemblyClient = (options: AssemblyClientOptions) => {
       }
       const parsed = await body(response);
       if (!response.ok || parsed.status !== 'loaded' || !Array.isArray(parsed.drafts)
-        || parsed.drafts.length > 32) {
+        || parsed.drafts.length > 64) {
         throw new BookAssemblyClientError(typeof parsed.code === 'string' ? parsed.code : `http_${response.status}`, response.status);
       }
       try {
-        return parsed.drafts.map((draft: LoadedCurrentAssemblyDraft) => {
-          const candidate = draft?.candidate;
-          if (!candidate || candidate.bookId !== bookId || candidate.bookRevision !== 0
-            || candidate.sourceSetRevision !== 0 || candidate.lifecycle !== 'validated'
+        const sharedSavedKeys = savedActivityKeysByUnit(parsed.savedActivityKeysByUnit);
+        const sharedSavedCandidateIds = savedCandidateIdsByUnit(parsed.savedCandidateIdsByUnit);
+        if (parsed.manifestsById === undefined || parsed.manifestsById === null
+          || typeof parsed.manifestsById !== 'object' || Array.isArray(parsed.manifestsById)) {
+          throw new Error('invalid_response');
+        }
+        const manifestsById = parsed.manifestsById as Record<string, BookAssemblyCandidateRecord['manifest']>;
+        const mappedDrafts = parsed.drafts.map((draft: { readonly candidate?: BookAssemblyCandidateRecord; readonly manifestRef?: string }) => {
+          const rawCandidate = draft?.candidate;
+          if (!rawCandidate || typeof draft?.manifestRef !== 'string'
+            || !Object.hasOwn(manifestsById, draft.manifestRef)) {
+            throw new Error('invalid_response');
+          }
+          const candidate: BookAssemblyCandidateRecord = {
+            ...rawCandidate,
+            manifest: manifestsById[draft.manifestRef] ?? null,
+          };
+          const ownUnit = candidate.manifest?.units?.find((unit) => unit.unitKey === candidate.unitKey);
+          if (candidate.bookId !== bookId
+            || !Number.isSafeInteger(candidate.bookRevision) || candidate.bookRevision < 0
+            || !Number.isSafeInteger(candidate.sourceSetRevision) || candidate.sourceSetRevision < 0
+            || candidate.lifecycle !== 'validated'
             || !Number.isSafeInteger(candidate.revision) || candidate.revision < 1
             || !candidate.manifest || candidate.manifest.bookId !== bookId
             || !Array.isArray(candidate.manifest.units) || !candidate.manifest.sourceSet
-            || !candidate.manifest.units.some((unit) => unit.unitKey === candidate.unitKey)
+            || !ownUnit
             || typeof candidate.updatedAt !== 'string') throw new Error('invalid_response');
           safeId(candidate.candidateId, 'candidate_id');
           safeId(candidate.ownerId, 'owner_id');
           safeId(candidate.unitKey, 'unit_key');
-          const savedKeys = savedActivityKeysByUnit(draft.savedActivityKeysByUnit);
-          for (const [unitKey, keys] of Object.entries(savedKeys)) {
-            const unit = candidate.manifest.units.find((entry) => entry.unitKey === unitKey);
-            if (!unit || !Array.isArray(unit.activitySlots) || new Set(keys).size !== keys.length
-              || keys.some((key) => !unit.activitySlots.some((slot) => slot.activityKey === key))) {
+          const ownSavedKeys = sharedSavedKeys[candidate.unitKey];
+          if (ownSavedKeys !== undefined) {
+            if (!Array.isArray(ownUnit.activitySlots)
+              || new Set(ownSavedKeys).size !== ownSavedKeys.length
+              || ownSavedKeys.some((key) => !ownUnit.activitySlots.some((slot) => slot.activityKey === key))) {
               throw new Error('invalid_response');
             }
           }
-          return { candidate, savedActivityKeysByUnit: savedKeys };
+          return {
+            candidate,
+            savedActivityKeysByUnit: sharedSavedKeys,
+            ...(sharedSavedCandidateIds ? { savedCandidateIdsByUnit: sharedSavedCandidateIds } : {}),
+          };
         });
+        for (const [unitKey, keys] of Object.entries(sharedSavedKeys)) {
+          const ownerDraft = mappedDrafts.find((entry) => entry.candidate.unitKey === unitKey);
+          const matchingUnit = ownerDraft?.candidate.manifest?.units.find((entry) => entry.unitKey === unitKey)
+            ?? mappedDrafts
+              .map((entry) => entry.candidate.manifest?.units.find((unit) => unit.unitKey === unitKey))
+              .find((unit) => unit !== undefined);
+          if (!matchingUnit || !Array.isArray(matchingUnit.activitySlots)
+            || new Set(keys).size !== keys.length
+            || keys.some((key) => !matchingUnit.activitySlots.some((slot) => slot.activityKey === key))) {
+            throw new Error('invalid_response');
+          }
+        }
+        return mappedDrafts;
       } catch {
         throw new BookAssemblyClientError('invalid_response', 502);
       }
@@ -476,6 +532,7 @@ export const createBookAssemblyClient = (options: AssemblyClientOptions) => {
       readonly unitKey: string;
       readonly candidateId: string;
       readonly expectedCandidateRevision: number;
+      readonly allowUnpublishedValidatedRollback?: true;
     }) {
       safeOperationId(input.operationId);
       safeId(input.bookId, 'book_id');
@@ -543,9 +600,11 @@ export const createBookAssemblyClient = (options: AssemblyClientOptions) => {
       if (!parsed.candidate || typeof parsed.candidate !== 'object' || Array.isArray(parsed.candidate)) {
         throw new BookAssemblyClientError('invalid_response', 502);
       }
+      const parsedSavedCandidateIds = savedCandidateIdsByUnit(parsed.savedCandidateIdsByUnit);
       return {
         candidate: parsed.candidate as BookAssemblyCandidateRecord,
         savedActivityKeysByUnit: savedActivityKeysByUnit(parsed.savedActivityKeysByUnit),
+        ...(parsedSavedCandidateIds ? { savedCandidateIdsByUnit: parsedSavedCandidateIds } : {}),
       };
     },
   };

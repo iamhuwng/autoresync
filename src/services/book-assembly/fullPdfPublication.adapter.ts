@@ -29,6 +29,7 @@ import {
 } from './canonicalActivityVersion.service';
 import { validateBookAssemblyManifestCandidate } from './manifestCandidate.service';
 import { resolveSourceQualifiedPage } from './sourcePageAuthority.service';
+import { boundedCompoundAllocationKey } from './bookActivityTargetId.service';
 
 export class FullPdfPublicationAdapterError extends Error {
   constructor(readonly code: string) {
@@ -640,6 +641,10 @@ const createPublicationRecords = (
   };
 };
 
+const hasTeacherOnlyPageGroups = (
+  units: readonly BookUnitCandidate[],
+): boolean => units.some((entry) => entry.pageGroups.some((group) => group.mode === 'teacher_only'));
+
 export const createFullPdfPublicationAdapter = (
   input: CreateFullPdfPublicationAdapterPlanInput,
 ): FullPdfPublicationAdapterOutput => {
@@ -650,6 +655,9 @@ export const createFullPdfPublicationAdapter = (
   if (!unit) throw new FullPdfPublicationAdapterError('full_pdf_unit_missing');
   const carriedUnits = resolveCarriedForwardUnits(manifest, input.unitKey, input.predecessor);
   const publishedUnits = orderPublishedUnits(manifest, unit, carriedUnits);
+  if (hasTeacherOnlyPageGroups(manifest.units) || hasTeacherOnlyPageGroups(publishedUnits)) {
+    throw new FullPdfPublicationAdapterError('full_pdf_teacher_only_unstripped_forbidden');
+  }
   const selectedManifest: BookAssemblyManifestCandidate = {
     ...manifest,
     units: publishedUnits,
@@ -728,13 +736,16 @@ export const createFullPdfPublicationCommandOutput = (
           {
             unitProjectionId: input.allocateId('unit-projection', carriedUnit.unitKey),
             deliveryPlanId: input.allocateId('delivery-plan', carriedUnit.unitKey),
-            activitiesByKey: Object.fromEntries(carriedUnit.activitySlots.map((slot) => [
-              slot.activityKey,
-              {
-                projectionId: input.allocateId('activity-projection', `${carriedUnit.unitKey}:${slot.activityKey}`),
-                placementId: input.allocateId('placement', `${carriedUnit.unitKey}:${slot.activityKey}`),
-              },
-            ])),
+            activitiesByKey: Object.fromEntries(carriedUnit.activitySlots.map((slot) => {
+              const carriedKey = boundedCompoundAllocationKey([carriedUnit.unitKey, slot.activityKey]);
+              return [
+                slot.activityKey,
+                {
+                  projectionId: input.allocateId('activity-projection', carriedKey),
+                  placementId: input.allocateId('placement', carriedKey),
+                },
+              ];
+            })),
           },
         ])),
       } : {}),

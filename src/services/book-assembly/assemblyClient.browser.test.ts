@@ -156,29 +156,157 @@ describe('PRD0062 ticket 13A browser client boundary', () => {
   });
 
   it('loads owner draft discovery with verified saved slots before activation', async () => {
-    const drafts = [{ candidate: { candidateId: 'candidate-first', ownerId: 'teacher-1', bookId: 'book-1',
+    const sharedManifest = {
+      bookId: 'book-1',
+      sourceSet: { sourceStrategy: 'component_pdfs' },
+      units: [{ unitKey: 'unit-1', activitySlots: [{ activityKey: 'activity-1' }] }],
+    };
+    const baseCandidate = {
+      candidateId: 'candidate-first', ownerId: 'teacher-1', bookId: 'book-1',
       bookRevision: 0, sourceSetRevision: 0, unitKey: 'unit-1', revision: 2, lifecycle: 'validated', updatedAt: 'now',
-      manifest: { bookId: 'book-1', sourceSet: { sourceStrategy: 'component_pdfs' },
-        units: [{ unitKey: 'unit-1', activitySlots: [{ activityKey: 'activity-1' }] }] } },
-      savedActivityKeysByUnit: { 'unit-1': ['activity-1'] } }];
-    const fetchImpl = vi.fn(async () => ok({ status: 'loaded', drafts }));
+    };
+    const expected = [{
+      candidate: { ...baseCandidate, manifest: sharedManifest },
+      savedActivityKeysByUnit: { 'unit-1': ['activity-1'] },
+    }];
+    const wire = {
+      status: 'loaded',
+      savedActivityKeysByUnit: { 'unit-1': ['activity-1'] },
+      manifestsById: { m0: sharedManifest },
+      drafts: [{ candidate: { ...baseCandidate, manifest: null }, manifestRef: 'm0' }],
+    };
+    const fetchImpl = vi.fn(async () => ok(wire));
     const client = createBookAssemblyClient({ baseUrl: 'https://assembly.example',
       getIdToken: async () => 'token', fetchImpl });
-    await expect(client.discoverDrafts('book-1')).resolves.toEqual(drafts);
+    await expect(client.discoverDrafts('book-1')).resolves.toEqual(expected);
     expect(fetchImpl).toHaveBeenCalledWith('https://assembly.example/book-assembly/books/book-1/drafts',
       expect.objectContaining({ method: 'GET', credentials: 'omit', redirect: 'error' }));
-    for (const changed of [
-      { ...drafts[0], candidate: { ...drafts[0].candidate, bookId: 'other-book' } },
-      { ...drafts[0], candidate: { ...drafts[0].candidate, revision: 0 } },
-      { ...drafts[0], candidate: { ...drafts[0].candidate, lifecycle: 'draft' } },
-      { ...drafts[0], candidate: { ...drafts[0].candidate, unitKey: 'unknown-unit' } },
-      { ...drafts[0], savedActivityKeysByUnit: null },
-      { ...drafts[0], savedActivityKeysByUnit: { 'unit-1': ['forged-slot'] } },
-      { ...drafts[0], savedActivityKeysByUnit: { 'unit-1': [null] } },
+    for (const badWire of [
+      { ...wire, drafts: [{ candidate: { ...baseCandidate, bookId: 'other-book', manifest: null }, manifestRef: 'm0' }] },
+      { ...wire, drafts: [{ candidate: { ...baseCandidate, revision: 0, manifest: null }, manifestRef: 'm0' }] },
+      { ...wire, drafts: [{ candidate: { ...baseCandidate, lifecycle: 'draft', manifest: null }, manifestRef: 'm0' }] },
+      { ...wire, drafts: [{ candidate: { ...baseCandidate, unitKey: 'unknown-unit', manifest: null }, manifestRef: 'm0' }] },
+      { ...wire, drafts: [{ candidate: { ...baseCandidate, manifest: null }, manifestRef: 'missing' }] },
+      { ...wire, manifestsById: null },
+      { ...wire, savedActivityKeysByUnit: null },
+      { ...wire, savedActivityKeysByUnit: { 'unit-1': ['forged-slot'] } },
+      { ...wire, savedActivityKeysByUnit: { 'unit-1': [null] } },
     ]) {
-      fetchImpl.mockImplementation(async () => ok({ status: 'loaded', drafts: [changed] }));
+      fetchImpl.mockImplementation(async () => ok(badWire));
       await expect(client.discoverDrafts('book-1')).rejects.toMatchObject({ code: 'invalid_response', status: 502 });
     }
+  });
+
+  it('hydrates deduplicated discoverDrafts responses for attached multi-unit books with bookRevision >= 1 and >32 units', async () => {
+    const unitEntries = Array.from({ length: 40 }, (_, index) => {
+      const unitKey = `unit-${String(index + 1).padStart(2, '0')}`;
+      return {
+        unitKey,
+        activitySlots: [{ activityKey: `${unitKey}-ex1` }],
+      };
+    });
+    const sharedManifest = {
+      bookId: 'book-1',
+      sourceSet: { sourceStrategy: 'full_pdf' },
+      units: unitEntries,
+    };
+    const savedActivityKeysByUnit = Object.fromEntries(
+      unitEntries.map((unit) => [unit.unitKey, [unit.activitySlots[0]!.activityKey]]),
+    );
+    const wireDrafts = unitEntries.map((unit, index) => ({
+      candidate: {
+        candidateId: `candidate-${index + 1}`,
+        ownerId: 'teacher-1',
+        bookId: 'book-1',
+        bookRevision: 4,
+        sourceSetRevision: 2,
+        unitKey: unit.unitKey,
+        revision: 2,
+        lifecycle: 'validated',
+        updatedAt: '2026-08-01T00:00:00.000Z',
+        manifest: null,
+      },
+      manifestRef: 'm0',
+    }));
+    const fetchImpl = vi.fn(async () => ok({
+      status: 'loaded',
+      savedActivityKeysByUnit,
+      manifestsById: { m0: sharedManifest },
+      drafts: wireDrafts,
+    }));
+    const client = createBookAssemblyClient({
+      baseUrl: 'https://assembly.example',
+      getIdToken: async () => 'token',
+      fetchImpl,
+    });
+    const hydrated = await client.discoverDrafts('book-1');
+    expect(hydrated).toHaveLength(40);
+    expect(hydrated[0]?.candidate.bookRevision).toBe(4);
+    expect(hydrated[0]?.candidate.manifest).toEqual(sharedManifest);
+    expect(hydrated[39]?.savedActivityKeysByUnit['unit-40']).toEqual(['unit-40-ex1']);
+  });
+
+  it('accepts mixed-revision discoverDrafts responses with distinct manifestsById entries while rejecting unknown saved keys', async () => {
+    const manifestV1 = {
+      bookId: 'book-1',
+      sourceSet: { sourceStrategy: 'full_pdf' },
+      units: [{ unitKey: 'unit-1', activitySlots: [{ activityKey: 'u1-a1' }] }],
+    };
+    const manifestV2 = {
+      bookId: 'book-1',
+      sourceSet: { sourceStrategy: 'full_pdf' },
+      units: [
+        { unitKey: 'unit-1', activitySlots: [{ activityKey: 'u1-a1' }] },
+        { unitKey: 'unit-2', activitySlots: [{ activityKey: 'u2-a1' }] },
+      ],
+    };
+    const wire = {
+      status: 'loaded',
+      savedActivityKeysByUnit: {
+        'unit-1': ['u1-a1'],
+        'unit-2': ['u2-a1'],
+      },
+      manifestsById: {
+        m0: manifestV1,
+        m1: manifestV2,
+      },
+      drafts: [
+        {
+          candidate: {
+            candidateId: 'cand-u1', ownerId: 'teacher-1', bookId: 'book-1',
+            bookRevision: 2, sourceSetRevision: 1, unitKey: 'unit-1', revision: 1,
+            lifecycle: 'validated', updatedAt: '2026-08-01T00:00:00.000Z', manifest: null,
+          },
+          manifestRef: 'm0',
+        },
+        {
+          candidate: {
+            candidateId: 'cand-u2', ownerId: 'teacher-1', bookId: 'book-1',
+            bookRevision: 2, sourceSetRevision: 1, unitKey: 'unit-2', revision: 2,
+            lifecycle: 'validated', updatedAt: '2026-08-01T00:01:00.000Z', manifest: null,
+          },
+          manifestRef: 'm1',
+        },
+      ],
+    };
+    const fetchImpl = vi.fn(async () => ok(wire));
+    const client = createBookAssemblyClient({
+      baseUrl: 'https://assembly.example',
+      getIdToken: async () => 'token',
+      fetchImpl,
+    });
+    const hydrated = await client.discoverDrafts('book-1');
+    expect(hydrated).toHaveLength(2);
+    expect(hydrated[0]?.candidate.manifest).toEqual(manifestV1);
+    expect(hydrated[1]?.candidate.manifest).toEqual(manifestV2);
+    expect(hydrated[0]?.savedActivityKeysByUnit).toEqual(wire.savedActivityKeysByUnit);
+
+    // Rejects saved key for a unit absent from every returned manifest
+    fetchImpl.mockImplementation(async () => ok({
+      ...wire,
+      savedActivityKeysByUnit: { ...wire.savedActivityKeysByUnit, 'unit-missing': ['x'] },
+    }));
+    await expect(client.discoverDrafts('book-1')).rejects.toMatchObject({ code: 'invalid_response', status: 502 });
   });
 
   it('loads the current owner-scoped Unit candidate without a browser-supplied candidate id', async () => {

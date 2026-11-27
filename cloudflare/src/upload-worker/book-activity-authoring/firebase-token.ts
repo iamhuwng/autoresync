@@ -124,6 +124,13 @@ export type BookFirebaseClaimTuple =
     readonly activityVersionId: string;
   }
   | {
+    /** Dedicated read-only canonical Activity-version reader for carry-forward publication. */
+    readonly service: 'book_activity_publication_reader';
+    readonly ownerId: string;
+    readonly activityId: string;
+    readonly activityVersionId: string;
+  }
+  | {
     /** Dedicated approval/revocation leaf reader for publication preflight. */
     readonly service: 'book_assembly_publication_approval';
     readonly bookId: string;
@@ -363,7 +370,8 @@ const assertClaims = (claims: BookFirebaseClaimTuple): void => {
     }
     return;
   }
-  if (claims.service === 'book_activity_publication_writer') {
+  if (claims.service === 'book_activity_publication_writer'
+    || claims.service === 'book_activity_publication_reader') {
     if (keys !== 'activityId\u0000activityVersionId\u0000ownerId\u0000service'
       || !SAFE_ID.test(claims.ownerId)
       || !SAFE_ID.test(claims.activityId)
@@ -568,6 +576,14 @@ const customClaims = (claims: BookFirebaseClaimTuple): Record<string, unknown> =
       book_activity_publication_writer_ownerId: claims.ownerId,
       book_activity_publication_writer_activityId: claims.activityId,
       book_activity_publication_writer_activityVersionId: claims.activityVersionId,
+    };
+  }
+  if (claims.service === 'book_activity_publication_reader') {
+    return {
+      book_activity_publication_reader_service: true,
+      book_activity_publication_reader_ownerId: claims.ownerId,
+      book_activity_publication_reader_activityId: claims.activityId,
+      book_activity_publication_reader_activityVersionId: claims.activityVersionId,
     };
   }
   if (claims.service === 'book_assembly_publication_approval') {

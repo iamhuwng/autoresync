@@ -258,4 +258,196 @@ describe('Book Homework authoritative return-path resolver', () => {
       action: { kind: 'student-launch', placementId: 'placement-vocab-u1' },
     })).resolves.toBeNull();
   });
+
+  it('resolves carried-forward Full-PDF Homework launch and submit when successor manifest allocates a new placementId', async () => {
+    const baseScope = publicationScope();
+    const carriedScope = {
+      ...baseScope,
+      activityVersions: {
+        'activity-version-vocab-u1': {
+          ...baseScope.activityVersions['activity-version-vocab-u1'],
+          safeProjectionId: 'projection-vocab-successor',
+          canonicalOriginManifestVersionId: 'manifest-vocab-u0',
+          canonicalOriginPublicationId: 'publication-vocab-u0',
+          canonicalOriginOperationId: 'op-vocab-u0',
+        },
+      },
+      activitySafeProjections: {
+        'projection-vocab-successor': {
+          schemaVersion: 1,
+          projectionId: 'projection-vocab-successor',
+          activityId: 'activity-vocab-u1',
+          activityVersionId: 'activity-version-vocab-u1',
+          ownerId,
+          bookId: 'book-vocab-u1-d43935c735245dc8',
+          manifestVersionId: 'manifest-vocab-u1',
+          publicationId: 'publication-vocab-u1',
+          publicationRevision: 4,
+          placementIds: ['placement-vocab-u1'],
+          sourcePages: [{ sourceKey: 'full', sourceVersionId: 'source-v1', physicalPageNumber: 1 }],
+          payloadFingerprint: 'fnv1a64:0123456789abcdef',
+        },
+      },
+    };
+    const carriedCanonical = {
+      ...canonical(),
+      createdByOperationId: 'op-vocab-u0',
+      placementIds: ['placement-vocab-u0-original'],
+      provenance: {
+        kind: 'initial-book-publication' as const,
+        bookId: 'book-vocab-u1-d43935c735245dc8',
+        manifestVersionId: 'manifest-vocab-u0',
+        publicationId: 'publication-vocab-u0',
+        publicationRevision: 1,
+        unitKey: 'unit-1',
+        activityKey: 'activity-1',
+        sourcePages: [{ sourceKey: 'full', sourceVersionId: 'source-v1', physicalPageNumber: 1 }],
+      },
+    };
+    const base = dependencies();
+    const resolver = new BookHomeworkAuthoritativeContextResolver({
+      ...base,
+      publications: { readScope: vi.fn(async () => carriedScope as never) },
+      exactActivityVersions: { readExact: vi.fn(async () => carriedCanonical as never) },
+    } as BookHomeworkContextResolverDependencies);
+
+    await expect(resolver.resolve({
+      assignmentId,
+      actorUid: recipientId,
+      action: { kind: 'student-launch', placementId: 'placement-vocab-u1' },
+    })).resolves.toMatchObject({
+      placementId: 'placement-vocab-u1',
+      activityId: 'activity-vocab-u1',
+      activityVersionId: 'activity-version-vocab-u1',
+    });
+  });
+
+  it('resolves carried-forward revised Full-PDF Homework (activity-revision) with committed Book-local origin and fails closed on origin mismatch', async () => {
+    const revOpId = '00000000-0000-4000-8000-000000000444';
+    const baseScope = publicationScope();
+    const carriedRevisionScope = {
+      ...baseScope,
+      versions: {
+        ...baseScope.versions,
+        'manifest-vocab-origin': {
+          lifecycle: 'published',
+          ownerId,
+          bookId: 'book-vocab-u1-d43935c735245dc8',
+          bookRevision: 2,
+          manifestVersionId: 'manifest-vocab-origin',
+          publicationId: 'publication-vocab-origin',
+          publicationRevision: 3,
+        },
+      },
+      operations: {
+        [revOpId]: {
+          ownerId,
+          fingerprint: 'fnv1a64:0123456789abcdef',
+          createdAt: '2026-07-24T00:00:00.000Z',
+          result: {
+            status: 'published',
+            pointer: {
+              manifestVersionId: 'manifest-vocab-origin',
+              publicationId: 'publication-vocab-origin',
+              publicationRevision: 3,
+            },
+          },
+        },
+      },
+      activityVersions: {
+        'origin-activity-version-vocab-u1': {
+          ...baseScope.activityVersions['activity-version-vocab-u1'],
+          manifestVersionId: 'manifest-vocab-origin',
+          publicationId: 'publication-vocab-origin',
+          publicationRevision: 3,
+          createdByCommandId: revOpId,
+          safeProjectionId: 'projection-vocab-origin',
+          canonicalOriginManifestVersionId: 'manifest-vocab-origin',
+          canonicalOriginPublicationId: 'publication-vocab-origin',
+          canonicalOriginOperationId: revOpId,
+        },
+        'activity-version-vocab-u1': {
+          ...baseScope.activityVersions['activity-version-vocab-u1'],
+          safeProjectionId: 'projection-vocab-successor',
+          canonicalOriginManifestVersionId: 'manifest-vocab-origin',
+          canonicalOriginPublicationId: 'publication-vocab-origin',
+          canonicalOriginOperationId: revOpId,
+        },
+      },
+      activitySafeProjections: {
+        'projection-vocab-origin': {
+          schemaVersion: 1,
+          projectionId: 'projection-vocab-origin',
+          activityId: 'activity-vocab-u1',
+          activityVersionId: 'activity-version-vocab-u1',
+          ownerId,
+          bookId: 'book-vocab-u1-d43935c735245dc8',
+          manifestVersionId: 'manifest-vocab-origin',
+          publicationId: 'publication-vocab-origin',
+          publicationRevision: 3,
+          placementIds: ['placement-vocab-origin'],
+          sourcePages: [{ sourceKey: 'full', sourceVersionId: 'source-v1', physicalPageNumber: 1 }],
+          payloadFingerprint: 'fnv1a64:0123456789abcdef',
+        },
+        'projection-vocab-successor': {
+          schemaVersion: 1,
+          projectionId: 'projection-vocab-successor',
+          activityId: 'activity-vocab-u1',
+          activityVersionId: 'activity-version-vocab-u1',
+          ownerId,
+          bookId: 'book-vocab-u1-d43935c735245dc8',
+          manifestVersionId: 'manifest-vocab-u1',
+          publicationId: 'publication-vocab-u1',
+          publicationRevision: 4,
+          placementIds: ['placement-vocab-u1'],
+          sourcePages: [{ sourceKey: 'full', sourceVersionId: 'source-v1', physicalPageNumber: 1 }],
+          payloadFingerprint: 'fnv1a64:0123456789abcdef',
+        },
+      },
+    };
+    const revisionCanonical = {
+      ...canonical(),
+      predecessorActivityVersionId: 'activity-version-vocab-u0',
+      createdByOperationId: revOpId,
+      placementIds: ['placement-vocab-origin'],
+      provenance: {
+        kind: 'activity-revision' as const,
+        candidateId: 'cand-rev-5',
+        candidateRevision: 3,
+        evidenceRefs: [],
+        sourceContext: { fingerprint: 'fnv1a64:0123456789abcdef' },
+      },
+    };
+    const base = dependencies();
+    const okResolver = new BookHomeworkAuthoritativeContextResolver({
+      ...base,
+      publications: { readScope: vi.fn(async () => carriedRevisionScope as never) },
+      exactActivityVersions: { readExact: vi.fn(async () => revisionCanonical as never) },
+    } as BookHomeworkContextResolverDependencies);
+
+    await expect(okResolver.resolve({
+      assignmentId,
+      actorUid: recipientId,
+      action: { kind: 'student-launch', placementId: 'placement-vocab-u1' },
+    })).resolves.toMatchObject({
+      placementId: 'placement-vocab-u1',
+      activityId: 'activity-vocab-u1',
+      activityVersionId: 'activity-version-vocab-u1',
+      activityVersion: 5,
+    });
+
+    // Origin placement mismatch fails closed
+    const badOriginScope = structuredClone(carriedRevisionScope);
+    badOriginScope.activitySafeProjections['projection-vocab-origin'].placementIds = ['placement-wrong'];
+    const deniedResolver = new BookHomeworkAuthoritativeContextResolver({
+      ...base,
+      publications: { readScope: vi.fn(async () => badOriginScope as never) },
+      exactActivityVersions: { readExact: vi.fn(async () => revisionCanonical as never) },
+    } as BookHomeworkContextResolverDependencies);
+    await expect(deniedResolver.resolve({
+      assignmentId,
+      actorUid: recipientId,
+      action: { kind: 'student-launch', placementId: 'placement-vocab-u1' },
+    })).resolves.toBeNull();
+  });
 });

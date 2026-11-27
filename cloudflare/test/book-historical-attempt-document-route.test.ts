@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   createBookHistoricalAttemptDocumentDeliveryHandler,
+  createBookHistoricalSourceReader,
   type BookSourceDocumentRuntime,
 } from '../src/upload-worker/book-source/document';
+import { makeBookAssemblyPublicationScope } from './book-delivery.fixture';
 import type { BookDeliveryBinding } from '../../src/services/book-delivery/bookDelivery.types';
 import type { BookResultDetail } from '../src/upload-worker/book-results/types';
 import {
@@ -366,5 +368,130 @@ describe('historical attempt document byte route', () => {
     });
     expect((await invoke(crossScoped)).status).toBe(403);
     expect(crossScoped.provider.readBounded).not.toHaveBeenCalled();
+  });
+
+  it('fails closed in production createBookHistoricalSourceReader when pinned full_pdf manifest is missing, mismatched, or contains teacher_only pages', async () => {
+    const fullPdfBinding: BookDeliveryBinding = {
+      ...binding,
+      book: {
+        ...binding.book,
+        bookId: 'book-pdf-1',
+        manifestVersionId: 'manifest-1',
+        publicationId: 'publication-1',
+        publicationRevision: 4,
+      },
+      sourceSet: {
+        strategy: 'full_pdf',
+        sources: [{
+          sourceKey: 'full',
+          sourceVersionId: 'source-v1',
+          lifecycle: 'verified-usable',
+          localPageScope: { kind: 'all', pages: [] },
+        }],
+      },
+    };
+    const readyAccountState = {
+      accountId: 'account-1',
+      quotaBytes: 1024 * 1024,
+      reservedBytes: 0,
+      usedBytes: bytes.length,
+      operations: {
+        'op-1': {
+          operationId: 'op-1',
+          bookId: 'book-pdf-1',
+          ownerId: 'teacher-1',
+          sourceVersionId: 'source-v1',
+          purpose: 'book-source',
+          expectedChecksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
+          studentSafeStatus: 'ready',
+          studentSafeDecision: {
+            decidedBy: 'teacher-1',
+            decidedAt: '2026-07-25T00:00:00.000Z',
+            sourceVersionId: 'source-v1',
+            sha256Hex: 'a'.repeat(64),
+            reasonCode: 'teacher-reviewed',
+          },
+          status: 'verified_completed',
+          verifiedStorage: {
+            bookId: 'book-pdf-1',
+            sourceVersionId: 'source-v1',
+            storageLocationId: 'loc-1',
+            providerKind: 'backblaze-b2-s3',
+            privateBucketId: 'private-bucket',
+            providerObjectKey: 'private/book-pdf-1/source-v1.pdf',
+            providerFileId: 'file-1',
+            providerFileVersionId: 'ver-1',
+            checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
+            byteSize: bytes.length,
+          },
+        },
+      },
+    } as any;
+
+    // 1. Missing pinned manifest fails closed before reading account state / provider
+    const readAccountMissing = vi.fn(async () => readyAccountState);
+    const missingReader = createBookHistoricalSourceReader({
+      readPublicationScope: async () => ({ ...makeBookAssemblyPublicationScope(), versions: {} }),
+      readAccountState: readAccountMissing,
+      providerTag: 'b2',
+      privateBucketName: 'book-source',
+    });
+    await expect(missingReader({ binding: fullPdfBinding, sourceVersionId: 'source-v1' }))
+      .resolves.toEqual({ availability: 'revoked', source: null });
+    expect(readAccountMissing).not.toHaveBeenCalled();
+
+    // 2. Pinned manifest with teacher_only page group fails closed before reading account state / provider
+    const unsafeScope = structuredClone(makeBookAssemblyPublicationScope()) as any;
+    unsafeScope.versions['manifest-1'].manifest.units[0].pageGroups.push({
+      pageGroupKey: 'teacher-key',
+      sourceKey: 'full',
+      pages: [9],
+      activityKeys: [],
+      mode: 'teacher_only',
+    });
+    const readAccountUnsafe = vi.fn(async () => readyAccountState);
+    const unsafeReader = createBookHistoricalSourceReader({
+      readPublicationScope: async () => unsafeScope,
+      readAccountState: readAccountUnsafe,
+      providerTag: 'b2',
+      privateBucketName: 'book-source',
+    });
+    await expect(unsafeReader({ binding: fullPdfBinding, sourceVersionId: 'source-v1' }))
+      .resolves.toEqual({ availability: 'revoked', source: null });
+    expect(readAccountUnsafe).not.toHaveBeenCalled();
+
+    // 3. Mismatched publicationId on pinned manifest fails closed
+    const wrongPubScope = structuredClone(makeBookAssemblyPublicationScope()) as any;
+    wrongPubScope.versions['manifest-1'].publicationId = 'publication-other';
+    const readAccountMismatch = vi.fn(async () => readyAccountState);
+    const mismatchReader = createBookHistoricalSourceReader({
+      readPublicationScope: async () => wrongPubScope,
+      readAccountState: readAccountMismatch,
+      providerTag: 'b2',
+      privateBucketName: 'book-source',
+    });
+    await expect(mismatchReader({ binding: fullPdfBinding, sourceVersionId: 'source-v1' }))
+      .resolves.toEqual({ availability: 'revoked', source: null });
+    expect(readAccountMismatch).not.toHaveBeenCalled();
+
+    // 4. Clean pinned manifest matching book/owner/publication/strategy/source is served
+    const readAccountClean = vi.fn(async () => readyAccountState);
+    const cleanReader = createBookHistoricalSourceReader({
+      readPublicationScope: async () => makeBookAssemblyPublicationScope(),
+      readAccountState: readAccountClean,
+      providerTag: 'b2',
+      privateBucketName: 'book-source',
+    });
+    await expect(cleanReader({ binding: fullPdfBinding, sourceVersionId: 'source-v1' }))
+      .resolves.toMatchObject({
+        availability: 'available',
+        source: {
+          sourceVersionId: 'source-v1',
+          provider: 'b2',
+          bucket: 'book-source',
+          objectKey: 'private/book-pdf-1/source-v1.pdf',
+        },
+      });
+    expect(readAccountClean).toHaveBeenCalledTimes(1);
   });
 });

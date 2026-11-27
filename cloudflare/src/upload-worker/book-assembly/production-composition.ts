@@ -1,7 +1,10 @@
 /** Default #59 server composition. All records are read through durable RTDB adapters. */
 import type { NormalizedActivity } from '../../../../src/types/bookActivity.types.ts';
 import type { BookAssemblyCandidateRecord } from '../../../../src/services/book-assembly/unitAssembly.types.ts';
-import type { UnitActivityBindingRepository } from '../../../../src/services/book-assembly/unitActivityBinding.repository.ts';
+import type {
+  UnitActivityBinding,
+  UnitActivityBindingRepository,
+} from '../../../../src/services/book-assembly/unitActivityBinding.repository.ts';
 import type { BookRouteHandlersOptions } from '../book-route-handlers.ts';
 import { FirebaseRestBookActivityAuthoringRepository } from '../book-activity-authoring/repository.ts';
 import { activityMatchesAssemblyContract, createBookActivityAuthoringWorkerHandlers } from '../book-activity-authoring/worker.ts';
@@ -137,23 +140,25 @@ const savedActivityMatchesFinalManifest = (
   });
 };
 
-/** Authoring-only saved slots; this proves no setup activation or publication. */
-export const readVerifiedDraftActivityKeys = async (
+/** Authoring-only saved slot -> candidateId map; this proves no setup activation or publication. */
+export const readVerifiedDraftActivityCandidateIds = async (
   candidate: BookAssemblyCandidateRecord,
-  bindingRepository: Pick<UnitActivityBindingRepository, 'read'>,
+  bindingRepository: Pick<UnitActivityBindingRepository, 'readBookBindings'>,
   activityRepository: Pick<FirebaseRestBookActivityAuthoringRepository, 'readOwnerRoot'>,
   cachedOwnerRoot?: Awaited<ReturnType<FirebaseRestBookActivityAuthoringRepository['readOwnerRoot']>>,
-): Promise<readonly string[]> => {
+  cachedBookBindings?: Readonly<Record<string, Readonly<Record<string, UnitActivityBinding>>>>,
+): Promise<Readonly<Record<string, string>>> => {
   const { ownerId, bookId, unitKey, manifest } = candidate;
   const unit = manifest?.units.find((entry) => entry.unitKey === unitKey);
-  if (!manifest || !unit) return [];
+  if (!manifest || !unit) return {};
   const root = cachedOwnerRoot ?? await activityRepository.readOwnerRoot(ownerId);
   const isFullPdf = manifest.sourceSet.sourceStrategy === 'full_pdf';
-  const bindingsBySlot = await Promise.all(unit.activitySlots.map(async ({ activityKey }) => ({
+  const bookBindings = cachedBookBindings ?? await bindingRepository.readBookBindings!(ownerId, bookId);
+  const bindingsBySlot = unit.activitySlots.map(({ activityKey }) => ({
     activityKey,
-    binding: await bindingRepository.read({ ownerId, bookId, unitKey, activityKey }),
-  })));
-  const savedKeys: string[] = [];
+    binding: bookBindings[unitKey]?.[activityKey] ?? null,
+  }));
+  const savedCandidateIds: Record<string, string> = {};
   for (const { activityKey, binding } of bindingsBySlot) {
     if (!binding || binding.candidateLifecycle !== 'saved'
       || binding.ownerId !== ownerId || binding.bookId !== bookId
@@ -169,11 +174,28 @@ export const readVerifiedDraftActivityKeys = async (
       : seal?.candidateId === candidate.candidateId && seal.candidateRevision === candidate.revision;
     if (sealMatches
       && content && savedActivityMatchesFinalManifest(saved, manifest, unitKey, activityKey, content)) {
-      savedKeys.push(activityKey);
+      savedCandidateIds[activityKey] = binding.candidateId;
     }
   }
-  return savedKeys;
+  return savedCandidateIds;
 };
+
+/** Authoring-only saved slots; this proves no setup activation or publication. */
+export const readVerifiedDraftActivityKeys = async (
+  candidate: BookAssemblyCandidateRecord,
+  bindingRepository: Pick<UnitActivityBindingRepository, 'readBookBindings'>,
+  activityRepository: Pick<FirebaseRestBookActivityAuthoringRepository, 'readOwnerRoot'>,
+  cachedOwnerRoot?: Awaited<ReturnType<FirebaseRestBookActivityAuthoringRepository['readOwnerRoot']>>,
+  cachedBookBindings?: Readonly<Record<string, Readonly<Record<string, UnitActivityBinding>>>>,
+): Promise<readonly string[]> => Object.keys(
+  await readVerifiedDraftActivityCandidateIds(
+    candidate,
+    bindingRepository,
+    activityRepository,
+    cachedOwnerRoot,
+    cachedBookBindings,
+  ),
+);
 
 export const sourceUploadAccess = (env: Env) => {
   const accountId = typeof env.BOOK_SOURCE_UPLOAD_ACCOUNT_ID === 'string' ? env.BOOK_SOURCE_UPLOAD_ACCOUNT_ID.trim() : '';
@@ -421,7 +443,8 @@ const activities = async (
       ? await bindings(env).read({ ownerId, bookId, unitKey, activityKey })
       : activeComponentPdfActivation(bookAuthority ?? {})?.activities.find((item) =>
         item.unitKey === unitKey && item.activityKey === activityKey);
-    const content = reference ? readExactSavedActivityContent(root.candidates?.[reference.candidateId ?? reference.activityCandidateId], {
+    const savedRecord = reference ? root.candidates?.[reference.candidateId ?? reference.activityCandidateId] : undefined;
+    const content = reference ? readExactSavedActivityContent(savedRecord, {
       ownerId,
       bookId,
       candidateId: reference.candidateId ?? reference.activityCandidateId,
@@ -430,6 +453,11 @@ const activities = async (
     }, root.activities?.[reference.activityId]) : null;
     if (!reference || !content || (bookAuthority?.sourceSet.sourceStrategy === 'component_pdfs'
       && canonicalActivityPayloadFingerprint(content) !== reference.activityPayloadFingerprint)) return {};
+    if (bookAuthority?.sourceSet.sourceStrategy === 'full_pdf' && qualified.manifest) {
+      if (!savedActivityMatchesFinalManifest(savedRecord, qualified.manifest, unitKey, activityKey, content)) {
+        return {};
+      }
+    }
     output[activityKey] = {
       activityKey,
       ownerId,
@@ -439,6 +467,62 @@ const activities = async (
     };
   }
   return output;
+};
+
+export const selectCommittedComponentPdfLineage = (
+  publicationScope: Awaited<ReturnType<FirebaseRestBookAssemblyPublicationRepository['readScope']>>,
+  ownerId: string,
+  bookId: string,
+  unitKey: string,
+  activatedActivities: readonly { readonly unitKey: string; readonly activityKey: string; readonly activityId: string }[],
+): Record<string, { activityId: string; lastActivityVersionId?: string; lastActivityVersion?: number }> => {
+  const currentManifestVersionId = publicationScope.current?.manifestVersionId ?? null;
+  // Require commit evidence before treating any persisted activity_versions row
+  // as a predecessor: prepared rows left behind by an interrupted publish before
+  // the pointer commit must never advance lineage on retry.
+  const committedManifestVersionIds = new Set<string>();
+  if (currentManifestVersionId) committedManifestVersionIds.add(currentManifestVersionId);
+  for (const op of Object.values(publicationScope.operations ?? {})) {
+    if (op.ownerId === ownerId
+      && op.result?.status === 'published'
+      && op.result.pointer?.bookId === bookId
+      && typeof op.result.pointer.manifestVersionId === 'string') {
+      committedManifestVersionIds.add(op.result.pointer.manifestVersionId);
+    }
+  }
+  for (const audit of Object.values(publicationScope.audits ?? {})) {
+    if (audit.ownerId === ownerId
+      && audit.bookId === bookId
+      && audit.action === 'publish'
+      && audit.status === 'committed'
+      && typeof audit.manifestVersionId === 'string') {
+      committedManifestVersionIds.add(audit.manifestVersionId);
+    }
+  }
+  const result: Record<string, { activityId: string; lastActivityVersionId?: string; lastActivityVersion?: number }> = {};
+  activatedActivities
+    .filter((activity) => activity.unitKey === unitKey)
+    .forEach((activity) => {
+      const committedVersions = Object.values(publicationScope.activityVersions ?? {})
+        .filter((entry) => entry.ownerId === ownerId
+          && entry.bookId === bookId
+          && entry.activityId === activity.activityId
+          && committedManifestVersionIds.has(entry.manifestVersionId));
+      const prev = (currentManifestVersionId
+        ? committedVersions
+          .filter((entry) => entry.manifestVersionId === currentManifestVersionId)
+          .sort((left, right) => right.activityVersion - left.activityVersion)[0]
+        : undefined)
+        ?? committedVersions.sort((left, right) => right.activityVersion - left.activityVersion)[0];
+      result[activity.activityKey] = prev
+        ? {
+          activityId: prev.activityId,
+          lastActivityVersionId: prev.activityVersionId,
+          lastActivityVersion: prev.activityVersion,
+        }
+        : { activityId: activity.activityId };
+    });
+  return result;
 };
 
 const lineage = async (
@@ -487,11 +571,15 @@ const lineage = async (
     assemblyScope: suppliedComponentCache?.assemblyScope,
   });
   if (!qualified) return {};
-  const result: Record<string, { activityId: string; lastActivityVersionId?: string; lastActivityVersion?: number }> = {};
-  qualified.activation.activities
-    .filter((activity) => activity.unitKey === unitKey)
-    .forEach((activity) => { result[activity.activityKey] = { activityId: activity.activityId }; });
-  return result;
+  const publicationScope = suppliedComponentCache?.publicationScope
+    ?? await new FirebaseRestBookAssemblyPublicationRepository({ env: env as never, ownerId }).readScope(bookId);
+  return selectCommittedComponentPdfLineage(
+    publicationScope,
+    ownerId,
+    bookId,
+    unitKey,
+    qualified.activation.activities,
+  );
 };
 
 const assemblyDraftActivityContext = async (
@@ -516,6 +604,11 @@ const assemblyDraftActivityContext = async (
     },
     contract: { activityKey, contextRequirement: slot.contextRequirement },
     mappedBookPageRefs,
+    allowedEvidenceRefs: {
+      legacy: allowedActivitySlotEvidenceRefs(unit, activityKey),
+      source: allowedActivitySlotSourceEvidenceRefs(unit, activityKey),
+      answer: allowedActivitySlotAnswerEvidenceRefs(unit, activityKey),
+    },
   };
 };
 
@@ -737,14 +830,52 @@ export const createProductionBookAssemblyRouteOptions = (): Pick<BookRouteHandle
     activateComponentPdf: (input, env) => activateComponentPdfInProduction(input, env as Env),
     verifyDraftActivities: async ({ env, candidate, requestCache }) => {
       const activityRepo = new FirebaseRestBookActivityAuthoringRepository({ env: env as never });
-      const cacheKey = `ownerRoot:${candidate.ownerId}`;
-      let ownerRootPromise = requestCache?.get(cacheKey) as Promise<Awaited<ReturnType<FirebaseRestBookActivityAuthoringRepository['readOwnerRoot']>>> | undefined;
+      const bindingRepo = bindings(env as Env);
+      const ownerCacheKey = `ownerRoot:${candidate.ownerId}`;
+      let ownerRootPromise = requestCache?.get(ownerCacheKey) as Promise<Awaited<ReturnType<FirebaseRestBookActivityAuthoringRepository['readOwnerRoot']>>> | undefined;
       if (!ownerRootPromise) {
         ownerRootPromise = activityRepo.readOwnerRoot(candidate.ownerId);
-        requestCache?.set(cacheKey, ownerRootPromise);
+        requestCache?.set(ownerCacheKey, ownerRootPromise);
       }
-      const ownerRoot = await ownerRootPromise;
-      return readVerifiedDraftActivityKeys(candidate, bindings(env as Env), activityRepo, ownerRoot);
+      const bindingsCacheKey = `bookBindings:${candidate.ownerId}:${candidate.bookId}`;
+      let bookBindingsPromise = requestCache?.get(bindingsCacheKey) as Promise<Readonly<Record<string, Readonly<Record<string, UnitActivityBinding>>>>> | undefined;
+      if (!bookBindingsPromise && typeof bindingRepo.readBookBindings === 'function') {
+        bookBindingsPromise = bindingRepo.readBookBindings(candidate.ownerId, candidate.bookId);
+        requestCache?.set(bindingsCacheKey, bookBindingsPromise);
+      }
+      const [ownerRoot, cachedBookBindings] = await Promise.all([
+        ownerRootPromise,
+        bookBindingsPromise ?? Promise.resolve(undefined),
+      ]);
+      return readVerifiedDraftActivityKeys(candidate, bindingRepo, activityRepo, ownerRoot, cachedBookBindings);
+    },
+    verifyDraftActivityCandidateIds: async ({ env, candidate, requestCache }) => {
+      const activityRepo = new FirebaseRestBookActivityAuthoringRepository({ env: env as never });
+      const bindingRepo = bindings(env as Env);
+      const ownerCacheKey = `ownerRoot:${candidate.ownerId}`;
+      let ownerRootPromise = requestCache?.get(ownerCacheKey) as Promise<Awaited<ReturnType<FirebaseRestBookActivityAuthoringRepository['readOwnerRoot']>>> | undefined;
+      if (!ownerRootPromise) {
+        ownerRootPromise = activityRepo.readOwnerRoot(candidate.ownerId);
+        requestCache?.set(ownerCacheKey, ownerRootPromise);
+      }
+      const bindingsCacheKey = `bookBindings:${candidate.ownerId}:${candidate.bookId}`;
+      let bookBindingsPromise = requestCache?.get(bindingsCacheKey) as Promise<Readonly<Record<string, Readonly<Record<string, UnitActivityBinding>>>>> | undefined;
+      if (!bookBindingsPromise && typeof bindingRepo.readBookBindings === 'function') {
+        bookBindingsPromise = bindingRepo.readBookBindings(candidate.ownerId, candidate.bookId);
+        requestCache?.set(bindingsCacheKey, bookBindingsPromise);
+      }
+      const [ownerRoot, cachedBookBindings] = await Promise.all([
+        ownerRootPromise,
+        bookBindingsPromise ?? Promise.resolve(undefined),
+      ]);
+      return readVerifiedDraftActivityCandidateIds(candidate, bindingRepo, activityRepo, ownerRoot, cachedBookBindings);
+    },
+    isCandidatePublished: async ({ env, ownerId, bookId, candidateId }) => {
+      const scope = await new FirebaseRestBookAssemblyPublicationRepository({
+        env: env as never,
+        ownerId,
+      }).readScope(bookId);
+      return Object.values(scope.versions ?? {}).some((version) => version.candidateId === candidateId);
     },
     verifyActivatedActivities: async ({ env, ownerId, bookId, unitKey, activityKeys }) =>
       Object.keys(await activities(env as Env, ownerId, bookId, unitKey, activityKeys)).length === activityKeys.length,

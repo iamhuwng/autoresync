@@ -32,6 +32,7 @@ export interface AssemblyCandidateCommandPort {
     readonly unitKey: string;
     readonly candidateId: string;
     readonly expectedCandidateRevision: number;
+    readonly allowUnpublishedValidatedRollback?: true;
   }): Promise<BookAssemblyMutationResult>;
   load(bookId: string, unitKey: string, candidateId: string): Promise<{
     status: 'loaded';

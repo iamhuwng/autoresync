@@ -544,15 +544,15 @@ describe('BookRuntimeShell', () => {
 
     expect(screen.getByRole('button', { name: /Page Group 1 · 8, 9/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Page Group 2 · 12, 13/i })).toBeInTheDocument();
-    expect(screen.getByTestId('viewer-pages')).toHaveTextContent('unit-1::page-1@8');
+    expect(screen.getByTestId('viewer-pages')).toHaveTextContent('act:6:unit-1:page-1@8');
     expect(screen.getByText('Unit 1 Task')).toBeVisible();
     await user.click(screen.getByRole('button', { name: /Page Group 2 · 12, 13/i }));
     await waitFor(() => {
-      expect(screen.getByTestId('viewer-pages')).toHaveTextContent('unit-2::page-1@12');
+      expect(screen.getByTestId('viewer-pages')).toHaveTextContent('act:6:unit-2:page-1@12');
     });
     expect(screen.getByText('Unit 2 Task')).toBeVisible();
-    expect(seenViewerInputs.some((entry) => entry.pageGroupKey === 'unit-1::page-1' && entry.combinedPhysicalPage === 8)).toBe(true);
-    expect(seenViewerInputs.some((entry) => entry.pageGroupKey === 'unit-2::page-1' && entry.combinedPhysicalPage === 12)).toBe(true);
+    expect(seenViewerInputs.some((entry) => entry.pageGroupKey === 'act:6:unit-1:page-1' && entry.combinedPhysicalPage === 8)).toBe(true);
+    expect(seenViewerInputs.some((entry) => entry.pageGroupKey === 'act:6:unit-2:page-1' && entry.combinedPhysicalPage === 12)).toBe(true);
   });
 
   it('fails closed when explicit cross-unit pageGroupKeys collide without sourcePageScopes to isolate them', () => {
@@ -576,5 +576,331 @@ describe('BookRuntimeShell', () => {
     );
 
     expect(screen.getByRole('alert')).toHaveTextContent('Book page groups collide across units and cannot be isolated.');
+  });
+
+  it('preserves student-visible reference_only pageGroups when isolating colliding cross-unit activity pageGroupKeys', () => {
+    const base = delivery(false);
+    const withReferenceGroup: BookRuntimeDeliveryProjection = {
+      ...base,
+      sourceSet: {
+        strategy: 'full_pdf',
+        sources: [{ sourceKey: 'full', sourceVersionId: 'full-v1', lifecycle: 'verified-usable', localPageScope: { kind: 'all', pages: [] } }],
+      },
+      documentRequests: [{ sourceKey: 'full', sourceVersionId: 'full-v1', opaqueRouteKey: 'full-route', localPageScope: { kind: 'all', pages: [] } }],
+      pageGroups: [
+        { pageGroupKey: 'page-1', combinedPhysicalPages: [8, 9, 12, 13] },
+        { pageGroupKey: 'unit-1-transcript', combinedPhysicalPages: [50, 51] },
+      ],
+      activities: [
+        {
+          placementId: 'p-u1',
+          activityId: 'activity-1',
+          activityVersionId: 'activity-1-v1',
+          activityVersion: 1,
+          nodeKey: 'unit-1',
+          order: 1,
+          contextMode: 'required',
+          sourceContext: { available: true, description: 'Unit 1 pages', pageGroupKeys: ['page-1'], sourcePageScopes: [{ sourceKey: 'full', pages: [8, 9] }] },
+        },
+        {
+          placementId: 'p-u2',
+          activityId: 'activity-2',
+          activityVersionId: 'activity-2-v1',
+          activityVersion: 1,
+          nodeKey: 'unit-2',
+          order: 2,
+          contextMode: 'required',
+          sourceContext: { available: true, description: 'Unit 2 pages', pageGroupKeys: ['page-1'], sourcePageScopes: [{ sourceKey: 'full', pages: [12, 13] }] },
+        },
+      ],
+    };
+
+    render(
+      <BookRuntimeShell
+        {...shellProps({
+          deliveryProjection: withReferenceGroup,
+          activities: [
+            { activityId: 'activity-1', activityVersionId: 'activity-1-v1', projection: projection(true), label: 'Unit 1 Task' },
+            { activityId: 'activity-2', activityVersionId: 'activity-2-v1', projection: projection(true), label: 'Unit 2 Task' },
+          ],
+          registry: registry(true),
+        })}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /Page Group 1 · 8, 9/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Page Group 2 · 12, 13/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Page Group 3 · 50, 51/i })).toBeInTheDocument();
+  });
+
+  it('maps context-free (contextMode: none) Activities using navigationPageGroupKeys while keeping sourceContext unavailable', async () => {
+    const user = userEvent.setup();
+    const base = delivery(false);
+    const contextFreeDelivery: BookRuntimeDeliveryProjection = {
+      ...base,
+      sourceSet: {
+        strategy: 'full_pdf',
+        sources: [{ sourceKey: 'full', sourceVersionId: 'full-v1', lifecycle: 'verified-usable', localPageScope: { kind: 'all', pages: [] } }],
+      },
+      documentRequests: [{ sourceKey: 'full', sourceVersionId: 'full-v1', opaqueRouteKey: 'full-route', localPageScope: { kind: 'all', pages: [] } }],
+      pageGroups: [
+        { pageGroupKey: 'u1-g1', combinedPhysicalPages: [2] },
+        { pageGroupKey: 'u1-g2', combinedPhysicalPages: [5] },
+      ],
+      activities: [
+        {
+          placementId: 'p-free',
+          activityId: 'activity-free',
+          activityVersionId: 'activity-free-v1',
+          activityVersion: 1,
+          nodeKey: 'unit-1',
+          order: 1,
+          contextMode: 'none',
+          sourceContext: {
+            available: false,
+            description: 'No source context required.',
+            pageGroupKeys: [],
+            sourcePageScopes: [],
+          },
+          navigationPageGroupKeys: ['u1-g1'],
+          navigationPageScopes: [{ sourceKey: 'full', pages: [2] }],
+        },
+        {
+          placementId: 'p-req',
+          activityId: 'activity-req',
+          activityVersionId: 'activity-req-v1',
+          activityVersion: 1,
+          nodeKey: 'unit-1',
+          order: 2,
+          contextMode: 'required',
+          sourceContext: {
+            available: true,
+            description: 'Page 5',
+            pageGroupKeys: ['u1-g2'],
+            sourcePageScopes: [{ sourceKey: 'full', pages: [5] }],
+          },
+        },
+      ],
+    };
+
+    render(
+      <BookRuntimeShell
+        {...shellProps({
+          deliveryProjection: contextFreeDelivery,
+          activities: [
+            { activityId: 'activity-free', activityVersionId: 'activity-free-v1', projection: projection(false), label: 'Context-Free Quiz' },
+            { activityId: 'activity-req', activityVersionId: 'activity-req-v1', projection: projection(true), label: 'Page 5 Task' },
+          ],
+          registry: createActivityRendererRegistry([
+            registerActivityRenderer({
+              family: 'choice', variant: 'v1', presentationMode: 'structured',
+              responseCodec: 'test-text-v1', rendererId: 'test-choice-s', codecId: 'test-text-v1', renderer: Renderer, codec,
+            }),
+            registerActivityRenderer({
+              family: 'choice', variant: 'v1', presentationMode: 'source-assisted',
+              responseCodec: 'test-text-v1', rendererId: 'test-choice-sa', codecId: 'test-text-v1', renderer: Renderer, codec,
+            }),
+          ]),
+        })}
+      />,
+    );
+
+    // Group 1 shows Context-Free Quiz (mapped via navigationPageGroupKeys) and NOT Page 5 Task
+    expect(screen.getByRole('heading', { name: 'Context-Free Quiz' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Page 5 Task' })).not.toBeInTheDocument();
+
+    // Switching to Group 2 shows ONLY Page 5 Task (Context-Free Quiz is NOT shown in every group)
+    await user.click(screen.getByRole('button', { name: /Page Group 2 · 5/i }));
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Page 5 Task' })).toBeInTheDocument());
+    expect(screen.queryByRole('heading', { name: 'Context-Free Quiz' })).not.toBeInTheDocument();
+  });
+
+  it('allows Full-PDF navigation to unmapped physical pages across 1..physicalPageCount while keeping pageGroups as Activity metadata', async () => {
+    const user = userEvent.setup();
+    const base = delivery(true);
+    let capturedViewerInput: BookRuntimeViewerRenderInput | null = null;
+    const fullPdfDelivery: BookRuntimeDeliveryProjection = {
+      ...base,
+      sourceSet: {
+        strategy: 'full_pdf',
+        sources: [{ sourceKey: 'full', sourceVersionId: 'full-v1', lifecycle: 'verified-usable', localPageScope: { kind: 'all', pages: [] }, physicalPageCount: 10 }],
+      },
+      documentRequests: [{ sourceKey: 'full', sourceVersionId: 'full-v1', opaqueRouteKey: 'full-route', localPageScope: { kind: 'all', pages: [] }, physicalPageCount: 10 }],
+      pageGroups: [{ pageGroupKey: 'u1-g1', combinedPhysicalPages: [2, 3] }],
+      activities: [{
+        placementId: 'p-1',
+        activityId: 'activity-1',
+        activityVersionId: 'activity-1-v1',
+        activityVersion: 1,
+        nodeKey: 'unit-1',
+        order: 1,
+        contextMode: 'required',
+        sourceContext: { available: true, description: 'Pages 2-3', pageGroupKeys: ['u1-g1'], sourcePageScopes: [{ sourceKey: 'full', pages: [2, 3] }] },
+      }],
+    };
+
+    render(
+      <BookRuntimeShell
+        {...shellProps({
+          deliveryProjection: fullPdfDelivery,
+          activities: [{ activityId: 'activity-1', activityVersionId: 'activity-1-v1', projection: projection(true), label: 'Activity 1' }],
+          registry: registry(true),
+          viewer: {
+            title: 'Full PDF',
+            status: { state: 'ready', message: 'Ready.' },
+            render: (input: BookRuntimeViewerRenderInput) => {
+              capturedViewerInput = input;
+              return (
+                <div>
+                  <span data-testid="current-physical-page">{input.combinedPhysicalPage}</span>
+                  <button type="button" onClick={() => input.onPageChange(7)}>Jump to unmapped page 7</button>
+                </div>
+              );
+            },
+          },
+        })}
+      />,
+    );
+
+    expect(capturedViewerInput!.allowedPages).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(screen.getByTestId('current-physical-page')).toHaveTextContent('2');
+
+    await user.click(screen.getByRole('button', { name: 'Jump to unmapped page 7' }));
+    await waitFor(() => expect(screen.getByTestId('current-physical-page')).toHaveTextContent('7'));
+    expect(capturedViewerInput!.pageGroupKey).toBe('u1-g1');
+  });
+
+  it('prevents reference Page Group collision with scoped Activity keys even when unit and group keys contain colons', async () => {
+    const base = delivery(true);
+    const fullPdfDelivery: BookRuntimeDeliveryProjection = {
+      ...base,
+      sourceSet: {
+        strategy: 'full_pdf',
+        sources: [{ sourceKey: 'full', sourceVersionId: 'full-v1', lifecycle: 'verified-usable', localPageScope: { kind: 'all', pages: [] }, physicalPageCount: 12 }],
+      },
+      documentRequests: [{ sourceKey: 'full', sourceVersionId: 'full-v1', opaqueRouteKey: 'full-route', localPageScope: { kind: 'all', pages: [] }, physicalPageCount: 12 }],
+      pageGroups: [
+        { pageGroupKey: 'shared', combinedPhysicalPages: [2, 6] },
+        { pageGroupKey: 'g-extra', combinedPhysicalPages: [4] },
+        { pageGroupKey: 'ref:u1::shared', combinedPhysicalPages: [11] },
+      ],
+      activities: [
+        {
+          placementId: 'p-1',
+          activityId: 'activity-1',
+          activityVersionId: 'activity-1-v1',
+          activityVersion: 1,
+          nodeKey: 'ref:u1',
+          order: 1,
+          contextMode: 'required',
+          sourceContext: {
+            available: true,
+            description: 'Unit 1',
+            pageGroupKeys: ['shared', 'g-extra'],
+            sourcePageScopes: [{ sourceKey: 'full', pages: [2, 4] }],
+          },
+        },
+        {
+          placementId: 'p-2',
+          activityId: 'activity-2',
+          activityVersionId: 'activity-2-v1',
+          activityVersion: 1,
+          nodeKey: 'u2',
+          order: 2,
+          contextMode: 'required',
+          sourceContext: {
+            available: true,
+            description: 'Unit 2',
+            pageGroupKeys: ['shared'],
+            sourcePageScopes: [{ sourceKey: 'full', pages: [6] }],
+          },
+        },
+      ],
+    };
+
+    render(
+      <BookRuntimeShell
+        {...shellProps({
+          deliveryProjection: fullPdfDelivery,
+          activities: [
+            { activityId: 'activity-1', activityVersionId: 'activity-1-v1', projection: projection(true), label: 'Activity 1' },
+            { activityId: 'activity-2', activityVersionId: 'activity-2-v1', projection: projection(true), label: 'Activity 2' },
+          ],
+          registry: registry(true),
+        })}
+      />,
+    );
+
+    // Reference group 'ref:u1::shared' on page 11 is NOT silently dropped by Activity key scoping ('act:6:ref:u1:shared')
+    expect(screen.getByRole('button', { name: /Page Group 4 · 11/i })).toBeInTheDocument();
+    // Non-colliding multi-group 'g-extra' keeps its exact page 4 instead of unioning [2, 4]
+    expect(screen.getByRole('button', { name: /Page Group 2 · 4/i })).toBeInTheDocument();
+  });
+
+  it('keeps colliding cross-unit Page Groups isolated to their exact per-group pages without bleeding sibling group pages', () => {
+    const base = delivery(true);
+    const fullPdfDelivery: BookRuntimeDeliveryProjection = {
+      ...base,
+      sourceSet: {
+        strategy: 'full_pdf',
+        sources: [{ sourceKey: 'full', sourceVersionId: 'full-v1', lifecycle: 'verified-usable', localPageScope: { kind: 'all', pages: [] }, physicalPageCount: 15 }],
+      },
+      documentRequests: [{ sourceKey: 'full', sourceVersionId: 'full-v1', opaqueRouteKey: 'full-route', localPageScope: { kind: 'all', pages: [] }, physicalPageCount: 15 }],
+      pageGroups: [
+        { nodeKey: 'u1', pageGroupKey: 'intro', combinedPhysicalPages: [4] },
+        { pageGroupKey: 'practice', combinedPhysicalPages: [7] },
+        { nodeKey: 'u2', pageGroupKey: 'intro', combinedPhysicalPages: [10] },
+      ],
+      activities: [
+        {
+          placementId: 'p-1',
+          activityId: 'activity-1',
+          activityVersionId: 'activity-1-v1',
+          activityVersion: 1,
+          nodeKey: 'u1',
+          order: 1,
+          contextMode: 'required',
+          sourceContext: {
+            available: true,
+            description: 'Unit 1',
+            pageGroupKeys: ['intro', 'practice'],
+            sourcePageScopes: [{ sourceKey: 'full', pages: [4, 7] }],
+          },
+        },
+        {
+          placementId: 'p-2',
+          activityId: 'activity-2',
+          activityVersionId: 'activity-2-v1',
+          activityVersion: 1,
+          nodeKey: 'u2',
+          order: 2,
+          contextMode: 'required',
+          sourceContext: {
+            available: true,
+            description: 'Unit 2',
+            pageGroupKeys: ['intro'],
+            sourcePageScopes: [{ sourceKey: 'full', pages: [10] }],
+          },
+        },
+      ],
+    };
+
+    render(
+      <BookRuntimeShell
+        {...shellProps({
+          deliveryProjection: fullPdfDelivery,
+          activities: [
+            { activityId: 'activity-1', activityVersionId: 'activity-1-v1', projection: projection(true), label: 'Activity 1' },
+            { activityId: 'activity-2', activityVersionId: 'activity-2-v1', projection: projection(true), label: 'Activity 2' },
+          ],
+          registry: registry(true),
+        })}
+      />,
+    );
+
+    // Unit 1's intro maps ONLY to page 4 (never page 7 from practice or page 10 from Unit 2)
+    expect(screen.getByRole('button', { name: 'Page Group 1 · 4' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Page Group 2 · 7' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Page Group 3 · 10' })).toBeInTheDocument();
   });
 });

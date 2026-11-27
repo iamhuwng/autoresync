@@ -459,12 +459,17 @@ implements CanonicalActivityVersionWriter {
   private readonly rtdbForPrepare: (
     record: CanonicalPublishedActivityVersionRecord,
   ) => FirebaseRtdbRestClient;
+  private readonly rtdbForRead?: (
+    reference: BookAssemblyActivityVersionReference,
+  ) => FirebaseRtdbRestClient;
+  private readonly ownerId?: string;
   private readonly prepared = new Map<string, CanonicalPublishedActivityVersionRecord>();
   private readonly allowCompatibilityRead: boolean;
   private readonly maxRetries: number;
 
   constructor(private readonly options: {
     env: CanonicalActivityVersionWriterEnv;
+    ownerId?: string;
     fetchImpl?: typeof fetch;
     getAccessToken?: () => Promise<string>;
     maxRetries?: number;
@@ -489,12 +494,14 @@ implements CanonicalActivityVersionWriter {
     if (!keyJson && !options.getAccessToken) {
       throw new Error('missing_canonical_activity_version_writer_google_sa_key');
     }
+    this.ownerId = options.ownerId?.trim() || undefined;
     this.maxRetries = assertRetryCount(options.maxRetries ?? MAX_RETRIES);
     this.allowCompatibilityRead = options.getAccessToken !== undefined;
     this.rtdb = rtdbClient(options.env, keyJson, fetchImpl, options.getAccessToken);
     if (options.getAccessToken) {
       // Preserve the injected OAuth seam for existing compatibility callers.
       this.rtdbForPrepare = () => this.rtdb;
+      this.rtdbForRead = () => this.rtdb;
       return;
     }
     if (!keyJson) throw new Error('missing_canonical_activity_version_writer_google_sa_key');
@@ -506,7 +513,8 @@ implements CanonicalActivityVersionWriter {
       fetchImpl,
     });
     this.rtdbForPrepare = (record) => {
-      if (record.provenance.kind !== 'initial-book-publication') {
+      if (record.provenance.kind !== 'initial-book-publication'
+        && record.provenance.kind !== 'activity-revision') {
         throw new Error('canonical_activity_version_writer_publication_scope_unavailable');
       }
       const claims: BookFirebaseClaimTuple = {
@@ -523,6 +531,24 @@ implements CanonicalActivityVersionWriter {
         async () => getFirebaseAuthToken(claims),
       );
     };
+    if (this.ownerId) {
+      const scopedOwnerId = this.ownerId;
+      this.rtdbForRead = (reference) => {
+        const claims: BookFirebaseClaimTuple = {
+          service: 'book_activity_publication_reader',
+          ownerId: scopedOwnerId,
+          activityId: reference.activityId,
+          activityVersionId: reference.activityVersionId,
+        };
+        return rtdbClient(
+          options.env,
+          keyJson,
+          fetchImpl,
+          undefined,
+          async () => getFirebaseAuthToken(claims),
+        );
+      };
+    }
   }
 
   async prepare(
@@ -593,10 +619,15 @@ implements CanonicalActivityVersionWriter {
     const path = canonicalPath(reference.activityId, reference.activityVersionId);
     const prepared = this.prepared.get(path);
     if (prepared) return sameReference(prepared, reference) ? structuredClone(prepared) : null;
-    if (!this.allowCompatibilityRead) return null;
-    const parsed = parseCanonicalFromRtdb(await this.rtdb.readValue(path));
+    const client = this.allowCompatibilityRead
+      ? this.rtdb
+      : this.rtdbForRead?.(reference);
+    if (!client) return null;
+    const parsed = parseCanonicalFromRtdb(await client.readValue(path));
     if (!parsed || !sameReference(parsed, reference)) return null;
-    return parsed;
+    if (this.ownerId && parsed.ownerId !== this.ownerId) return null;
+    this.prepared.set(path, parsed);
+    return structuredClone(parsed);
   }
 }
 
@@ -695,10 +726,11 @@ implements ExactPublishedActivityVersionReader {
           bookActivity.createdByCommandId as string,
         ));
       if (!publicationVisible(current, operation, bookActivity, request)) return null;
-    const bookSafeProjection = await rtdb.readValue(bookSafeProjectionPath(
-      request.bookId,
-      bookActivity.safeProjectionId as string,
-    ));
+    const [bookSafeProjection, rawCanonical, rawStudentSafeProjection] = await Promise.all([
+      rtdb.readValue(bookSafeProjectionPath(request.bookId, bookActivity.safeProjectionId as string)),
+      rtdb.readValue(paths.canonical),
+      rtdb.readValue(paths.studentSafeProjection),
+    ]);
     if (!sameBookSafeProjection(
       bookSafeProjection,
       bookActivity,
@@ -706,21 +738,87 @@ implements ExactPublishedActivityVersionReader {
       publicationRevision as number,
     )) return null;
 
-    const canonical = parseCanonicalFromRtdb(await rtdb.readValue(paths.canonical));
+    const canonical = parseCanonicalFromRtdb(rawCanonical);
     if (!canonical || !sameCanonicalIdentity(canonical, request, bookActivity)) return null;
     const placementIds = (bookSafeProjection as Record<string, unknown>).placementIds as string[];
-    if (stable([...placementIds].sort()) !== stable([...canonical.placementIds].sort())) return null;
-    for (const placementId of placementIds) {
-      if (!sameBookPlacement(
-        await rtdb.readValue(bookPlacementPath(request.bookId, placementId)),
-        bookActivity,
-        request,
-        publicationRevision as number,
-      )) return null;
+    const exactPlacementMatch = stable([...placementIds].sort()) === stable([...canonical.placementIds].sort());
+    const originManifestVersionId = typeof bookActivity.canonicalOriginManifestVersionId === 'string'
+      ? bookActivity.canonicalOriginManifestVersionId
+      : undefined;
+    const originPublicationId = typeof bookActivity.canonicalOriginPublicationId === 'string'
+      ? bookActivity.canonicalOriginPublicationId
+      : undefined;
+    const originOperationId = typeof bookActivity.canonicalOriginOperationId === 'string'
+      ? bookActivity.canonicalOriginOperationId
+      : undefined;
+    let carriedForwardSuccessor = false;
+    if (!exactPlacementMatch
+      && canonical.placementIds.length > 0
+      && originManifestVersionId !== undefined
+      && originManifestVersionId !== request.manifestVersionId
+      && originPublicationId !== undefined
+      && originOperationId !== undefined
+      && PATH_ID.test(originManifestVersionId)
+      && PATH_ID.test(originPublicationId)
+      && canonical.createdByOperationId === originOperationId) {
+      if (canonical.provenance.kind === 'initial-book-publication') {
+        carriedForwardSuccessor = canonical.provenance.bookId === request.bookId
+          && canonical.provenance.manifestVersionId === originManifestVersionId
+          && canonical.provenance.publicationId === originPublicationId;
+      } else if (canonical.provenance.kind === 'activity-revision'
+        && canonical.activityVersion > 1
+        && typeof canonical.predecessorActivityVersionId === 'string'
+        && canonical.predecessorActivityVersionId.length > 0) {
+        const originRequest: ExactPublishedActivityVersionRequest = {
+          ...request,
+          manifestVersionId: originManifestVersionId,
+          publicationId: originPublicationId,
+        };
+        const [originManifest, originBookActivity, originOperation] = await Promise.all([
+          rtdb.readValue(manifestPath(request.bookId, originManifestVersionId)),
+          rtdb.readValue(bookActivityVersionPath(request.bookId, originManifestVersionId, request.activityVersionId)),
+          rtdb.readValue(bookOperationPath(request.bookId, originOperationId)),
+        ]);
+        const originPublicationRevision = isRecord(originManifest)
+          ? originManifest.publicationRevision
+          : undefined;
+        if (sameManifest(originManifest, originRequest)
+          && typeof originPublicationRevision === 'number'
+          && originPublicationRevision < (publicationRevision as number)
+          && sameBookActivityVersion(originBookActivity, originRequest, originPublicationRevision)
+          && (originBookActivity as Record<string, unknown>).createdByCommandId === originOperationId
+          && publicationVisible(current, originOperation, originBookActivity as Record<string, unknown>, originRequest)) {
+          const originSafeProjection = await rtdb.readValue(
+            bookSafeProjectionPath(
+              request.bookId,
+              (originBookActivity as Record<string, unknown>).safeProjectionId as string,
+            ),
+          );
+          if (sameBookSafeProjection(
+            originSafeProjection,
+            originBookActivity as Record<string, unknown>,
+            originRequest,
+            originPublicationRevision,
+          )) {
+            const originPlacementIds = (originSafeProjection as Record<string, unknown>).placementIds as string[];
+            carriedForwardSuccessor = stable([...originPlacementIds].sort()) === stable([...canonical.placementIds].sort());
+          }
+        }
+      }
     }
-    const studentSafeProjection = hydrateStudentSafeProjectionFromRtdb(
-      await rtdb.readValue(paths.studentSafeProjection),
+    if (!exactPlacementMatch && !carriedForwardSuccessor) {
+      return null;
+    }
+    const placements = await Promise.all(
+      placementIds.map((placementId) => rtdb.readValue(bookPlacementPath(request.bookId, placementId))),
     );
+    if (placements.some((placement) => !sameBookPlacement(
+      placement,
+      bookActivity,
+      request,
+      publicationRevision as number,
+    ))) return null;
+    const studentSafeProjection = hydrateStudentSafeProjectionFromRtdb(rawStudentSafeProjection);
     if (stable(studentSafeProjection) !== stable(safeProjectionFor(canonical))) return null;
     return canonical;
   }

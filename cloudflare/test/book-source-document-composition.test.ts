@@ -56,7 +56,10 @@ const studentBinding = (): BookDeliveryBinding => {
 const readyRepository = async () => {
   const repository = new InMemoryBookDeliveryRepository();
   await repository.createDraft({
-    binding: studentBinding(),
+    binding: {
+      ...studentBinding(),
+      activityPageGroups: [{ nodeKey: 'unit-1', pageGroupKey: 'group-1', sourceKey: 'full', pages: [1] }],
+    },
     operationId: operation(1),
     now: '2026-07-30T00:00:00.000Z',
   });
@@ -189,7 +192,12 @@ describe('Ticket #49 canonical source document composition', () => {
       throw new Error('unexpected_document_reader_transport');
     });
     try {
-      await expect(defaultRuntimeFactory(environment).readCurrentAuthority(studentBinding())).rejects.toThrow();
+      await expect(defaultRuntimeFactory(environment).readCurrentAuthority(studentBinding())).resolves.toMatchObject({
+        publicationStatus: 'unpublished',
+        scheduleOpen: false,
+        sourceVersionIds: [],
+        sourceLocations: [],
+      });
       expect(calls.some(url => url.includes('/book_assembly_publications/books/book-pdf-1.json'))).toBe(true);
       expect(calls.some(url => url.includes('identitytoolkit.googleapis.com'))).toBe(false);
     } finally { vi.unstubAllGlobals(); }

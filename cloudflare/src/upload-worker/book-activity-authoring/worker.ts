@@ -25,18 +25,14 @@ import type {
   UnitActivityBinding,
   UnitActivityBindingRepository,
 } from '../../../../src/services/book-assembly/unitActivityBinding.repository.ts';
+import { bookScopedActivityTargetId } from '../../../../src/services/book-assembly/bookActivityTargetId.service.ts';
 import { isActiveBookSourceAuthorityProfile } from '../book-source/trusted-source-contract.ts';
 
 const MAX_BODY_BYTES = 256 * 1024;
 const MAX_CANDIDATE_RECORD_BYTES = 256 * 1024;
 const ID = /^[A-Za-z0-9_-]{1,160}$/u;
+const BINDING_KEY_ID = /^[A-Za-z0-9][A-Za-z0-9_:-]{0,159}$/u;
 const ASSEMBLY_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
-const hexUtf8 = (value: string): string => Array.from(
-  new TextEncoder().encode(value),
-  (byte) => byte.toString(16).padStart(2, '0'),
-).join('');
-const bookScopedActivityTargetId = (bookId: string, activityKey: string): string =>
-  `ba_${hexUtf8(bookId)}_${hexUtf8(activityKey)}`;
 const OPERATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 type Mutation = 'stage' | 'validate' | 'save-draft' | 'discard';
 type Lifecycle = 'staged' | 'validated' | 'rejected' | 'saved' | 'discarded';
@@ -58,6 +54,11 @@ interface AssemblyDraftActivityContext {
   readonly seal: AssemblyDraftSeal;
   readonly contract: AssemblyActivityContract;
   readonly mappedBookPageRefs: readonly string[];
+  readonly allowedEvidenceRefs?: {
+    readonly legacy: readonly string[];
+    readonly source: readonly string[];
+    readonly answer: readonly string[];
+  };
 }
 const OPERATION_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const MATERIAL_BOOK_PATH = (bookId: string): string => `material_catalog/books/${bookId}`;
@@ -139,6 +140,10 @@ const validId = (value: unknown, label: string): string => {
   if (typeof value !== 'string' || !ID.test(value)) throw new AuthoringError(`invalid_${label}`);
   return value;
 };
+const validBindingKeyId = (value: unknown, label: string): string => {
+  if (typeof value !== 'string' || !BINDING_KEY_ID.test(value)) throw new AuthoringError(`invalid_${label}`);
+  return value;
+};
 const validRevision = (value: unknown): number => {
   if (!Number.isSafeInteger(value) || (value as number) < 0) throw new AuthoringError('invalid_expected_revision');
   return value as number;
@@ -166,8 +171,8 @@ const unitActivityBinding = (body: Record<string, unknown>): { unitKey: string; 
     throw new AuthoringError('invalid_unit_activity_binding');
   }
   return {
-    unitKey: validId(value.unitKey, 'unit_key'),
-    activityKey: validId(value.activityKey, 'activity_key'),
+    unitKey: validBindingKeyId(value.unitKey, 'unit_key'),
+    activityKey: validBindingKeyId(value.activityKey, 'activity_key'),
   };
 };
 const replaceExistingUnitActivityBinding = (body: Record<string, unknown>): boolean => {
@@ -211,7 +216,7 @@ type BindingReceipt = UnitActivityBinding & {
 const bindingReceipt = (value: unknown): BindingReceipt | undefined => {
   const record = plainRecord(value);
   if (!record || !validIdValue(record.ownerId) || !validIdValue(record.bookId)
-    || !validIdValue(record.unitKey) || !validIdValue(record.activityKey)
+    || !validBindingKeyValue(record.unitKey) || !validBindingKeyValue(record.activityKey)
     || !validIdValue(record.activityId) || !validIdValue(record.candidateId)
     || !validRevisionValue(record.candidateRevision)
     || record.schemaVersion !== 1 || record.candidateLifecycle !== 'saved'
@@ -247,24 +252,57 @@ const bindingWrite = (receipt: BindingReceipt): UnitActivityBinding => ({
   candidateLifecycle: 'saved',
 });
 
+interface VerifiedBookBindings {
+  readonly verifiedBookIds: ReadonlySet<string>;
+  readonly boundCandidateIds: ReadonlySet<string>;
+}
 const terminal = (candidate: CandidateRecord): boolean => ['rejected', 'saved', 'discarded'].includes(candidate.lifecycle);
-const prune = (root: BookActivityAuthoringRoot, at: number): void => {
-  const operations = Object.entries(root.operations ?? {})
+const collectReceiptCandidateIds = (root: BookActivityAuthoringRoot): Set<string> => {
+  const ids = new Set<string>();
+  for (const value of Object.values(root.operations ?? {})) {
+    const op = asOperation(value);
+    const result = plainRecord(op?.result);
+    const receipt = bindingReceipt(result?.binding);
+    if (receipt) ids.add(receipt.candidateId);
+  }
+  return ids;
+};
+const isPendingBindingOperation = (operation: OperationRecord): boolean => {
+  const result = plainRecord(operation.result);
+  const receipt = bindingReceipt(result?.binding);
+  return receipt?.phase === 'binding-pending';
+};
+const prune = (
+  root: BookActivityAuthoringRoot,
+  at: number,
+  verifiedBookBindings?: VerifiedBookBindings,
+): void => {
+  const receiptCandidateIds = collectReceiptCandidateIds(root);
+  const allOperations = Object.entries(root.operations ?? {})
     .flatMap(([id, value]) => {
       const operation = asOperation(value);
-      return operation && operation.createdAt >= at - OPERATION_RETENTION_MS ? [[id, operation] as const] : [];
-    })
+      return operation ? [[id, operation] as const] : [];
+    });
+  // Never evict operations with an unresolved binding-pending receipt so
+  // reconciliation retries remain idempotent and their candidates stay protected.
+  const pendingOperations = allOperations
+    .filter(([, operation]) => isPendingBindingOperation(operation))
+    .sort(([, left], [, right]) => right.createdAt - left.createdAt);
+  const pendingIds = new Set(pendingOperations.map(([id]) => id));
+  const recentNonPending = allOperations
+    .filter(([id, operation]) => !pendingIds.has(id) && operation.createdAt >= at - OPERATION_RETENTION_MS)
     .sort(([, left], [, right]) => right.createdAt - left.createdAt)
-    .slice(0, MAX_OPERATIONS_PER_OWNER);
-  root.operations = Object.fromEntries(operations);
+    .slice(0, Math.max(0, MAX_OPERATIONS_PER_OWNER - pendingOperations.length));
+  root.operations = Object.fromEntries([...pendingOperations, ...recentNonPending]);
   const candidates = Object.entries(root.candidates ?? {});
   if (candidates.length < MAX_CANDIDATES_PER_OWNER) return;
   const parsedCandidates = candidates.flatMap(([id, value]) => {
     const candidate = asCandidate(value, id);
     return candidate ? [[id, candidate] as const] : [];
   });
-  // Protect the latest saved candidate for every target Activity so active
-  // unit bindings never lose their saved candidate record during pruning.
+  // Protect every candidate referenced by active unit-activity bindings,
+  // pending/complete binding receipts, and the latest saved candidate per target.
+  // Fail closed for saved candidates whose owning book's bindings were not verified.
   const latestSavedByTarget = new Map<string, { id: string; updatedAt: number; revision: number }>();
   for (const [id, candidate] of parsedCandidates) {
     if (candidate.lifecycle !== 'saved') continue;
@@ -278,9 +316,20 @@ const prune = (root: BookActivityAuthoringRoot, at: number): void => {
       });
     }
   }
-  const protectedSavedIds = new Set(Array.from(latestSavedByTarget.values(), (entry) => entry.id));
+  const protectedIds = new Set<string>([
+    ...Array.from(latestSavedByTarget.values(), (entry) => entry.id),
+    ...receiptCandidateIds,
+    ...(verifiedBookBindings?.boundCandidateIds ?? []),
+  ]);
+  const canEvict = (id: string, candidate: CandidateRecord): boolean => {
+    if (!terminal(candidate) || protectedIds.has(id)) return false;
+    if (candidate.lifecycle !== 'saved') return true;
+    return candidate.bookId !== undefined
+      && verifiedBookBindings !== undefined
+      && verifiedBookBindings.verifiedBookIds.has(candidate.bookId);
+  };
   const removable = parsedCandidates
-    .filter(([id, candidate]) => terminal(candidate) && !protectedSavedIds.has(id))
+    .filter(([id, candidate]) => canEvict(id, candidate))
     .sort(([, left], [, right]) => left.updatedAt - right.updatedAt);
   const next = { ...(root.candidates ?? {}) };
   for (const [id] of removable) {
@@ -327,6 +376,7 @@ const role = (profile: unknown): 'teacher' | 'super_admin' | null => {
   return null;
 };
 const validIdValue = (value: unknown): value is string => typeof value === 'string' && ID.test(value);
+const validBindingKeyValue = (value: unknown): value is string => typeof value === 'string' && BINDING_KEY_ID.test(value);
 const validRevisionValue = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 const validTimestamp = (value: unknown): value is number =>
@@ -442,7 +492,7 @@ const asCandidate = (value: unknown, expectedCandidateId?: string): CandidateRec
     || sealKeys === 'activityKey,bookId,candidateId,candidateRevision,manifestFingerprint,sourceSetFingerprint,unitKey';
   if (record.lifecycle !== 'rejected' && record.assemblyDraft !== undefined && (!seal
     || !validSealKeys
-    || !validIdValue(seal.bookId) || !ASSEMBLY_ID.test(String(seal.unitKey)) || !validIdValue(seal.activityKey)
+    || !validIdValue(seal.bookId) || !ASSEMBLY_ID.test(String(seal.unitKey)) || !validBindingKeyValue(seal.activityKey)
     || !ASSEMBLY_ID.test(String(seal.candidateId)) || !validRevisionValue(seal.candidateRevision)
     || seal.candidateRevision < 1 || seal.bookId !== record.bookId
     || typeof seal.manifestFingerprint !== 'string' || !/^(?:fnv1a64:[a-f0-9]{16}|[a-f0-9]{64})$/iu.test(seal.manifestFingerprint)
@@ -546,16 +596,27 @@ const operationResult = (
     }
     return { result: { ...clone(old.result), replayed: true }, write: false };
   }
-  const result = create();
-  const retained = Object.entries(operations)
+  const existing = Object.entries(operations)
     .flatMap(([id, value]) => {
-      const operation = asOperation(value);
-      return operation ? [[id, operation] as const] : [];
-    })
+      const entry = asOperation(value);
+      return entry ? [[id, entry] as const] : [];
+    });
+  // Preserve unresolved binding-pending receipts across cap eviction so their
+  // exact replay state cannot be silently discarded; fail closed if full.
+  const pending = existing
+    .filter(([, entry]) => isPendingBindingOperation(entry))
+    .sort(([, left], [, right]) => right.createdAt - left.createdAt);
+  if (pending.length >= MAX_OPERATIONS_PER_OWNER) {
+    return { result: { status: 'capacity-exceeded' }, write: false };
+  }
+  const pendingIds = new Set(pending.map(([id]) => id));
+  const terminalRetained = existing
+    .filter(([id]) => !pendingIds.has(id))
     .sort(([, left], [, right]) => right.createdAt - left.createdAt)
-    .slice(0, MAX_OPERATIONS_PER_OWNER - 1);
+    .slice(0, MAX_OPERATIONS_PER_OWNER - 1 - pending.length);
+  const result = create();
   root.operations = {
-    ...Object.fromEntries(retained),
+    ...Object.fromEntries([...pending, ...terminalRetained]),
     [operationId]: { ownerId, fingerprint, result: clone(result), createdAt: at },
   };
   return { result, write: true };
@@ -834,15 +895,29 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
         }
         return fresh;
       };
-      if (contextBinding && options.readAssemblyDraftActivityContext) {
+      if (mutation !== 'discard' && contextBinding && options.readAssemblyDraftActivityContext) {
         assemblyDraftContext = await readSealedContext();
         const content = mutation === 'stage' ? bodyRecord?.content : initialCandidate?.content;
         if (!activityMatchesAssemblyContract(content, assemblyDraftContext.contract)
           || assemblyDraftContext.mappedBookPageRefs.length === 0) {
           throw new AuthoringError('unit_activity_binding_context_mismatch', 409);
         }
+        if (assemblyDraftContext.allowedEvidenceRefs && bodyRecord) {
+          const allowedLegacy = new Set(assemblyDraftContext.allowedEvidenceRefs.legacy);
+          const allowedSource = new Set(assemblyDraftContext.allowedEvidenceRefs.source);
+          const allowedAnswer = new Set(assemblyDraftContext.allowedEvidenceRefs.answer);
+          const refs = evidenceRefGroups(bodyRecord);
+          const checkRefs = (values: readonly string[], allowed: ReadonlySet<string>): boolean => (
+            values.every((ref) => allowed.has(ref))
+          );
+          if (!checkRefs(refs.legacy, allowedLegacy)
+            || !checkRefs(refs.source, allowedSource)
+            || !checkRefs(refs.answer, allowedAnswer)) {
+            throw new AuthoringError('invalid_evidence_refs', 400);
+          }
+        }
         activityValidationContext = { mappedBookPageRefs: [...assemblyDraftContext.mappedBookPageRefs] };
-      } else if (requestedBinding && options.readAssemblyActivityContracts && options.readAssemblyActivityPageRefs) {
+      } else if (mutation !== 'discard' && requestedBinding && options.readAssemblyActivityContracts && options.readAssemblyActivityPageRefs) {
         const contracts = await options.readAssemblyActivityContracts({
           env: input.env, ownerId: input.uid, bookId: trustedBookId!, unitKey: requestedBinding.unitKey,
         });
@@ -899,13 +974,14 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
             activityKey: bindingRequest.activityKey,
           });
           if (existing && (existing.activityId !== candidate.targetActivityId
-            || existing.activityVersionId !== undefined
+            || (existing.activityVersionId !== undefined && !replaceBinding)
             || (existing.candidateId === candidate.candidateId
               && existing.candidateRevision > candidate.revision + 1)
             || (existing.candidateId !== candidate.candidateId && !replaceBinding))) {
             throw new AuthoringError('unit_activity_binding_conflict', 409);
           }
-          if (existing && existing.candidateId !== candidate.candidateId && replaceBinding) {
+          if (existing && replaceBinding
+            && (existing.candidateId !== candidate.candidateId || existing.activityVersionId !== undefined)) {
             const floor = existing.candidateRevision + 1;
             if (!Number.isSafeInteger(floor)) {
               throw new AuthoringError('unit_activity_binding_conflict', 409);
@@ -920,17 +996,58 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
           ...(replaceBinding ? { replaceExistingUnitActivityBinding: true } : {}),
         });
       }
-      let output = await repository.transaction(input.uid, (root) => {
+      const loadVerifiedBookBindings = async (): Promise<VerifiedBookBindings | undefined> => {
+        if (!trustedBookId || !options.bindingRepositoryFactory) return undefined;
+        try {
+          const repo = bindingRepository ?? options.bindingRepositoryFactory(
+            input.env,
+            input.uid,
+            trustedBookId,
+            contextBinding?.unitKey ?? 'book',
+          );
+          if (!repo.readBookBindings) return undefined;
+          const byUnit = await repo.readBookBindings(input.uid, trustedBookId, { strict: true });
+          const boundCandidateIds = new Set<string>();
+          for (const unitBindings of Object.values(byUnit)) {
+            for (const binding of Object.values(unitBindings)) {
+              boundCandidateIds.add(binding.candidateId);
+            }
+          }
+          return {
+            verifiedBookIds: new Set([trustedBookId]),
+            boundCandidateIds,
+          };
+        } catch {
+          // Fail closed: keep all saved candidates protected if live bindings cannot be read.
+          return undefined;
+        }
+      };
+      let verifiedBookBindingsLoaded = false;
+      let verifiedBookBindings: VerifiedBookBindings | undefined;
+      if (initialRoot && Object.keys(initialRoot.candidates ?? {}).length >= MAX_CANDIDATES_PER_OWNER) {
+        verifiedBookBindings = await loadVerifiedBookBindings();
+        verifiedBookBindingsLoaded = true;
+      }
+      const runMutationTransaction = () => repository.transaction(input.uid, (root) => {
         assertPersistedRoot(root, input.uid);
-        if (mutation === 'stage') return stage(root, input.uid, body, now(), createRecordId, trustedBookId!, activityValidationContext, assemblyDraftContext?.seal);
-        if (mutation === 'validate') return validate(root, input.uid, body, now(), activityValidationContext);
+        if (!verifiedBookBindingsLoaded
+          && Object.keys(root.candidates ?? {}).length >= MAX_CANDIDATES_PER_OWNER
+          && trustedBookId && options.bindingRepositoryFactory) {
+          return { outcome: { status: '__needs_binding_prune__' } as Record<string, unknown>, write: false };
+        }
+        if (mutation === 'stage') {
+          return stage(root, input.uid, body, now(), createRecordId, trustedBookId!, activityValidationContext, assemblyDraftContext?.seal, verifiedBookBindings);
+        }
+        if (mutation === 'validate') {
+          return validate(root, input.uid, body, now(), activityValidationContext, verifiedBookBindings);
+        }
         if (mutation === 'save-draft') {
           return saveDraft(
             root, input.uid, body, now(), trustedBookId!, activityValidationContext,
-            replacementCandidateRevisionFloor,
+            replacementCandidateRevisionFloor, verifiedBookBindings,
           );
         }
-        return discard(root, input.uid, body, now(), activityValidationContext);
+        return discard(root, input.uid, body, now(), activityValidationContext, verifiedBookBindings);
       }, {
         beforeWrite: async (next) => {
           // Recheck rollout enforcement and authenticated ownership on every
@@ -965,6 +1082,12 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
           }
         },
       });
+      let output = await runMutationTransaction();
+      if (output.status === '__needs_binding_prune__') {
+        verifiedBookBindings = await loadVerifiedBookBindings();
+        verifiedBookBindingsLoaded = true;
+        output = await runMutationTransaction();
+      }
       if (bindingRequest) {
         let saved = plainRecord(output);
         let receipt = bindingReceipt(saved?.binding);
@@ -1081,6 +1204,7 @@ const stage = (
   bookId: string,
   validationContext: ActivityValidationContext = {},
   assemblyDraft?: AssemblyDraftSeal,
+  verifiedBookBindings?: VerifiedBookBindings,
 ) => {
   const input = exact(body, [
     'operationId', 'expectedRevision', 'targetActivityId', 'content', 'evidenceRefs',
@@ -1089,7 +1213,7 @@ const stage = (
   const operationId = operation(input); const expectedRevision = validRevision(input.expectedRevision);
   const requestedTargetActivityId = input.targetActivityId === undefined ? undefined : validId(input.targetActivityId, 'activity_id');
   const refs = evidenceRefGroups(input);
-  prune(root, at);
+  prune(root, at, verifiedBookBindings);
   const fingerprint = stable({ action: 'stage', bookId, expectedRevision, targetActivityId: requestedTargetActivityId ?? null, content: input.content, evidenceRefs: refs, unitActivityBinding: input.unitActivityBinding ?? null });
   const claimed = operationResult(root, ownerId, operationId, fingerprint, at, () => {
     if (Object.keys(root.candidates ?? {}).length >= MAX_CANDIDATES_PER_OWNER) return { status: 'capacity-exceeded' };
@@ -1134,6 +1258,7 @@ const validate = (
   body: unknown,
   at: number,
   validationContext: ActivityValidationContext = {},
+  verifiedBookBindings?: VerifiedBookBindings,
 ) => {
   const input = exact(body, [
     'operationId', 'expectedRevision', 'candidateId', 'evidenceRefs',
@@ -1141,7 +1266,7 @@ const validate = (
   ]);
   const operationId = operation(input); const candidateId = validId(input.candidateId, 'candidate_id');
   const expectedRevision = validRevision(input.expectedRevision); const refs = evidenceRefGroups(input); const binding = unitActivityBinding(input);
-  prune(root, at);
+  prune(root, at, verifiedBookBindings);
   const fingerprint = stable({ action: 'validate', candidateId, expectedRevision, evidenceRefs: refs ?? null, unitActivityBinding: binding ?? null });
   const claimed = operationResult(root, ownerId, operationId, fingerprint, at, () => {
     const candidate = asCandidate(root.candidates?.[candidateId], candidateId);
@@ -1173,6 +1298,7 @@ const saveDraft = (
   trustedBookId: string,
   validationContext: ActivityValidationContext = {},
   replacementCandidateRevisionFloor?: number,
+  verifiedBookBindings?: VerifiedBookBindings,
 ) => {
   const input = exact(body, [
     'operationId', 'expectedRevision', 'candidateId', 'evidenceRefs',
@@ -1181,7 +1307,7 @@ const saveDraft = (
   ]);
   const operationId = operation(input); const candidateId = validId(input.candidateId, 'candidate_id');
   const expectedRevision = validRevision(input.expectedRevision); const refs = evidenceRefGroups(input);
-  prune(root, at);
+  prune(root, at, verifiedBookBindings);
   const binding = unitActivityBinding(input);
   const replaceBinding = replaceExistingUnitActivityBinding(input);
   const fingerprint = stable({
@@ -1253,22 +1379,26 @@ const discard = (
   ownerId: string,
   body: unknown,
   at: number,
-  validationContext: ActivityValidationContext = {},
+  _validationContext: ActivityValidationContext = {},
+  verifiedBookBindings?: VerifiedBookBindings,
 ) => {
   const input = exact(body, ['operationId', 'expectedRevision', 'candidateId', 'unitActivityBinding']);
   const operationId = operation(input); const candidateId = validId(input.candidateId, 'candidate_id');
   const expectedRevision = validRevision(input.expectedRevision);
-  prune(root, at);
+  prune(root, at, verifiedBookBindings);
   const fingerprint = stable({ action: 'discard', candidateId, expectedRevision });
   const claimed = operationResult(root, ownerId, operationId, fingerprint, at, () => {
     const candidate = asCandidate(root.candidates?.[candidateId], candidateId);
     if (!candidate || candidate.ownerId !== ownerId) return { status: 'not-found' };
     if (candidate.revision !== expectedRevision) return { status: 'conflict', currentRevision: candidate.revision };
     if (candidate.lifecycle === 'discarded') return { status: 'discarded', candidateId, revision: candidate.revision, lifecycle: candidate.lifecycle };
-    const activity = activityForMutation(root, candidate.targetActivityId, validationContext);
-    if (activity && activity.ownerId !== ownerId) return { status: 'not-found' };
-    const checked = validateContent(candidate.content, activity?.draft, validationContext);
-    if (!checked.validation.valid) throw new AuthoringError('invalid_persisted_candidate', 500);
+    if (candidate.lifecycle === 'saved') return { status: 'conflict', currentRevision: candidate.revision };
+    if (candidate.lifecycle !== 'rejected' && candidate.validation.valid) {
+      const activity = activityForMutation(root, candidate.targetActivityId, { mappedBookPageRefs: ['discard:structural-check'] });
+      if (activity && activity.ownerId !== ownerId) return { status: 'not-found' };
+      const checked = validateContent(candidate.content, activity?.draft, { mappedBookPageRefs: ['discard:structural-check'] });
+      if (!checked.validation.valid) throw new AuthoringError('invalid_persisted_candidate', 500);
+    }
     const tombstone: CandidateRecord = {
       ...candidate, revision: candidate.revision + 1, lifecycle: 'discarded', content: null,
       updatedAt: at,

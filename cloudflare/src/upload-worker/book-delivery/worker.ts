@@ -6,12 +6,14 @@ import {
   BOOK_DELIVERY_SCHEMA_VERSION,
   type BookDeliveryContext,
   type BookDeliveryContextKind,
+  type BookDeliveryPlacement,
+  type BookDeliveryReferencePageGroup,
   type BookDeliverySchedulePolicyReference,
   type BookDeliveryScope,
   type BookDeliveryBinding,
   type BookRuntimePageGroupContext,
 } from '../../../../src/services/book-delivery/bookDelivery.types.ts';
-import type { BookPageGroupCandidate } from '../../../../src/types/bookAssembly.types.ts';
+import type { BookPageGroupCandidate, BookUnitCandidate } from '../../../../src/types/bookAssembly.types.ts';
 import { projectCombinedPageContext } from '../../../../src/services/book-assembly/componentStudentDocument.types.ts';
 import { resolveMaterialQualifiedAssemblyCandidate } from '../../../../src/services/book-assembly/componentPdfActivation.service.ts';
 import {
@@ -25,7 +27,13 @@ import type {
 import type {
   BookHomeworkAuthorityScope,
 } from '../../../../src/services/book-homework/bookHomeworkAuthority.types.ts';
-import type { BookAssemblyPublicationResult } from '../../../../src/services/book-assembly/publicationTransaction.service.ts';
+import {
+  bookAssemblyActivityVersionScopeKey,
+  type BookAssemblyPublicationResult,
+} from '../../../../src/services/book-assembly/publicationTransaction.service.ts';
+import {
+  boundedCompoundAllocationKey,
+} from '../../../../src/services/book-assembly/bookActivityTargetId.service.ts';
 import {
   FirebaseRestBookAssemblyPublicationRepository,
   type BookAssemblyPublicationRepositoryEnv,
@@ -205,6 +213,7 @@ export const createTrustedBookDeliveryPublication = (
   intent: BookDeliveryIssuanceIntent,
   scope: BookAssemblyPublicationScope<BookAssemblyPublicationResult>,
   schedulePolicy: BookDeliverySchedulePolicyReference,
+  options?: { readonly fullPdfPhysicalPageCount?: number },
 ): BookDeliveryPublishedPublicationReference => {
   const current = scope.current;
   if (!current
@@ -222,6 +231,10 @@ export const createTrustedBookDeliveryPublication = (
     || version.bookRevision !== current.bookRevision
     || version.sourceSetRevision !== current.sourceSetRevision) {
     throw new BookDeliveryWorkerError('book_delivery_publication_invalid', 409);
+  }
+  if (version.strategy === 'full_pdf'
+    && version.manifest.units.some((unit) => unit.pageGroups.some((group) => group.mode === 'teacher_only'))) {
+    throw new BookDeliveryWorkerError('book_delivery_teacher_only_unstripped_forbidden', 409);
   }
   const preservedByMappingChain = (
     activityVersion: NonNullable<typeof scope.activityVersions>[string],
@@ -349,6 +362,7 @@ export const createTrustedBookDeliveryPublication = (
     || (version.strategy === 'full_pdf' && publicationSources.length !== 1)) {
     throw new BookDeliveryWorkerError('book_delivery_source_scope_invalid', 409);
   }
+  const fullPdfPhysicalPageCount = options?.fullPdfPhysicalPageCount;
   const sourceSet = version.strategy === 'full_pdf'
     ? {
         strategy: 'full_pdf' as const,
@@ -356,6 +370,11 @@ export const createTrustedBookDeliveryPublication = (
           sourceKey: publicationSources[0]!.sourceKey,
           sourceVersionId: publicationSources[0]!.sourceVersionId,
           lifecycle: 'verified-usable' as const,
+          ...(typeof fullPdfPhysicalPageCount === 'number'
+            && Number.isSafeInteger(fullPdfPhysicalPageCount)
+            && fullPdfPhysicalPageCount >= 1
+            ? { physicalPageCount: fullPdfPhysicalPageCount }
+            : {}),
           localPageScope: { kind: 'all' as const, pages: [] },
         }],
       }
@@ -375,9 +394,26 @@ export const createTrustedBookDeliveryPublication = (
   );
 
   const placements = selectedPlacements.map((placement, index) => {
-    const activityVersion = Object.values(scope.activityVersions ?? {}).find((candidate) => (
-      candidate.activityVersionId === placement.activityVersionId
-    ));
+    const exactVersionKey = bookAssemblyActivityVersionScopeKey(
+      version.manifestVersionId,
+      placement.activityVersionId,
+    );
+    const directActivityVersion = scope.activityVersions?.[exactVersionKey];
+    const activityVersion = (directActivityVersion
+      && directActivityVersion.activityVersionId === placement.activityVersionId
+      && directActivityVersion.manifestVersionId === version.manifestVersionId
+      && directActivityVersion.publicationId === version.publicationId
+      && directActivityVersion.publicationRevision === version.publicationRevision)
+      ? directActivityVersion
+      : Object.values(scope.activityVersions ?? {}).find((candidate) => (
+        candidate.activityVersionId === placement.activityVersionId
+        && candidate.manifestVersionId === version.manifestVersionId
+        && candidate.publicationId === version.publicationId
+        && candidate.publicationRevision === version.publicationRevision
+      )) ?? Object.values(scope.activityVersions ?? {}).find((candidate) => (
+        candidate.activityVersionId === placement.activityVersionId
+        && preservedByMappingChain(candidate)
+      ));
     const safeProjection = Object.values(scope.activitySafeProjections ?? {}).find((projection) => (
       projection.activityVersionId === placement.activityVersionId
       && projection.activityId === placement.activityId
@@ -454,6 +490,9 @@ export const createTrustedBookDeliveryPublication = (
       pagesBySource.set(page.sourceKey, pages);
     });
     const contextFree = slot.contextRequirement === 'none';
+    const mappedSourcePageScopes = [...pagesBySource.entries()]
+      .filter(([sourceKey]) => publicationSources.some((source) => source.sourceKey === sourceKey))
+      .map(([sourceKey, pages]) => ({ sourceKey, pages: [...pages].sort((left, right) => left - right) }));
     return {
       placementId: placement.placementId,
       activityId: placement.activityId,
@@ -463,13 +502,66 @@ export const createTrustedBookDeliveryPublication = (
       order: index + 1,
       contextMode: slot.contextRequirement,
       pageGroupKeys: contextFree ? [] : [...placement.pageGroupKeys],
-      sourcePageScopes: contextFree
-        ? []
-        : [...pagesBySource.entries()]
-          .filter(([sourceKey]) => publicationSources.some((source) => source.sourceKey === sourceKey))
-          .map(([sourceKey, pages]) => ({ sourceKey, pages: [...pages].sort((left, right) => left - right) })),
+      sourcePageScopes: contextFree ? [] : mappedSourcePageScopes,
+      ...(contextFree && placement.pageGroupKeys.length > 0 && mappedSourcePageScopes.length > 0 ? {
+        navigationPageGroupKeys: [...placement.pageGroupKeys],
+        navigationPageScopes: mappedSourcePageScopes,
+      } : {}),
     };
   });
+
+  const activityGroupKeys = new Set<string>(
+    placements.flatMap((placement) => [
+      ...placement.pageGroupKeys,
+      ...(placement.navigationPageGroupKeys ?? []),
+    ]),
+  );
+  const activityPageGroups = version.strategy === 'full_pdf'
+    ? deriveFullPdfActivityPageGroupsFromManifest(
+      version.manifest.units,
+      publicationSources[0]!.sourceKey,
+      placements,
+    )
+    : [];
+
+  const referencePageGroups = version.strategy === 'full_pdf'
+    ? (() => {
+      const allowedSourceKey = publicationSources[0]!.sourceKey;
+      const groups: Array<{
+        readonly nodeKey: string;
+        readonly pageGroupKey: string;
+        readonly sourceKey: string;
+        readonly pages: readonly number[];
+      }> = [];
+      const seenKeys = new Set<string>();
+      for (const unit of version.manifest.units) {
+        if (!outlineKeys.has(unit.unitKey)) continue;
+        for (const group of unit.pageGroups) {
+          if (group.mode !== 'reference_only'
+            || group.sourceKey !== allowedSourceKey
+            || group.pages.length === 0) {
+            continue;
+          }
+          const rawNamespaced = `ref:${unit.unitKey}:${group.pageGroupKey}`;
+          let pageGroupKey = rawNamespaced.length <= 120
+            ? rawNamespaced
+            : `ref:${boundedCompoundAllocationKey([unit.unitKey, group.pageGroupKey], 116)}`;
+          if (activityGroupKeys.has(pageGroupKey) || seenKeys.has(pageGroupKey)) {
+            pageGroupKey = `ref:${boundedCompoundAllocationKey([unit.unitKey, group.pageGroupKey, String(groups.length + 1)], 116)}`;
+          }
+          if (activityGroupKeys.has(pageGroupKey) || seenKeys.has(pageGroupKey)) continue;
+          seenKeys.add(pageGroupKey);
+          groups.push({
+            nodeKey: unit.unitKey,
+            pageGroupKey,
+            sourceKey: group.sourceKey,
+            pages: [...new Set(group.pages)].sort((left, right) => left - right),
+          });
+        }
+      }
+      return groups;
+    })()
+    : [];
 
   const publication: Record<string, unknown> = {
     bookId: intent.bookId,
@@ -489,6 +581,8 @@ export const createTrustedBookDeliveryPublication = (
       const { activityVersionId: _activityVersionId, pageGroupKeys: _pageGroupKeys, ...legacy } = placement;
       return legacy;
     }),
+    ...(activityPageGroups.length > 0 ? { activityPageGroups } : {}),
+    ...(referencePageGroups.length > 0 ? { referencePageGroups } : {}),
     schedulePolicy,
   };
   if ((BOOK_DELIVERY_SCHEMA_VERSION as number) >= 3) {
@@ -512,7 +606,10 @@ export const resolveScopedComponentStudentPageGroups = (input: {
   readonly candidatesByUnit: ReadonlyMap<string, ReturnType<typeof resolveMaterialQualifiedAssemblyCandidate>>;
 }): readonly BookRuntimePageGroupContext[] | null => {
   const { binding, activation, descriptor, candidatesByUnit } = input;
-  const assignedPageGroupKeys = new Set(binding.placements.flatMap((placement) => placement.pageGroupKeys));
+  const assignedPageGroupKeys = new Set(binding.placements.flatMap((placement) => [
+    ...placement.pageGroupKeys,
+    ...(placement.navigationPageGroupKeys ?? []),
+  ]));
   const activityById = new Map(activation.activities.map((entry) => [entry.activityId, entry]));
   const assignedUnitKeys = new Set<string>();
   for (const placement of binding.placements) {
@@ -555,7 +652,13 @@ export const resolveScopedComponentStudentPageGroups = (input: {
   }
   for (const placement of binding.placements) {
     const activity = activityById.get(placement.activityId);
-    const groups = placement.pageGroupKeys.map((key) => groupFacts.get(key));
+    const activeGroupKeys = placement.contextMode === 'none'
+      ? (placement.navigationPageGroupKeys ?? [])
+      : placement.pageGroupKeys;
+    const activeScopes = placement.contextMode === 'none'
+      ? (placement.navigationPageScopes ?? [])
+      : placement.sourcePageScopes;
+    const groups = activeGroupKeys.map((key) => groupFacts.get(key));
     if (!activity || groups.some((group) => !group)
       || groups.some((group) => group!.unitKey !== activity.unitKey
         || group!.mode !== 'activity'
@@ -567,13 +670,17 @@ export const resolveScopedComponentStudentPageGroups = (input: {
     const canonicalScopes = [...new Map(groups.flatMap((group) => group!.pages.map((page) => [
       `${group!.sourceKey}:${page}`, { sourceKey: group!.sourceKey, page },
     ]))).values()].sort((a, b) => a.sourceKey.localeCompare(b.sourceKey) || a.page - b.page);
-    const storedScopes = placement.sourcePageScopes.flatMap((scopeEntry) => scopeEntry.pages.map((page) => ({
+    const storedScopes = activeScopes.flatMap((scopeEntry) => scopeEntry.pages.map((page) => ({
       sourceKey: scopeEntry.sourceKey, page,
     }))).sort((a, b) => a.sourceKey.localeCompare(b.sourceKey) || a.page - b.page);
     const expectedPageGroupKeys = slot?.contextRequirement === 'none' ? [] : slot?.pageGroupKeys;
+    const expectedNavKeys = slot?.contextRequirement === 'none' && placement.navigationPageGroupKeys !== undefined
+      ? slot.pageGroupKeys
+      : undefined;
     if (!slot || slot.contextRequirement !== placement.contextMode
       || groups.some((group) => !allowedSources.has(group!.sourceKey))
       || JSON.stringify(expectedPageGroupKeys) !== JSON.stringify(placement.pageGroupKeys)
+      || (expectedNavKeys !== undefined && JSON.stringify(expectedNavKeys) !== JSON.stringify(placement.navigationPageGroupKeys))
       || JSON.stringify(canonicalScopes) !== JSON.stringify(storedScopes)) return null;
   }
   return Object.freeze(pageGroups);
@@ -660,6 +767,148 @@ export const resolveTrustedBookDeliveryStudentDocument = async (env: BookDeliver
     };
 };
 
+export const deriveFullPdfActivityPageGroupsFromManifest = (
+  units: readonly BookUnitCandidate[],
+  allowedSourceKey: string,
+  placements: readonly Pick<BookDeliveryPlacement, 'nodeKey' | 'pageGroupKeys' | 'navigationPageGroupKeys'>[],
+): readonly BookDeliveryReferencePageGroup[] => {
+  const groups: BookDeliveryReferencePageGroup[] = [];
+  const seenScopedKeys = new Set<string>();
+  for (const placement of placements) {
+    const unit = units.find((candidate) => candidate.unitKey === placement.nodeKey);
+    if (!unit) continue;
+    const groupKeys = [
+      ...placement.pageGroupKeys,
+      ...(placement.navigationPageGroupKeys ?? []),
+    ];
+    for (const pageGroupKey of groupKeys) {
+      const scopedKey = `${unit.unitKey.length}:${unit.unitKey}:${pageGroupKey}`;
+      if (seenScopedKeys.has(scopedKey)) continue;
+      const group = unit.pageGroups.find((candidate) => candidate.pageGroupKey === pageGroupKey);
+      if (!group || group.mode !== 'activity' || group.sourceKey !== allowedSourceKey || group.pages.length === 0) {
+        continue;
+      }
+      seenScopedKeys.add(scopedKey);
+      groups.push({
+        nodeKey: unit.unitKey,
+        pageGroupKey,
+        sourceKey: group.sourceKey,
+        pages: [...new Set(group.pages)].sort((left, right) => left - right),
+      });
+    }
+  }
+  return groups;
+};
+
+export const deriveFullPdfActivityPageGroupsFromPublicationScope = (
+  binding: BookDeliveryBinding,
+  scope: BookAssemblyPublicationScope<BookAssemblyPublicationResult>,
+): readonly BookDeliveryReferencePageGroup[] | undefined => {
+  if (binding.sourceSet.strategy !== 'full_pdf' || binding.sourceSet.sources.length !== 1) return undefined;
+  const boundSource = binding.sourceSet.sources[0]!;
+  const allowedSourceKey = boundSource.sourceKey;
+  const version = scope.versions?.[binding.book.manifestVersionId];
+  if (!version
+    || version.lifecycle !== 'published'
+    || version.strategy !== 'full_pdf'
+    || version.manifestVersionId !== binding.book.manifestVersionId
+    || version.bookId !== binding.book.bookId
+    || version.ownerId !== binding.issuer.ownerId
+    || version.publicationId !== binding.book.publicationId
+    || version.publicationRevision !== binding.book.publicationRevision
+    || version.manifest?.sourceSet?.sourceStrategy !== 'full_pdf'
+    || !Array.isArray(version.manifest.sourceSet.sources)
+    || version.manifest.sourceSet.sources.length !== 1
+    || version.manifest.sourceSet.sources[0]!.sourceKey !== allowedSourceKey
+    || version.manifest.sourceSet.sources[0]!.sourceVersionId !== boundSource.sourceVersionId) {
+    return undefined;
+  }
+  const requiredScopedKeys = new Set<string>();
+  for (const placement of binding.placements) {
+    for (const pageGroupKey of [...placement.pageGroupKeys, ...(placement.navigationPageGroupKeys ?? [])]) {
+      requiredScopedKeys.add(`${placement.nodeKey.length}:${placement.nodeKey}:${pageGroupKey}`);
+    }
+  }
+  if (requiredScopedKeys.size === 0) return [];
+  const groups = deriveFullPdfActivityPageGroupsFromManifest(
+    version.manifest.units,
+    allowedSourceKey,
+    binding.placements,
+  );
+  const derivedKeys = new Set(
+    groups.map((group) => `${group.nodeKey.length}:${group.nodeKey}:${group.pageGroupKey}`),
+  );
+  for (const requiredKey of requiredScopedKeys) {
+    if (!derivedKeys.has(requiredKey)) return undefined;
+  }
+  return groups;
+};
+
+export const readTrustedFullPdfActivityPageGroups = async (
+  env: BookDeliveryWorkerEnv,
+  binding: BookDeliveryBinding,
+  publicationRepository?: Pick<BookAssemblyPublicationRepository<BookAssemblyPublicationResult>, 'readScope'>,
+): Promise<readonly BookDeliveryReferencePageGroup[] | undefined> => {
+  if (binding.sourceSet.strategy !== 'full_pdf') return undefined;
+  try {
+    const repo = publicationRepository
+      ?? new FirebaseRestBookAssemblyPublicationRepository({ env, ownerId: binding.issuer.ownerId });
+    const scope = await repo.readScope(binding.book.bookId);
+    return deriveFullPdfActivityPageGroupsFromPublicationScope(binding, scope);
+  } catch {
+    return undefined;
+  }
+};
+
+export const readTrustedFullPdfPhysicalPageCount = async (
+  env: BookDeliveryWorkerEnv,
+  ownerId: string,
+  bookId: string,
+  sourceVersionId: string,
+): Promise<number | undefined> => {
+  try {
+    const authority = await readProductionBookAssemblyAuthority(env, ownerId, bookId, 'current');
+    const count = authority?.sourceVersionAuthority.getSourceVersion(sourceVersionId)?.physicalPageCount;
+    return typeof count === 'number' && Number.isSafeInteger(count) && count >= 1 ? count : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const isPinnedFullPdfManifestSafe = (
+  scope: BookAssemblyPublicationScope<BookAssemblyPublicationResult>,
+  binding: BookDeliveryBinding,
+): boolean => {
+  if (binding.sourceSet.strategy !== 'full_pdf' || binding.sourceSet.sources.length !== 1) {
+    return false;
+  }
+  const boundSource = binding.sourceSet.sources[0]!;
+  const version = scope.versions?.[binding.book.manifestVersionId];
+  if (!version
+    || version.lifecycle !== 'published'
+    || version.bookId !== binding.book.bookId
+    || version.ownerId !== binding.issuer.ownerId
+    || version.manifestVersionId !== binding.book.manifestVersionId
+    || version.publicationId !== binding.book.publicationId
+    || version.publicationRevision !== binding.book.publicationRevision
+    || version.strategy !== 'full_pdf'
+    || version.manifest?.sourceSet?.sourceStrategy !== 'full_pdf'
+    || !Array.isArray(version.manifest.sourceSet.sources)
+    || version.manifest.sourceSet.sources.length !== 1) {
+    return false;
+  }
+  const pinnedSource = version.manifest.sourceSet.sources[0]!;
+  if (pinnedSource.sourceKey !== boundSource.sourceKey
+    || pinnedSource.sourceVersionId !== boundSource.sourceVersionId) {
+    return false;
+  }
+  return Array.isArray(version.manifest.units)
+    && !version.manifest.units.some((unit) => (
+      !Array.isArray(unit.pageGroups)
+      || unit.pageGroups.some((group) => group.mode === 'teacher_only')
+    ));
+};
+
 export const createBookDeliveryWorkerHandlers = (options: {
   repository?: FirebaseRestBookDeliveryRepository;
   publicationRepository?: BookAssemblyPublicationRepository<BookAssemblyPublicationResult>;
@@ -679,6 +928,12 @@ export const createBookDeliveryWorkerHandlers = (options: {
     readonly physicalPageCount: number;
     readonly pageGroups: readonly BookRuntimePageGroupContext[];
   } | null>;
+  readFullPdfPhysicalPageCount?: (
+    env: BookDeliveryWorkerEnv,
+    ownerId: string,
+    bookId: string,
+    sourceVersionId: string,
+  ) => Promise<number | undefined>;
 } = {}) => {
   const now = options.now ?? (() => new Date().toISOString());
   const repositoryFor = (env: BookDeliveryWorkerEnv) => (
@@ -688,13 +943,23 @@ export const createBookDeliveryWorkerHandlers = (options: {
     options.publicationRepository ?? new FirebaseRestBookAssemblyPublicationRepository({ env, ownerId })
   );
   const resolveStudentDocument = options.resolveStudentDocument ?? resolveTrustedBookDeliveryStudentDocument;
-  const loadPublication: TrustedPublicationLoader = options.loadPublication ?? (async (env, intent, schedulePolicy, ownerId) => (
-    createTrustedBookDeliveryPublication(
+  const readFullPdfPhysicalPageCount = options.readFullPdfPhysicalPageCount ?? readTrustedFullPdfPhysicalPageCount;
+  const loadPublication: TrustedPublicationLoader = options.loadPublication ?? (async (env, intent, schedulePolicy, ownerId) => {
+    const scope = await publicationRepositoryFor(env, ownerId).readScope(intent.bookId);
+    const version = scope.current ? scope.versions?.[scope.current.manifestVersionId] : undefined;
+    const fullPdfSourceVersionId = version?.strategy === 'full_pdf'
+      ? version.manifest.sourceSet.sources[0]?.sourceVersionId
+      : undefined;
+    const fullPdfPhysicalPageCount = fullPdfSourceVersionId
+      ? await readFullPdfPhysicalPageCount(env, version!.ownerId, intent.bookId, fullPdfSourceVersionId)
+      : undefined;
+    return createTrustedBookDeliveryPublication(
       intent,
-      await publicationRepositoryFor(env, ownerId).readScope(intent.bookId),
+      scope,
       schedulePolicy,
-    )
-  ));
+      fullPdfPhysicalPageCount !== undefined ? { fullPdfPhysicalPageCount } : undefined,
+    );
+  });
   const allocateBindingId = options.allocateBindingId ?? bindingIdFor;
   const loadContext = options.loadContext ?? (
     async (_env, uid, intent): Promise<TrustedIssuanceContext | null> => (
@@ -770,6 +1035,13 @@ export const createBookDeliveryWorkerHandlers = (options: {
         const record = await repository.readBinding(String(request.bindingId));
         if (!record || !(await authorize(input.env, input.uid, record.binding.issuer.ownerId))) {
           return { body: { status: 'forbidden' }, init: { status: 403 } };
+        }
+        if (record.binding.sourceSet.strategy === 'full_pdf') {
+          const scope = await publicationRepositoryFor(input.env, record.binding.issuer.ownerId)
+            .readScope(record.binding.book.bookId);
+          if (!isPinnedFullPdfManifestSafe(scope, record.binding)) {
+            throw new BookDeliveryWorkerError('book_delivery_teacher_only_unstripped_forbidden', 409);
+          }
         }
         const result = await lifecycle.activate(String(request.bindingId), Number(request.expectedRecordRevision), String(request.operationId), now());
         return { body: result as unknown as Record<string, unknown>, init: { status: 200 } };
@@ -849,6 +1121,17 @@ export const createBookDeliveryWorkerHandlers = (options: {
         const result = await createBookDeliveryProjectionResolver({
           repository,
           resolveStudentDocument: (binding) => resolveStudentDocument(input.env, binding),
+          resolveFullPdfPhysicalPageCount: (binding) => {
+            const sourceVersionId = binding.sourceSet.sources[0]?.sourceVersionId;
+            return sourceVersionId
+              ? readFullPdfPhysicalPageCount(input.env, binding.issuer.ownerId, binding.book.bookId, sourceVersionId)
+              : Promise.resolve(undefined);
+          },
+          resolveFullPdfActivityPageGroups: (binding) => readTrustedFullPdfActivityPageGroups(
+            input.env,
+            binding,
+            publicationRepositoryFor(input.env, binding.issuer.ownerId),
+          ),
         }).resolve({
           recipientId: input.recipientId,
           contextId: input.contextId,

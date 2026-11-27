@@ -58,4 +58,90 @@ describe('durable Unit Activity binding repository', () => {
     });
     await expect(fixture.repo.bindCandidate(binding({ candidateId: 'activity-candidate-2', candidateRevision: 1 }))).resolves.toBe('conflict');
   });
+
+  it('allows post-publish candidate replacement with strictly newer revision, v2 publication updates, and single-GET book binding reads', async () => {
+    const fixture = harness();
+    await fixture.repo.bindCandidate(binding({ candidateRevision: 3, candidateLifecycle: 'saved' }));
+    await expect(fixture.repo.recordPublication({
+      ownerId: 'teacher-1', bookId: 'book-1', unitKey: 'unit-1', activityKey: 'slot-1', activityId: 'activity-1',
+      candidateId: 'activity-candidate-1', candidateRevision: 3, activityVersionId: 'activity-version-1', activityVersion: 1,
+    })).resolves.toBe('updated');
+
+    // Post-publish candidate edit with strictly newer candidateRevision preserves published v1 metadata
+    await expect(fixture.repo.bindCandidate(binding({
+      candidateId: 'activity-candidate-2', candidateRevision: 4, candidateLifecycle: 'saved',
+    }))).resolves.toBe('updated');
+    expect(fixture.value).toMatchObject({
+      activityId: 'activity-1',
+      candidateId: 'activity-candidate-2',
+      candidateRevision: 4,
+      activityVersionId: 'activity-version-1',
+      activityVersion: 1,
+    });
+
+    // Re-publish records v2 cleanly and rejects downgrades
+    await expect(fixture.repo.recordPublication({
+      ownerId: 'teacher-1', bookId: 'book-1', unitKey: 'unit-1', activityKey: 'slot-1', activityId: 'activity-1',
+      candidateId: 'activity-candidate-2', candidateRevision: 4, activityVersionId: 'activity-version-2', activityVersion: 2,
+    })).resolves.toBe('updated');
+    await expect(fixture.repo.recordPublication({
+      ownerId: 'teacher-1', bookId: 'book-1', unitKey: 'unit-1', activityKey: 'slot-1', activityId: 'activity-1',
+      candidateId: 'activity-candidate-2', candidateRevision: 4, activityVersionId: 'activity-version-2', activityVersion: 2,
+    })).resolves.toBe('replayed');
+    await expect(fixture.repo.recordPublication({
+      ownerId: 'teacher-1', bookId: 'book-1', unitKey: 'unit-1', activityKey: 'slot-1', activityId: 'activity-1',
+      candidateId: 'activity-candidate-2', candidateRevision: 4, activityVersionId: 'activity-version-1', activityVersion: 1,
+    })).resolves.toBe('conflict');
+
+    // Single-GET book-wide discovery read
+    const bookPaths: string[] = [];
+    const bookRepo = new FirebaseRestUnitActivityBindingRepository({
+      env: { FIREBASE_DB_URL: 'https://firebase.test' },
+      fetchImpl: async (input) => {
+        const url = new URL(String(input));
+        bookPaths.push(decodeURIComponent(url.pathname.replace(/^\/|\.json$/gu, '')));
+        return new Response(JSON.stringify({
+          units: {
+            'unit-1': { activities: { 'slot-1': fixture.value } },
+          },
+        }), { status: 200 });
+      },
+      getFirebaseAuthToken: async () => 'token',
+    });
+    const discovered = await bookRepo.readBookBindings('teacher-1', 'book-1');
+    expect(bookPaths).toEqual([`${BOOK_ASSEMBLY_ACTIVITY_BINDING_ROOT}/teacher-1/books/book-1`]);
+    expect(discovered['unit-1']?.['slot-1']).toMatchObject({ activityVersionId: 'activity-version-2', activityVersion: 2 });
+  });
+
+  it('rejects malformed root or leaf records in strict readBookBindings mode while non-strict discovery skips bad leaves', async () => {
+    const makeRepo = (payload: unknown) => new FirebaseRestUnitActivityBindingRepository({
+      env: { FIREBASE_DB_URL: 'https://firebase.test' },
+      fetchImpl: async () => new Response(JSON.stringify(payload), { status: 200 }),
+      getFirebaseAuthToken: async () => 'token',
+    });
+
+    const malformedRoot = makeRepo('corrupted-root');
+    await expect(malformedRoot.readBookBindings('teacher-1', 'book-1')).resolves.toEqual({});
+    await expect(malformedRoot.readBookBindings('teacher-1', 'book-1', { strict: true }))
+      .rejects.toThrow('book_assembly_activity_binding_snapshot_malformed');
+
+    const malformedLeaf = makeRepo({
+      units: {
+        'unit-1': {
+          activities: {
+            'slot-good': binding({ activityKey: 'slot-good' }),
+            'slot-bad': { broken: true },
+          },
+        },
+      },
+    });
+    await expect(malformedLeaf.readBookBindings('teacher-1', 'book-1'))
+      .resolves.toEqual({ 'unit-1': { 'slot-good': binding({ activityKey: 'slot-good' }) } });
+    await expect(malformedLeaf.readBookBindings('teacher-1', 'book-1', { strict: true }))
+      .rejects.toThrow('book_assembly_activity_binding_snapshot_malformed');
+
+    // Empty/absent root is valid in strict mode
+    const emptyRoot = makeRepo(null);
+    await expect(emptyRoot.readBookBindings('teacher-1', 'book-1', { strict: true })).resolves.toEqual({});
+  });
 });

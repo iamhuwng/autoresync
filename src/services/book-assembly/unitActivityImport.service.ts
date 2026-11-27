@@ -1,7 +1,10 @@
 import { BOOK_ACTIVITY_MAX_EVIDENCE_REFS } from '../book-activity/activityCandidate.service';
 import type { ActivityAuthoringService } from '../book-activity/activityAuthoring.service';
 import type { ActivityStageResult } from '../book-activity/activityAuthoring.repository';
-import { ActivityAuthoringHttpError } from '../book-activity/activityStorage.service';
+import {
+  ActivityAuthoringAmbiguousTransportError,
+  ActivityAuthoringHttpError,
+} from '../book-activity/activityStorage.service';
 import type { BookAssemblyManifestCandidate, BookUnitCandidate } from '../../types/bookAssembly.types';
 import {
   allowedActivitySlotAnswerEvidenceRefs,
@@ -12,12 +15,14 @@ import {
   UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
   UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION,
 } from './unitPrompt.service';
+import { bookScopedActivityTargetId } from './bookActivityTargetId.service';
+
+export { bookScopedActivityTargetId };
 
 const MAX_IMPORT_BYTES = 512 * 1024;
 const MAX_BULK_IMPORT_BYTES = 4 * 1024 * 1024;
-const MAX_ACTIVITY_TARGET_ID_LENGTH = 160;
 const FORBIDDEN_KEYS = /^(activityId|candidateId|ownerId|ownerNodeKey|interactionId|itemId|sourceVersionId|providerObjectKey|providerUrl|objectKey|bucket|credential|credentials|token|privateKey|teacherNotes|react|tsx)$/iu;
-const FORBIDDEN_TEXT = /(https?:\/\/|b2:\/\/|backblaze|providerObjectKey|private_key|BEGIN PRIVATE KEY|tsx|<script|function\s+[A-Za-z0-9_]+\s*\()/iu;
+const FORBIDDEN_TEXT = /(b2:\/\/|r2:\/\/|s3:\/\/|gs:\/\/|https?:\/\/[^/\s]*(?:backblazeb2\.com|r2\.cloudflarestorage\.com|firebasestorage\.googleapis\.com|firebaseio\.com)|backblaze|providerObjectKey|private_key|BEGIN PRIVATE KEY|\btsx\b|\.tsx\b|<script|function\s+[A-Za-z0-9_]+\s*\()/iu;
 
 export interface UnitActivityImportSlot {
   readonly activityKey: string;
@@ -63,27 +68,6 @@ export class UnitActivityImportConflictError extends UnitActivityImportError {
     this.name = 'UnitActivityImportConflictError';
   }
 }
-
-const hexUtf8 = (value: string): string => Array.from(
-  new TextEncoder().encode(value),
-  (byte) => byte.toString(16).padStart(2, '0'),
-).join('');
-
-/**
- * Activity authoring storage is owner-scoped, while Assembly slot identities
- * are Book-scoped. Encode both identities into the mutation target so the same
- * logical slot key can be reused safely by another Book without weakening CAS.
- */
-export const bookScopedActivityTargetId = (bookId: string, activityKey: string): string => {
-  const targetActivityId = `ba_${hexUtf8(bookId)}_${hexUtf8(activityKey)}`;
-  if (targetActivityId.length > MAX_ACTIVITY_TARGET_ID_LENGTH) {
-    throw new UnitActivityImportError(
-      'activity-target-too-long',
-      'The Book and Activity slot identifiers are too long for a safe authoring target.',
-    );
-  }
-  return targetActivityId;
-};
 
 const byteLength = (value: string): number => new TextEncoder().encode(value).byteLength;
 const record = (value: unknown, code = 'invalid-json'): Record<string, unknown> => {
@@ -444,6 +428,30 @@ export const discardStagedUnitActivities = async (
   }
 };
 
+export class UnitActivityImportPartialCommitError extends UnitActivityImportError {
+  constructor(
+    readonly committedActivityKeys: readonly string[],
+    readonly rolledBackActivityKeys: readonly string[],
+    readonly failedActivityKey: string,
+    message: string,
+  ) {
+    super(
+      rolledBackActivityKeys.length === committedActivityKeys.length
+        ? 'partial-commit-rolled-back'
+        : 'partial-commit-failed',
+      message,
+    );
+    this.name = 'UnitActivityImportPartialCommitError';
+  }
+}
+
+export interface PreviousSlotSnapshot {
+  readonly content: unknown;
+  readonly evidenceRefs?: readonly string[];
+  readonly sourceEvidenceRefs?: readonly string[];
+  readonly answerEvidenceRefs?: readonly string[];
+}
+
 export const stageUnitActivityImportBundle = async ({
   text,
   manifest,
@@ -451,6 +459,8 @@ export const stageUnitActivityImportBundle = async ({
   activityAuthoring,
   expectedActivityRevisions = {},
   resolveActivityTargetId,
+  previousSnapshotsBySlot,
+  onCommitPhaseStart,
   signal,
 }: {
   readonly text: string;
@@ -459,6 +469,8 @@ export const stageUnitActivityImportBundle = async ({
   readonly activityAuthoring: ActivityAuthoringService;
   readonly expectedActivityRevisions?: Readonly<Record<string, number>>;
   readonly resolveActivityTargetId: (slot: UnitActivityImportSlot) => string | null | undefined;
+  readonly previousSnapshotsBySlot?: Readonly<Record<string, PreviousSlotSnapshot>>;
+  readonly onCommitPhaseStart?: () => void;
   readonly signal?: AbortSignal;
 }): Promise<UnitActivityImportResult> => {
   const bundle = parseUnitActivityImportBundle(text, manifest, unitKey);
@@ -470,7 +482,13 @@ export const stageUnitActivityImportBundle = async ({
     readonly result: ActivityStageResult;
     readonly validatedRevision: number;
   }> = [];
-  let committedAnySlot = false;
+  const committedCandidateIds = new Set<string>();
+  const committedEntries: Array<{
+    readonly activityKey: string;
+    readonly targetActivityId: string;
+    readonly savedActivityRevision: number;
+  }> = [];
+  let failingSaveSlotKey: string | null = null;
   try {
     // Phase 1: stage and validate every slot BEFORE saving any draft or writing
     // any unit binding, so a revision conflict, schema error, or cancel on a
@@ -523,34 +541,159 @@ export const stageUnitActivityImportBundle = async ({
       }
     }
 
+    // Lock cancellation before entering Phase 2 commit.
+    if (signal?.aborted) {
+      throw new UnitActivityImportError('canceled', 'Import was canceled.');
+    }
+    onCommitPhaseStart?.();
+
     // Phase 2: commit all validated slots once every slot is conflict-free.
     const committed: StagedUnitActivity[] = [];
     for (const { slot, result, validatedRevision } of validatedSlots) {
-      committedAnySlot = true;
-      const saved = await activityAuthoring.saveDraft({
-        candidateId: result.candidateId,
-        expectedRevision: validatedRevision,
-        evidenceRefs: [...(slot.evidenceRefs ?? [])],
-        sourceEvidenceRefs: [...(slot.sourceEvidenceRefs ?? [])],
-        answerEvidenceRefs: [...(slot.answerEvidenceRefs ?? [])],
-        unitActivityBinding: { unitKey, activityKey: slot.activityKey },
-        ...((expectedActivityRevisions[slot.activityKey] ?? 0) > 0
-          ? { replaceExistingUnitActivityBinding: true }
-          : {}),
-      });
+      failingSaveSlotKey = slot.activityKey;
+      let saved: Awaited<ReturnType<ActivityAuthoringService['saveDraft']>>;
+      try {
+        saved = await activityAuthoring.saveDraft({
+          candidateId: result.candidateId,
+          expectedRevision: validatedRevision,
+          evidenceRefs: [...(slot.evidenceRefs ?? [])],
+          sourceEvidenceRefs: [...(slot.sourceEvidenceRefs ?? [])],
+          answerEvidenceRefs: [...(slot.answerEvidenceRefs ?? [])],
+          unitActivityBinding: { unitKey, activityKey: slot.activityKey },
+          ...((expectedActivityRevisions[slot.activityKey] ?? 0) > 0
+            ? { replaceExistingUnitActivityBinding: true }
+            : {}),
+        });
+      } catch (saveError) {
+        if (saveError instanceof ActivityAuthoringAmbiguousTransportError) {
+          // HTTP 202 binding-incomplete or post-send transport loss means 12C may
+          // have already committed this Activity draft; never discard it or let
+          // callers roll back the Assembly manifest underneath it.
+          committedCandidateIds.add(result.candidateId);
+          committedEntries.push({
+            activityKey: slot.activityKey,
+            targetActivityId: result.targetActivityId,
+            savedActivityRevision: (expectedActivityRevisions[slot.activityKey] ?? 0) + 1,
+          });
+        } else if (saveError instanceof ActivityAuthoringHttpError
+          && saveError.statusCode === 409
+          && (saveError.body.status === 'binding-conflict'
+            || saveError.body.binding?.phase === 'binding-conflict')) {
+          // HTTP 409 binding-conflict means 12C durably committed the Activity
+          // draft before the Unit-slot binding step conflicted; never discard it
+          // or let callers revert the Assembly manifest underneath it.
+          const committedRevision = saveError.body.revision
+            ?? ((expectedActivityRevisions[slot.activityKey] ?? 0) + 1);
+          committedCandidateIds.add(result.candidateId);
+          if (saveError.body.candidateId) committedCandidateIds.add(saveError.body.candidateId);
+          committedEntries.push({
+            activityKey: slot.activityKey,
+            targetActivityId: saveError.body.activityId ?? result.targetActivityId,
+            savedActivityRevision: committedRevision,
+          });
+          throw new UnitActivityImportError(
+            'activity-binding-pending',
+            `Activity slot ${slot.activityKey} saved content at revision ${committedRevision}, but its Unit binding conflicted.`,
+          );
+        }
+        throw saveError;
+      }
       if (saved.status !== 'saved' || saved.activityId !== result.targetActivityId) {
         throw new UnitActivityImportError('activity-binding-save-failed', `Activity slot ${slot.activityKey} was not saved.`);
       }
+      if (saved.binding?.phase === 'binding-pending' || saved.binding?.phase === 'binding-conflict') {
+        committedCandidateIds.add(result.candidateId);
+        committedEntries.push({
+          activityKey: slot.activityKey,
+          targetActivityId: result.targetActivityId,
+          savedActivityRevision: saved.revision,
+        });
+        throw new UnitActivityImportError(
+          'activity-binding-pending',
+          `Activity slot ${slot.activityKey} saved content at revision ${saved.revision}, but its Unit binding is ${saved.binding.phase}.`,
+        );
+      }
+      committedCandidateIds.add(result.candidateId);
+      committedEntries.push({
+        activityKey: slot.activityKey,
+        targetActivityId: result.targetActivityId,
+        savedActivityRevision: saved.revision,
+      });
       committed.push({
         ...result,
         revision: saved.candidateRevision,
         unitActivityBinding: { unitKey, activityKey: slot.activityKey },
       });
     }
+    failingSaveSlotKey = null;
     return { bundle, staged: committed };
   } catch (error) {
-    if (!committedAnySlot && staged.length > 0) {
-      await discardStagedUnitActivities(activityAuthoring, staged);
+    const uncommitted = staged.filter((entry) => !committedCandidateIds.has(entry.candidateId));
+    if (uncommitted.length > 0) {
+      if (committedCandidateIds.size === 0) {
+        await discardStagedUnitActivities(activityAuthoring, uncommitted);
+      } else {
+        try {
+          await discardStagedUnitActivities(activityAuthoring, uncommitted);
+        } catch {
+          // Best-effort cleanup of remaining uncommitted slots; preserve the original save failure.
+        }
+      }
+    }
+    if (committedEntries.length > 0) {
+      const rolledBackKeys: string[] = [];
+      for (const entry of [...committedEntries].reverse()) {
+        const snapshot = previousSnapshotsBySlot?.[entry.activityKey];
+        if (!snapshot) continue;
+        try {
+          const restoredStage = await activityAuthoring.stage({
+            bookId: manifest.bookId,
+            targetActivityId: entry.targetActivityId,
+            expectedRevision: entry.savedActivityRevision,
+            unitActivityBinding: { unitKey, activityKey: entry.activityKey },
+            clientValidationContext: {
+              mappedBookPageRefs: clientMappedBookPageRefsForSlot(unit, entry.activityKey),
+            },
+            content: snapshot.content,
+            evidenceRefs: [...(snapshot.evidenceRefs ?? [])],
+            sourceEvidenceRefs: [...(snapshot.sourceEvidenceRefs ?? [])],
+            answerEvidenceRefs: [...(snapshot.answerEvidenceRefs ?? [])],
+          });
+          const restoredValidated = await activityAuthoring.validate({
+            candidateId: restoredStage.candidateId,
+            expectedRevision: restoredStage.revision,
+            unitActivityBinding: { unitKey, activityKey: entry.activityKey },
+            evidenceRefs: [...(snapshot.evidenceRefs ?? [])],
+            sourceEvidenceRefs: [...(snapshot.sourceEvidenceRefs ?? [])],
+            answerEvidenceRefs: [...(snapshot.answerEvidenceRefs ?? [])],
+          });
+          const restoredSaved = await activityAuthoring.saveDraft({
+            candidateId: restoredStage.candidateId,
+            expectedRevision: restoredValidated.revision,
+            evidenceRefs: [...(snapshot.evidenceRefs ?? [])],
+            sourceEvidenceRefs: [...(snapshot.sourceEvidenceRefs ?? [])],
+            answerEvidenceRefs: [...(snapshot.answerEvidenceRefs ?? [])],
+            unitActivityBinding: { unitKey, activityKey: entry.activityKey },
+            replaceExistingUnitActivityBinding: true,
+          });
+          if (restoredSaved.status === 'saved'
+            && (!restoredSaved.binding || restoredSaved.binding.phase === 'complete')) {
+            rolledBackKeys.push(entry.activityKey);
+          }
+        } catch {
+          // Surface exact partial-commit state via UnitActivityImportPartialCommitError below.
+        }
+      }
+      const committedKeys = committedEntries.map((entry) => entry.activityKey);
+      const cause = error instanceof Error ? error.message : 'Save failed.';
+      throw new UnitActivityImportPartialCommitError(
+        committedKeys,
+        rolledBackKeys,
+        failingSaveSlotKey ?? committedKeys[committedKeys.length - 1]!,
+        rolledBackKeys.length === committedKeys.length
+          ? `Import failed on ${failingSaveSlotKey ?? 'slot'} (${cause}). Earlier slots were rolled back.`
+          : `Import failed on ${failingSaveSlotKey ?? 'slot'} (${cause}) after committing ${committedKeys.join(', ')}.`,
+      );
     }
     throw error;
   }

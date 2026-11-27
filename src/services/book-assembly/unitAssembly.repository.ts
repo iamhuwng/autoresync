@@ -8,6 +8,7 @@ import type {
 export interface LoadedCurrentAssemblyDraft {
   readonly candidate: BookAssemblyCandidateRecord;
   readonly savedActivityKeysByUnit: Readonly<Record<string, readonly string[]>>;
+  readonly savedCandidateIdsByUnit?: Readonly<Record<string, Readonly<Record<string, string>>>>;
 }
 
 export interface UnitAssemblyRepository {
@@ -26,6 +27,7 @@ export interface UnitAssemblyRepository {
     readonly unitKey: string;
     readonly candidateId: string;
     readonly expectedCandidateRevision: number;
+    readonly allowUnpublishedValidatedRollback?: true;
   }): Promise<BookAssemblyMutationResult>;
   load(bookId: string, unitKey: string, candidateId: string): Promise<{
     status: 'loaded';

@@ -251,7 +251,8 @@ export const createComponentPdfPublicationWorkerHandlers = (options: {
         const requestOperationId = operationId(input.request, allocateOperationId);
         const bookId = id(body.bookId, 'invalid_book_id');
         const fingerprint = await requestFingerprint(input.uid, body);
-        const stored = (await options.repository.readScope(bookId)).operations?.[requestOperationId];
+        const scope = await options.repository.readScope(bookId);
+        const stored = scope.operations?.[requestOperationId];
         if (stored) {
           if (stored.ownerId !== input.uid || stored.fingerprint !== fingerprint) {
             return { body: { code: 'idempotency_conflict' }, init: { status: 409 } };
@@ -273,6 +274,67 @@ export const createComponentPdfPublicationWorkerHandlers = (options: {
             };
           }
         }
+        if (scope.current?.updatedByCommandId === requestOperationId) {
+          const committedVersion = scope.versions?.[scope.current.manifestVersionId];
+          if (scope.current.operationFingerprint !== fingerprint
+            || (committedVersion && committedVersion.ownerId !== input.uid)) {
+            return { body: { code: 'idempotency_conflict' }, init: { status: 409 } };
+          }
+          const recovered = await options.repository.transaction<BookAssemblyPublicationResult>(
+            bookId,
+            (recoveredScope) => {
+              const recoveredOp = recoveredScope.operations?.[requestOperationId];
+              if (recoveredOp) {
+                if (recoveredOp.ownerId !== input.uid || recoveredOp.fingerprint !== fingerprint) {
+                  return {
+                    outcome: { status: 'idempotency-conflict', failureCode: 'idempotency-conflict' },
+                    write: false,
+                  };
+                }
+                return {
+                  outcome: { ...structuredClone(recoveredOp.result), status: 'replayed' },
+                  write: false,
+                };
+              }
+              const current = recoveredScope.current;
+              const version = current ? recoveredScope.versions?.[current.manifestVersionId] : undefined;
+              if (current?.updatedByCommandId === requestOperationId
+                && current.operationFingerprint === fingerprint
+                && version
+                && version.ownerId === input.uid) {
+                return {
+                  outcome: {
+                    status: 'replayed',
+                    pointer: structuredClone(current),
+                    version: structuredClone(version),
+                  },
+                  write: false,
+                };
+              }
+              return {
+                outcome: { status: 'conflict', failureCode: 'stale-current-pointer' },
+                write: false,
+              };
+            },
+            requestOperationId,
+            fingerprint,
+          );
+          if (recovered.status === 'idempotency-conflict') {
+            return { body: { code: 'idempotency_conflict' }, init: { status: 409 } };
+          }
+          if (recovered.pointer && recovered.version) {
+            return {
+              body: {
+                operationId: requestOperationId,
+                manifestVersionId: recovered.pointer.manifestVersionId,
+                publicationId: recovered.pointer.publicationId,
+                publicationRevision: recovered.pointer.publicationRevision,
+                result: recovered,
+              },
+              init: { status: statusFor(recovered) },
+            };
+          }
+        }
         const command = createComponentPdfPublicationCommand({
           readAuthority: options.readAuthority,
           readWholeActivationApprovalInput: options.readWholeActivationApprovalInput,
@@ -286,6 +348,7 @@ export const createComponentPdfPublicationWorkerHandlers = (options: {
           allocateId,
           now,
         });
+        const nextPublicationRevision = (scope.current?.publicationRevision ?? 0) + 1;
         const receipt = await command({
           ownerId: input.uid,
           bookId,
@@ -297,6 +360,7 @@ export const createComponentPdfPublicationWorkerHandlers = (options: {
           expectedSourceSetRevision: revision(body.expectedSourceSetRevision, 'invalid_expected_source_set_revision'),
           unitApprovals: unitApprovals(body.unitApprovals),
           operationFingerprint: fingerprint,
+          publicationRevision: nextPublicationRevision,
         });
         return {
           body: receipt,
