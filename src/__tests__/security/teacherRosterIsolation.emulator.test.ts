@@ -375,7 +375,7 @@ describe('RTDB Teacher Roster Isolation Rules', () => {
       });
     });
 
-    // Approval without atomic stats/totalStudents +1 fails
+    // Approval without atomic stats/totalStudents +1 and lastSeatStudentId fails
     await assertFails(
       teacherB.ref().update({
         'classes/class-one-seat/students/student-1/status': 'active',
@@ -384,13 +384,43 @@ describe('RTDB Teacher Roster Isolation Rules', () => {
       })
     );
 
-    // Tab 1 approves student-1 with atomic totalStudents 0 -> 1: succeeds
+    // Multi-student batch activating two students for only +1 seat fails (lastSeatStudentId mismatch)
+    await assertFails(
+      teacherB.ref().update({
+        'classes/class-one-seat/students/student-1/status': 'active',
+        'classes/class-one-seat/students/student-1/approvedAt': 2000,
+        'classes/class-one-seat/students/student-1/approvedBy': 'teacher-b',
+        'classes/class-one-seat/students/student-2/status': 'active',
+        'classes/class-one-seat/students/student-2/approvedAt': 2000,
+        'classes/class-one-seat/students/student-2/approvedBy': 'teacher-b',
+        'classes/class-one-seat/stats/totalStudents': 1,
+        'classes/class-one-seat/stats/lastSeatStudentId': 'student-1',
+      })
+    );
+
+    // Notification class-action Worker token without atomic stats update fails too
+    const workerTokenApprove1 = env.authenticatedContext('notification-class-action:act-1', {
+      notificationClassAction: true,
+      actionId: 'act-1',
+      classId: 'class-one-seat',
+      studentId: 'student-1',
+      actionKind: 'approve',
+      actorUid: 'teacher-b',
+    }).database();
+    await assertFails(
+      workerTokenApprove1.ref().update({
+        'classes/class-one-seat/students/student-1/status': 'active',
+      })
+    );
+
+    // Tab 1 approves student-1 with atomic totalStudents 0 -> 1 and lastSeatStudentId: succeeds
     await assertSucceeds(
       teacherB.ref().update({
         'classes/class-one-seat/students/student-1/status': 'active',
         'classes/class-one-seat/students/student-1/approvedAt': 2000,
         'classes/class-one-seat/students/student-1/approvedBy': 'teacher-b',
         'classes/class-one-seat/stats/totalStudents': 1,
+        'classes/class-one-seat/stats/lastSeatStudentId': 'student-1',
       })
     );
 
@@ -401,6 +431,7 @@ describe('RTDB Teacher Roster Isolation Rules', () => {
         'classes/class-one-seat/students/student-2/approvedAt': 2001,
         'classes/class-one-seat/students/student-2/approvedBy': 'teacher-b',
         'classes/class-one-seat/stats/totalStudents': 1,
+        'classes/class-one-seat/stats/lastSeatStudentId': 'student-2',
       })
     );
 
@@ -411,6 +442,24 @@ describe('RTDB Teacher Roster Isolation Rules', () => {
         'classes/class-one-seat/students/student-2/approvedAt': 2002,
         'classes/class-one-seat/students/student-2/approvedBy': 'teacher-b',
         'classes/class-one-seat/stats/totalStudents': 2,
+        'classes/class-one-seat/stats/lastSeatStudentId': 'student-2',
+      })
+    );
+
+    // Notification class-action Worker token also cannot exceed maxStudents on a full class
+    const workerTokenApprove2 = env.authenticatedContext('notification-class-action:act-2', {
+      notificationClassAction: true,
+      actionId: 'act-2',
+      classId: 'class-one-seat',
+      studentId: 'student-2',
+      actionKind: 'approve',
+      actorUid: 'teacher-b',
+    }).database();
+    await assertFails(
+      workerTokenApprove2.ref().update({
+        'classes/class-one-seat/students/student-2/status': 'active',
+        'classes/class-one-seat/stats/totalStudents': 2,
+        'classes/class-one-seat/stats/lastSeatStudentId': 'student-2',
       })
     );
 

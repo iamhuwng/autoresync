@@ -1028,7 +1028,10 @@ export async function enrollStudent(
       // in one atomic multi-path update so concurrent tabs cannot exceed maxStudents.
       let committedAt = 0;
       for (let attempt = 0; attempt < MAX_CAPACITY_CAS_ATTEMPTS; attempt += 1) {
-        const classData = await getClass(classCode);
+        const [classData, persistedStatsSnap] = await Promise.all([
+          getClass(classCode),
+          get(ref(database, `${CLASSES_REF}/${classCode}/stats/totalStudents`)),
+        ]);
 
         if (!classData) {
           return { success: false, error: 'Class not found' };
@@ -1055,14 +1058,13 @@ export async function enrollStudent(
         const activeStudentCount = Object.values(classData.students || {}).filter(
           (s) => !s.status || s.status === 'active'
         ).length;
-        const currentStatsTotal = Number.isFinite(Number(classData.stats?.totalStudents))
-          ? Number(classData.stats?.totalStudents)
-          : 0;
+        const rawPersistedTotal = persistedStatsSnap.exists() ? Number(persistedStatsSnap.val()) : 0;
+        const persistedStatsTotal = Number.isFinite(rawPersistedTotal) ? rawPersistedTotal : 0;
         const maxStudents = Number(classData.settings?.maxStudents);
         if (
           Number.isFinite(maxStudents) &&
           maxStudents > 0 &&
-          Math.max(activeStudentCount, currentStatsTotal) >= maxStudents
+          Math.max(activeStudentCount, persistedStatsTotal) >= maxStudents
         ) {
           return { success: false, error: 'Class is full' };
         }
@@ -1089,8 +1091,9 @@ export async function enrollStudent(
         try {
           await update(ref(database), {
             [`${CLASSES_REF}/${classCode}/students/${studentUid}`]: student,
-            [`${CLASSES_REF}/${classCode}/stats/totalStudents`]: currentStatsTotal + 1,
+            [`${CLASSES_REF}/${classCode}/stats/totalStudents`]: persistedStatsTotal + 1,
             [`${CLASSES_REF}/${classCode}/stats/activeStudents`]: activeStudentCount + 1,
+            [`${CLASSES_REF}/${classCode}/stats/lastSeatStudentId`]: studentUid,
             [`${CLASSES_REF}/${classCode}/updatedAt`]: now,
             [`${STUDENT_CLASSES_REF}/${studentUid}/${classCode}`]: buildStudentClassMembershipRow(student),
           });
@@ -1152,7 +1155,10 @@ export async function approveClassStudent(
       // first; retrying re-reads fresh capacity and either claims the next seat
       // or returns "Class is full".
       for (let attempt = 0; attempt < MAX_CAPACITY_CAS_ATTEMPTS; attempt += 1) {
-        const classData = await getClass(classCode);
+        const [classData, persistedStatsSnap] = await Promise.all([
+          getClass(classCode),
+          get(ref(database, `${CLASSES_REF}/${classCode}/stats/totalStudents`)),
+        ]);
         if (!classData) {
           return { success: false, error: 'Class not found' };
         }
@@ -1171,20 +1177,19 @@ export async function approveClassStudent(
         const currentActiveCount = Object.entries(classData.students || {}).filter(
           ([id, entry]) => id !== studentId && (!entry.status || entry.status === 'active')
         ).length;
-        const currentStatsTotal = Number.isFinite(Number(classData.stats?.totalStudents))
-          ? Number(classData.stats?.totalStudents)
-          : 0;
+        const rawPersistedTotal = persistedStatsSnap.exists() ? Number(persistedStatsSnap.val()) : 0;
+        const persistedStatsTotal = Number.isFinite(rawPersistedTotal) ? rawPersistedTotal : 0;
         const maxStudents = Number(classData.settings?.maxStudents);
         if (
           Number.isFinite(maxStudents) &&
           maxStudents > 0 &&
-          Math.max(currentActiveCount, currentStatsTotal) >= maxStudents
+          Math.max(currentActiveCount, persistedStatsTotal) >= maxStudents
         ) {
           return { success: false, error: 'Class is full' };
         }
 
         const now = Date.now();
-        const nextStatsTotal = currentStatsTotal + 1;
+        const nextStatsTotal = persistedStatsTotal + 1;
         const activeCountAfterApproval = currentActiveCount + 1;
         studentUidForCourses = student.uid || studentId;
 
@@ -1195,6 +1200,7 @@ export async function approveClassStudent(
             [`${CLASSES_REF}/${classCode}/students/${studentId}/approvedBy`]: classData.createdBy,
             [`${CLASSES_REF}/${classCode}/stats/totalStudents`]: nextStatsTotal,
             [`${CLASSES_REF}/${classCode}/stats/activeStudents`]: activeCountAfterApproval,
+            [`${CLASSES_REF}/${classCode}/stats/lastSeatStudentId`]: studentId,
             [`${CLASSES_REF}/${classCode}/updatedAt`]: now,
             [`${STUDENT_CLASSES_REF}/${studentId}/${classCode}`]: buildStudentClassMembershipRow({
               joinedAt: student.joinedAt,

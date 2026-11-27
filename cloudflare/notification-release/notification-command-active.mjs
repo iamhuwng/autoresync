@@ -5956,16 +5956,25 @@ var performClassAction = /* @__PURE__ */ __name2(async (input) => {
   }
   const students = record3(classData.students) ?? {};
   const currentStudent = record3(students[command.studentId]);
+  const activeCount = Object.entries(students).filter(([id, entry]) => {
+    if (id === command.studentId) return false;
+    const row = record3(entry);
+    return Boolean(row) && (!row.status || row.status === "active");
+  }).length;
+  const rawPersistedTotal = record3(classData.stats)?.totalStudents;
+  const persistedTotal = typeof rawPersistedTotal === "number" && Number.isFinite(rawPersistedTotal) ? rawPersistedTotal : 0;
+  const max = record3(classData.settings)?.maxStudents;
   if (command.kind === "join-pending" || command.kind === "direct-add") {
     if (currentStudent || Object.values(students).some((value) => record3(value)?.uid === command.studentId)) {
       return { status: 409, body: { code: "class_action_membership_exists" } };
     }
-    const max = record3(classData.settings)?.maxStudents;
-    if (typeof max === "number" && Object.keys(students).length >= max) {
+    if (typeof max === "number" && max > 0 && Math.max(activeCount, persistedTotal) >= max) {
       return { status: 409, body: { code: "class_action_class_full" } };
     }
   } else if (!currentStudent || currentStudent.status !== "pending_approval") {
     return { status: 409, body: { code: "class_action_stale" } };
+  } else if (command.kind === "approve" && typeof max === "number" && max > 0 && Math.max(activeCount, persistedTotal) >= max) {
+    return { status: 409, body: { code: "class_action_class_full" } };
   }
   const studentProfile = command.kind === "join-pending" || command.kind === "direct-add" ? record3(await storage.read(`users/${command.studentId}`)) : null;
   if ((command.kind === "join-pending" || command.kind === "direct-add") && (!studentProfile || studentProfile.role !== "student")) {
@@ -6006,6 +6015,11 @@ var performClassAction = /* @__PURE__ */ __name2(async (input) => {
       path: `classes/${command.classId}/students/${command.studentId}`,
       value: command.kind === "reject" ? null : command.kind === "approve" ? { ...currentStudent, status: "active" } : studentRow
     },
+    ...(command.kind === "direct-add" || command.kind === "approve" ? [
+      { path: `classes/${command.classId}/stats/totalStudents`, value: persistedTotal + 1 },
+      { path: `classes/${command.classId}/stats/activeStudents`, value: activeCount + 1 },
+      { path: `classes/${command.classId}/stats/lastSeatStudentId`, value: command.studentId }
+    ] : []),
     {
       path: `student_classes/${command.studentId}/${command.classId}`,
       value: command.kind === "reject" ? null : { joinedAt, status }
@@ -10973,8 +10987,15 @@ var FirebaseWritingGradeNotificationStorage = class {
   }
   async readTeacherLink(teacherId, studentId) {
     if (!ID16.test(teacherId) || !ID16.test(studentId)) return false;
-    const linked = await this.rtdb.readValue(`student_teacher_links/${teacherId}/${studentId}`);
-    return linked === true;
+    const rows = await this.rtdb.readValue("student_teacher_assignments", {
+      orderBy: "teacherId",
+      equalTo: teacherId
+    });
+    if (!rows || typeof rows !== "object" || Array.isArray(rows)) return false;
+    return Object.values(rows).some((row) => {
+      if (!row || typeof row !== "object" || Array.isArray(row)) return false;
+      return row.teacherId === teacherId && row.studentId === studentId && row.status === "active";
+    });
   }
   async readInbox(path) {
     return this.rtdb.readValue(path);

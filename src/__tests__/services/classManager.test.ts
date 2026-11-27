@@ -714,6 +714,31 @@ describe('Class Manager - Student Enrollment', () => {
     expect([firstConcurrent.error, secondConcurrent.error].some((msg) => msg?.includes('full'))).toBe(true);
   });
 
+  it('uses persisted stats/totalStudents (0 when absent) for CAS instead of synthesized pending roster count', async () => {
+    const created = await createClass(
+      {
+        name: 'No-Stats Legacy Class',
+        settings: { maxStudents: 1 },
+      },
+      TEST_TEACHER_UID
+    );
+    const noStatsClassId = created.classId!;
+
+    await enrollAsStudent(noStatsClassId, TEST_STUDENT_UID, 'Student 1', 'student1@test.com');
+    // Simulate a legacy class record with no persisted stats node in RTDB
+    removeValueAtPath(`classes/${noStatsClassId}/stats`);
+
+    const approveResult = await approveAsTeacher(noStatsClassId, TEST_STUDENT_UID, TEST_TEACHER_UID);
+    expect(approveResult.success).toBe(true);
+
+    const storedStats = getValueAtPath(`classes/${noStatsClassId}/stats`) as Record<string, unknown>;
+    expect(storedStats).toMatchObject({
+      totalStudents: 1,
+      activeStudents: 1,
+      lastSeatStudentId: TEST_STUDENT_UID,
+    });
+  });
+
   it('keeps the membership roster authoritative when a student self-joins', async () => {
     const beforeData = await getClass(testClassId);
     const beforeCount = beforeData?.stats.totalStudents || 0;
