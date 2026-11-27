@@ -6,11 +6,11 @@ import { auth, database } from '../services/firebaseCore';
 import { reportingService } from '../services/reportingService';
 import { useDeferredIdleTask } from '../core/platform/hooks/useDeferredIdleTask.ts';
 import PrivateRoute from '../components/PrivateRoute.jsx';
+import AuthenticatedChrome from './AuthenticatedChrome.tsx';
 import { withTrackedRoute } from './routeHelpers.tsx';
 
 const ProfilePage = lazyWithRetry(() => import('../components/profile/ProfilePage.tsx'));
 const ResultDetailPage = lazyWithRetry(() => import('../pages/ResultDetailPage.tsx'));
-const AuthenticatedChrome = lazyWithRetry(() => import('./AuthenticatedChrome.tsx'));
 const AdminRoleRoutes = lazyWithRetry(() => import('./AdminRoleRoutes.tsx'));
 const TeacherRoleRoutes = lazyWithRetry(() => import('./TeacherRoleRoutes.tsx'));
 const StudentRoleRoutes = lazyWithRetry(() => import('./StudentRoleRoutes.tsx'));

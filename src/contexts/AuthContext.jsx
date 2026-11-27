@@ -129,6 +129,18 @@ export function AuthProvider({ children }) {
 
   // Track if we're in the process of force logout
   const isForceLoggingOut = useRef(false);
+  const isMountedRef = useRef(true);
+  const authSessionRef = useRef(0);
+  const activeAuthUidRef = useRef(null);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      authSessionRef.current += 1;
+      activeAuthUidRef.current = null;
+    };
+  }, []);
 
 
   /**
@@ -153,6 +165,8 @@ export function AuthProvider({ children }) {
       await firebaseSignOut(auth);
 
       // Clear local state
+      authSessionRef.current += 1;
+      activeAuthUidRef.current = null;
       setUser(null);
       setProfile(null);
       setStudentId(null);
@@ -186,6 +200,11 @@ export function AuthProvider({ children }) {
 
     const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
       const currentSession = ++session;
+      const nextUid = authUser?.uid ?? null;
+      if (activeAuthUidRef.current !== nextUid) {
+        authSessionRef.current += 1;
+        activeAuthUidRef.current = nextUid;
+      }
       try {
         if (unsubscribeProfile) {
           unsubscribeProfile();
@@ -307,6 +326,31 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  const ensureStudentIdIfMissing = useCallback(async (authUser, expectedSession) => {
+    if (!studentAuthWorkerUrl() || !authUser?.uid || !authUser?.getIdToken) return null;
+    const isCurrentSession = () => (
+      isMountedRef.current
+      && authSessionRef.current === expectedSession
+      && (!auth.currentUser || auth.currentUser.uid === authUser.uid)
+    );
+    try {
+      const existing = await get(ref(database, `student_identifiers/${authUser.uid}`));
+      if (!isCurrentSession()) return null;
+      const existingId = existing?.val?.()?.studentId;
+      if (typeof existingId === 'string' && existingId.trim()) {
+        setStudentId(existingId);
+        return existingId;
+      }
+    } catch {
+      if (!isCurrentSession()) return null;
+      // Fall through to ensure-id if the local read failed transiently.
+    }
+    const assignedStudentId = await ensureStudentId(authUser);
+    if (!isCurrentSession()) return null;
+    if (assignedStudentId) setStudentId(assignedStudentId);
+    return assignedStudentId;
+  }, [ensureStudentId]);
+
   const finalizeAuthenticatedLogin = useCallback(async (result) => {
     const authUser = result.user;
 
@@ -356,18 +400,24 @@ export function AuthProvider({ children }) {
       };
       await set(userRef, userData);
     } else {
-      await set(ref(database, `users/${authUser.uid}/lastLoginAt`), serverTimestamp());
-      await Promise.resolve(remove(ref(database, `users/${authUser.uid}/forceReauth`))).catch(() => { });
+      void Promise.resolve(set(ref(database, `users/${authUser.uid}/lastLoginAt`), serverTimestamp())).catch(() => { });
+      if (userData.forceReauth) {
+        void Promise.resolve(remove(ref(database, `users/${authUser.uid}/forceReauth`))).catch(() => { });
+      }
     }
 
-    if ((userData.role || 'student') === 'student') {
-      const assignedStudentId = await ensureStudentId(authUser);
-      if (assignedStudentId) setStudentId(assignedStudentId);
+    if ((userData.role || 'student') === 'student' && !result.skipEnsureStudentId) {
+      if (activeAuthUidRef.current !== authUser.uid) {
+        authSessionRef.current += 1;
+        activeAuthUidRef.current = authUser.uid;
+      }
+      const loginSession = authSessionRef.current;
+      void ensureStudentIdIfMissing(authUser, loginSession);
     }
 
     logSecurityEventAsync('login', authUser.uid, userData.role || 'student', authUser.email || userData.email);
     return result;
-  }, [ensureStudentId]);
+  }, [ensureStudentIdIfMissing]);
 
   /** Google OAuth login. */
   const login = async () => {
@@ -410,7 +460,7 @@ export function AuthProvider({ children }) {
       } else {
         throw studentAuthError('student_auth_unavailable');
       }
-      return await finalizeAuthenticatedLogin({ ...result, requireVerifiedEmail: true });
+      return await finalizeAuthenticatedLogin({ ...result, requireVerifiedEmail: true, skipEnsureStudentId: true });
     } catch (err) {
       setError(err);
       throw err;
@@ -435,7 +485,7 @@ export function AuthProvider({ children }) {
       } else {
         throw studentAuthError('student_auth_unavailable');
       }
-      await finalizeAuthenticatedLogin({ ...result, requireVerifiedEmail: true });
+      await finalizeAuthenticatedLogin({ ...result, requireVerifiedEmail: true, skipEnsureStudentId: true });
       return result;
     } catch (err) {
       setError(err);
@@ -508,6 +558,8 @@ export function AuthProvider({ children }) {
       await firebaseSignOut(auth);
 
       // Clear local state immediately
+      authSessionRef.current += 1;
+      activeAuthUidRef.current = null;
       setUser(null);
       setProfile(null);
       setStudentId(null);
