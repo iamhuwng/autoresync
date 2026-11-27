@@ -356,6 +356,64 @@ describe('RTDB Teacher Roster Isolation Rules', () => {
     await assertFails(teacherB.ref('classes/class-b/stats/totalStudents').set(51));
     await assertSucceeds(teacherB.ref('classes/class-b/stats/totalStudents').set(50));
 
+    // Cross-tab CAS capacity check on a 1-seat class with two pending applicants:
+    // only one approval with totalStudents 0 -> 1 succeeds; a second tab with stale
+    // totalStudents = 1 OR an incremented totalStudents = 2 OR missing stats update is rejected.
+    await env.withSecurityRulesDisabled(async (context) => {
+      await context.database().ref('classes/class-one-seat').set({
+        id: 'class-one-seat',
+        classCode: 'ONEST1',
+        name: 'One Seat Class',
+        createdBy: 'teacher-b',
+        status: 'active',
+        settings: { maxStudents: 1 },
+        stats: { totalStudents: 0, activeStudents: 0 },
+        students: {
+          'student-1': { id: 'student-1', uid: 'student-1', status: 'pending_approval', joinedAt: 1000 },
+          'student-2': { id: 'student-2', uid: 'student-2', status: 'pending_approval', joinedAt: 1001 },
+        },
+      });
+    });
+
+    // Approval without atomic stats/totalStudents +1 fails
+    await assertFails(
+      teacherB.ref().update({
+        'classes/class-one-seat/students/student-1/status': 'active',
+        'classes/class-one-seat/students/student-1/approvedAt': 2000,
+        'classes/class-one-seat/students/student-1/approvedBy': 'teacher-b',
+      })
+    );
+
+    // Tab 1 approves student-1 with atomic totalStudents 0 -> 1: succeeds
+    await assertSucceeds(
+      teacherB.ref().update({
+        'classes/class-one-seat/students/student-1/status': 'active',
+        'classes/class-one-seat/students/student-1/approvedAt': 2000,
+        'classes/class-one-seat/students/student-1/approvedBy': 'teacher-b',
+        'classes/class-one-seat/stats/totalStudents': 1,
+      })
+    );
+
+    // Tab 2 tries stale approval of student-2 with totalStudents = 1 (stale CAS): fails
+    await assertFails(
+      teacherB.ref().update({
+        'classes/class-one-seat/students/student-2/status': 'active',
+        'classes/class-one-seat/students/student-2/approvedAt': 2001,
+        'classes/class-one-seat/students/student-2/approvedBy': 'teacher-b',
+        'classes/class-one-seat/stats/totalStudents': 1,
+      })
+    );
+
+    // Tab 2 retries approval of student-2 with totalStudents = 2 (> maxStudents 1): fails
+    await assertFails(
+      teacherB.ref().update({
+        'classes/class-one-seat/students/student-2/status': 'active',
+        'classes/class-one-seat/students/student-2/approvedAt': 2002,
+        'classes/class-one-seat/students/student-2/approvedBy': 'teacher-b',
+        'classes/class-one-seat/stats/totalStudents': 2,
+      })
+    );
+
     await assertSucceeds(admin.ref('classes').get());
   });
 });

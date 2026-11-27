@@ -923,6 +923,15 @@ async function withClassCapacityLock<T>(classCode: string, work: () => Promise<T
   }
 }
 
+function isPermissionDeniedError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const code = 'code' in error && typeof error.code === 'string' ? error.code : '';
+  const message = 'message' in error && typeof error.message === 'string' ? error.message : '';
+  return /permission[_ -]?denied/i.test(code) || /permission[_ -]?denied/i.test(message);
+}
+
+const MAX_CAPACITY_CAS_ATTEMPTS = 3;
+
 /**
  * Enroll an authenticated student in a class using class code
  * @param classCode - The class code to join
@@ -945,9 +954,6 @@ export async function enrollStudent(
       if (approvalMode === 'pending' && actorUid !== studentUid) {
         return { success: false, error: 'Class membership action is not authorized' };
       }
-
-      let classData: ClassSession | null = null;
-      let previousJoinedAt: number | undefined;
 
       if (approvalMode === 'pending') {
         // Student self-join reads only non-PII class metadata plus the caller's own
@@ -982,10 +988,47 @@ export async function enrollStudent(
         const decision = selfDecisionSnap.exists()
           ? (selfDecisionSnap.val() as { joinedAt?: number } | null)
           : null;
-        previousJoinedAt = decision?.joinedAt;
-      } else {
-        // Teacher/admin direct add already has full class read access.
-        classData = await getClass(classCode);
+        const previousJoinedAt = decision?.joinedAt;
+
+        const now = Math.max(Date.now(), typeof previousJoinedAt === 'number' && Number.isFinite(previousJoinedAt) ? previousJoinedAt + 1 : 0);
+        if (now > Date.now() + 5000) {
+          return { success: false, error: 'Please retry joining this class in a few seconds' };
+        }
+
+        const student: ClassStudent = {
+          id: studentUid,
+          uid: studentUid,
+          name: studentName,
+          ...(studentEmail ? { email: studentEmail } : {}),
+          status: 'pending_approval',
+          joinedAt: now,
+          lastActiveAt: now,
+          isOnline: true,
+          assignments: {},
+        };
+
+        await update(ref(database), {
+          [`${CLASSES_REF}/${classCode}/students/${studentUid}`]: student,
+          [`${STUDENT_CLASSES_REF}/${studentUid}/${classCode}`]: buildStudentClassMembershipRow(student),
+        });
+        void notifyCommittedEvent({
+          eventKind: 'class-membership',
+          action: 'join-pending',
+          classId: classCode,
+          studentId: studentUid,
+          occurredAt: now,
+        });
+
+        // NOTE: Student-teacher assignment is NOT auto-created here for self-join.
+        // Pending self-joins only become student-visible after teacher approval.
+        return { success: true, classId: classCode };
+      }
+
+      // Teacher/admin direct add commits membership + stats/totalStudents (+1 CAS)
+      // in one atomic multi-path update so concurrent tabs cannot exceed maxStudents.
+      let committedAt = 0;
+      for (let attempt = 0; attempt < MAX_CAPACITY_CAS_ATTEMPTS; attempt += 1) {
+        const classData = await getClass(classCode);
 
         if (!classData) {
           return { success: false, error: 'Class not found' };
@@ -1002,14 +1045,6 @@ export async function enrollStudent(
           return { success: false, error: 'Already enrolled in this class' };
         }
 
-        const activeStudentCount = Object.values(classData.students || {}).filter(
-          (s) => !s.status || s.status === 'active'
-        ).length;
-        const maxStudents = Number(classData.settings?.maxStudents);
-        if (Number.isFinite(maxStudents) && maxStudents > 0 && activeStudentCount >= maxStudents) {
-          return { success: false, error: 'Class is full' };
-        }
-
         if (actorUid !== classData.createdBy) {
           const role = actorUid ? (await get(ref(database, `users/${actorUid}/role`))).val() : null;
           if (role !== 'super_admin') {
@@ -1017,61 +1052,73 @@ export async function enrollStudent(
           }
         }
 
-        previousJoinedAt = (classData as ClassSession & { membershipDecisions?: Record<string, { joinedAt: number }> })
+        const activeStudentCount = Object.values(classData.students || {}).filter(
+          (s) => !s.status || s.status === 'active'
+        ).length;
+        const currentStatsTotal = Number.isFinite(Number(classData.stats?.totalStudents))
+          ? Number(classData.stats?.totalStudents)
+          : 0;
+        const maxStudents = Number(classData.settings?.maxStudents);
+        if (
+          Number.isFinite(maxStudents) &&
+          maxStudents > 0 &&
+          Math.max(activeStudentCount, currentStatsTotal) >= maxStudents
+        ) {
+          return { success: false, error: 'Class is full' };
+        }
+
+        const previousJoinedAt = (classData as ClassSession & { membershipDecisions?: Record<string, { joinedAt: number }> })
           .membershipDecisions?.[studentUid]?.joinedAt;
+        const now = Math.max(Date.now(), typeof previousJoinedAt === 'number' && Number.isFinite(previousJoinedAt) ? previousJoinedAt + 1 : 0);
+        if (now > Date.now() + 5000) {
+          return { success: false, error: 'Please retry joining this class in a few seconds' };
+        }
+
+        const student: ClassStudent = {
+          id: studentUid,
+          uid: studentUid,
+          name: studentName,
+          ...(studentEmail ? { email: studentEmail } : {}),
+          status: 'active',
+          joinedAt: now,
+          lastActiveAt: now,
+          isOnline: true,
+          assignments: {},
+        };
+
+        try {
+          await update(ref(database), {
+            [`${CLASSES_REF}/${classCode}/students/${studentUid}`]: student,
+            [`${CLASSES_REF}/${classCode}/stats/totalStudents`]: currentStatsTotal + 1,
+            [`${CLASSES_REF}/${classCode}/stats/activeStudents`]: activeStudentCount + 1,
+            [`${CLASSES_REF}/${classCode}/updatedAt`]: now,
+            [`${STUDENT_CLASSES_REF}/${studentUid}/${classCode}`]: buildStudentClassMembershipRow(student),
+          });
+          committedAt = now;
+          break;
+        } catch (writeError) {
+          if (isPermissionDeniedError(writeError) && attempt + 1 < MAX_CAPACITY_CAS_ATTEMPTS) {
+            continue;
+          }
+          throw writeError;
+        }
       }
 
-      const now = Math.max(Date.now(), typeof previousJoinedAt === 'number' && Number.isFinite(previousJoinedAt) ? previousJoinedAt + 1 : 0);
-      if (now > Date.now() + 5000) {
-        return { success: false, error: 'Please retry joining this class in a few seconds' };
-      }
-      const status: ClassStudent['status'] = approvalMode === 'active' ? 'active' : 'pending_approval';
-
-      const student: ClassStudent = {
-        id: studentUid,
-        uid: studentUid,
-        name: studentName,
-        ...(studentEmail ? { email: studentEmail } : {}),
-        status,
-        joinedAt: now,
-        lastActiveAt: now,
-        isOnline: true,
-        assignments: {},
-      };
-
-      await update(ref(database), {
-        [`${CLASSES_REF}/${classCode}/students/${studentUid}`]: student,
-        [`${STUDENT_CLASSES_REF}/${studentUid}/${classCode}`]: buildStudentClassMembershipRow(student),
-      });
       void notifyCommittedEvent({
         eventKind: 'class-membership',
-        action: approvalMode === 'pending' ? 'join-pending' : 'direct-add',
+        action: 'direct-add',
         classId: classCode,
         studentId: studentUid,
-        occurredAt: now,
+        occurredAt: committedAt,
       });
 
-      // Update class stats (teacher/admin direct-add only; students cannot write stats).
-      if (classData) {
-        try {
-          await updateEnrollmentStatsIfAuthorized(classCode, classData, Date.now());
-        } catch (statsError) {
-          console.warn('[ClassManager] Enrollment stats update failed after class action:', statsError);
-        }
+      // Teacher/admin additions are effective immediately.
+      try {
+        const { autoEnrollStudentInClassCourses } = await import('./enrollmentManager');
+        await autoEnrollStudentInClassCourses(classCode, studentUid);
+      } catch (e) {
+        console.warn('Failed to auto-enroll student in class courses:', e);
       }
-
-      if (approvalMode === 'active') {
-        // Teacher/admin additions are effective immediately.
-        try {
-          const { autoEnrollStudentInClassCourses } = await import('./enrollmentManager');
-          await autoEnrollStudentInClassCourses(classCode, studentUid);
-        } catch (e) {
-          console.warn('Failed to auto-enroll student in class courses:', e);
-        }
-      }
-
-      // NOTE: Student-teacher assignment is NOT auto-created here for self-join.
-      // Pending self-joins only become student-visible after teacher approval.
 
       return { success: true, classId: classCode };
     } catch (error) {
@@ -1097,54 +1144,80 @@ export async function approveClassStudent(
 ): Promise<{ success: boolean; error?: string }> {
   return withClassCapacityLock(classCode, async () => {
     try {
-      // Verify class exists
-      const classData = await getClass(classCode);
-      if (!classData) {
-        return { success: false, error: 'Class not found' };
-      }
-      if (teacherId !== classData.createdBy || await getCurrentActorUid() !== classData.createdBy) {
-        return { success: false, error: 'Class owner mismatch' };
+      let approvedAt = 0;
+      let studentUidForCourses = studentId;
+
+      // Commit pending -> active together with stats/totalStudents (+1 CAS).
+      // RTDB rules reject stale counter writes if another tab approved a student
+      // first; retrying re-reads fresh capacity and either claims the next seat
+      // or returns "Class is full".
+      for (let attempt = 0; attempt < MAX_CAPACITY_CAS_ATTEMPTS; attempt += 1) {
+        const classData = await getClass(classCode);
+        if (!classData) {
+          return { success: false, error: 'Class not found' };
+        }
+        if (teacherId !== classData.createdBy || await getCurrentActorUid() !== classData.createdBy) {
+          return { success: false, error: 'Class owner mismatch' };
+        }
+
+        const student = classData.students?.[studentId];
+        if (!student) {
+          return { success: false, error: 'Student not found in this class' };
+        }
+        if (student.status !== 'pending_approval') {
+          return { success: false, error: 'Student does not have a pending class request' };
+        }
+
+        const currentActiveCount = Object.entries(classData.students || {}).filter(
+          ([id, entry]) => id !== studentId && (!entry.status || entry.status === 'active')
+        ).length;
+        const currentStatsTotal = Number.isFinite(Number(classData.stats?.totalStudents))
+          ? Number(classData.stats?.totalStudents)
+          : 0;
+        const maxStudents = Number(classData.settings?.maxStudents);
+        if (
+          Number.isFinite(maxStudents) &&
+          maxStudents > 0 &&
+          Math.max(currentActiveCount, currentStatsTotal) >= maxStudents
+        ) {
+          return { success: false, error: 'Class is full' };
+        }
+
+        const now = Date.now();
+        const nextStatsTotal = currentStatsTotal + 1;
+        const activeCountAfterApproval = currentActiveCount + 1;
+        studentUidForCourses = student.uid || studentId;
+
+        try {
+          await update(ref(database), {
+            [`${CLASSES_REF}/${classCode}/students/${studentId}/status`]: 'active',
+            [`${CLASSES_REF}/${classCode}/students/${studentId}/approvedAt`]: now,
+            [`${CLASSES_REF}/${classCode}/students/${studentId}/approvedBy`]: classData.createdBy,
+            [`${CLASSES_REF}/${classCode}/stats/totalStudents`]: nextStatsTotal,
+            [`${CLASSES_REF}/${classCode}/stats/activeStudents`]: activeCountAfterApproval,
+            [`${CLASSES_REF}/${classCode}/updatedAt`]: now,
+            [`${STUDENT_CLASSES_REF}/${studentId}/${classCode}`]: buildStudentClassMembershipRow({
+              joinedAt: student.joinedAt,
+              status: 'active',
+            }),
+          });
+          approvedAt = now;
+          break;
+        } catch (writeError) {
+          if (isPermissionDeniedError(writeError) && attempt + 1 < MAX_CAPACITY_CAS_ATTEMPTS) {
+            continue;
+          }
+          throw writeError;
+        }
       }
 
-      // Verify student exists in class
-      const student = classData.students?.[studentId];
-      if (!student) {
-        return { success: false, error: 'Student not found in this class' };
-      }
-      if (student.status !== 'pending_approval') {
-        return { success: false, error: 'Student does not have a pending class request' };
-      }
-
-      const currentActiveCount = Object.entries(classData.students || {}).filter(
-        ([id, entry]) => id !== studentId && (!entry.status || entry.status === 'active')
-      ).length;
-      const maxStudents = Number(classData.settings?.maxStudents);
-      if (Number.isFinite(maxStudents) && maxStudents > 0 && currentActiveCount >= maxStudents) {
-        return { success: false, error: 'Class is full' };
-      }
-
-      const approvedAt = Date.now();
-      const activeCountAfterApproval = currentActiveCount + 1;
-
-      await update(ref(database), {
-        [`${CLASSES_REF}/${classCode}/students/${studentId}/status`]: 'active',
-        [`${CLASSES_REF}/${classCode}/students/${studentId}/approvedAt`]: approvedAt,
-        [`${CLASSES_REF}/${classCode}/students/${studentId}/approvedBy`]: classData.createdBy,
-        [`${CLASSES_REF}/${classCode}/stats/totalStudents`]: activeCountAfterApproval,
-        [`${CLASSES_REF}/${classCode}/stats/activeStudents`]: activeCountAfterApproval,
-        [`${CLASSES_REF}/${classCode}/updatedAt`]: approvedAt,
-        [`${STUDENT_CLASSES_REF}/${studentId}/${classCode}`]: buildStudentClassMembershipRow({
-          joinedAt: student.joinedAt,
-          status: 'active',
-        }),
-      });
       void notifyCommittedEvent({
         eventKind: 'class-membership', action: 'approve', classId: classCode, studentId, occurredAt: approvedAt,
       });
 
       try {
         const { autoEnrollStudentInClassCourses } = await import('./enrollmentManager');
-        await autoEnrollStudentInClassCourses(classCode, student.uid || studentId);
+        await autoEnrollStudentInClassCourses(classCode, studentUidForCourses);
       } catch (autoEnrollError) {
         console.warn('⚠️ [ClassManager] Failed to auto-enroll approved student in class courses:', autoEnrollError);
       }
