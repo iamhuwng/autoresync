@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
     trackPageView: vi.fn(),
     getAssignmentsByTeacher: vi.fn(),
     getAssignmentRequestsByTeacher: vi.fn(),
-    removeAssignment: vi.fn(),
+    removeAssignments: vi.fn(),
     createStudentRequest: vi.fn(),
     getUserById: vi.fn(),
     getTeacherClassesWithMembers: vi.fn(),
@@ -52,7 +52,7 @@ vi.mock('../components/navigation', () => ({
 vi.mock('../services/assignmentManager', () => ({
     getAssignmentsByTeacher: mocks.getAssignmentsByTeacher,
     getAssignmentRequestsByTeacher: mocks.getAssignmentRequestsByTeacher,
-    removeAssignment: mocks.removeAssignment,
+    removeAssignments: mocks.removeAssignments,
     createStudentRequest: mocks.createStudentRequest,
 }));
 
@@ -168,7 +168,7 @@ describe('TeacherStudentsPage', () => {
             },
         ]);
         mocks.enrollStudent.mockResolvedValue({ success: true, classId: 'class-2' });
-        mocks.removeAssignment.mockResolvedValue({ success: true });
+        mocks.removeAssignments.mockResolvedValue({ success: true, releasedIds: ['assign-1'], failed: [] });
         mocks.createStudentRequest.mockResolvedValue({ success: true, requestId: 'req-2' });
     });
 
@@ -301,7 +301,7 @@ describe('TeacherStudentsPage', () => {
         fireEvent.click(await screen.findByRole('button', { name: 'Confirm Release' }));
 
         await waitFor(() => {
-            expect(mocks.removeAssignment).toHaveBeenCalledWith('assign-1', 'Released by teacher', []);
+            expect(mocks.removeAssignments).toHaveBeenCalledWith(['assign-1'], 'Released by teacher');
         });
 
         expect(await screen.findByRole('status')).toHaveTextContent('Released Alice Nguyen from your oversight.');
@@ -311,7 +311,96 @@ describe('TeacherStudentsPage', () => {
         expect(screen.getByText('Bob Tran')).toBeInTheDocument();
     });
 
-    it('submits a student request and shows it in My Requests tab', async () => {
+    it('refreshes roster and reports explicit partial failure when releasing multiple assignments partially fails', async () => {
+        mocks.getAssignmentsByTeacher.mockResolvedValue([
+            activeAssignments[0],
+            {
+                ...activeAssignments[0],
+                id: 'assign-1b',
+            },
+            activeAssignments[1],
+        ]);
+
+        renderPage();
+        await screen.findByText('Alice Nguyen');
+
+        mocks.removeAssignments.mockResolvedValueOnce({
+            success: false,
+            releasedIds: ['assign-1'],
+            failed: [{ assignmentId: 'assign-1b', error: 'Permission denied' }],
+        });
+        mocks.getAssignmentsByTeacher.mockResolvedValueOnce([
+            { ...activeAssignments[0], id: 'assign-1b' },
+            activeAssignments[1],
+        ]);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Release Alice Nguyen' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Confirm Release' }));
+
+        await waitFor(() => {
+            expect(mocks.removeAssignments).toHaveBeenCalledWith(
+                ['assign-1', 'assign-1b'],
+                'Released by teacher'
+            );
+            expect(mocks.getAssignmentsByTeacher).toHaveBeenCalledTimes(2);
+            expect(
+                screen.getAllByRole('alert').some((el) =>
+                    el.textContent?.includes('Released 1 of 2 assignments for Alice Nguyen')
+                )
+            ).toBe(true);
+        });
+    });
+
+    it('surfaces load errors without rendering misleading empty-roster states and allows retry', async () => {
+        mocks.getAssignmentsByTeacher.mockRejectedValueOnce(new Error('Network offline'));
+        mocks.getTeacherClassesWithMembers.mockRejectedValueOnce(new Error('Classes offline'));
+        mocks.getAssignmentRequestsByTeacher.mockRejectedValueOnce(new Error('Requests offline'));
+
+        renderPage();
+
+        await waitFor(() => {
+            expect(screen.getByText(/Could not load your students/i)).toBeInTheDocument();
+            expect(screen.getByText(/Could not load your classes/i)).toBeInTheDocument();
+        });
+        expect(screen.queryByText('No students assigned yet')).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('tab', { name: /My Requests/i }));
+        await waitFor(() => {
+            expect(screen.getByText(/Could not load your student requests/i)).toBeInTheDocument();
+        });
+        expect(screen.queryByText('No student requests yet')).not.toBeInTheDocument();
+
+        mocks.getAssignmentRequestsByTeacher.mockResolvedValueOnce([
+            {
+                id: 'req-recovered',
+                teacherId: 'teacher-1',
+                studentEmail: 'recovered@student.test',
+                requestedAt: 1700000000000,
+                status: 'pending',
+            },
+        ]);
+        fireEvent.click(screen.getByRole('button', { name: 'Retry requests' }));
+        expect(await screen.findByText('recovered@student.test')).toBeInTheDocument();
+    });
+
+    it('tracks clearStudentSearch and clearStudentFilters and uses responsive grid columns', async () => {
+        renderPage();
+        await screen.findByText('Alice Nguyen');
+
+        const grid = screen.getByTestId('student-grid');
+        expect(grid).toHaveClass('student-grid');
+        expect(grid.style.gridTemplateColumns).toBe('');
+
+        fireEvent.change(screen.getByLabelText('Search students'), { target: { value: 'Alice' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+        expect(mocks.trackAction).toHaveBeenCalledWith(FEATURE_IDS.teacherStudents, 'clearStudentSearch', undefined);
+
+        fireEvent.change(screen.getByLabelText('Filter by class'), { target: { value: 'class-1' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Clear Filters' }));
+        expect(mocks.trackAction).toHaveBeenCalledWith(FEATURE_IDS.teacherStudents, 'clearStudentFilters', undefined);
+    });
+
+    it('submits a student request with canonicalized email and shows it in My Requests tab', async () => {
         renderPage();
         await screen.findByText('Alice Nguyen');
 
@@ -334,7 +423,7 @@ describe('TeacherStudentsPage', () => {
 
         fireEvent.click(screen.getByRole('button', { name: /Add Student/i }));
         fireEvent.change(await screen.findByLabelText('Student Email'), {
-            target: { value: 'new@student.test' },
+            target: { value: '  New@Student.TEST ' },
         });
         fireEvent.click(screen.getByRole('button', { name: 'Send Request' }));
 
@@ -362,6 +451,8 @@ describe('TeacherStudentsPage', () => {
                 'syncStudents',
                 'switchStudentsTab',
                 'filterStudentsByClass',
+                'clearStudentSearch',
+                'clearStudentFilters',
                 'openStudentAnalytics',
                 'openAddToClassModal',
                 'addStudentToClass',

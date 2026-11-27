@@ -389,11 +389,19 @@ describe('homework assignment Worker route', () => {
         expect(body.reasonCode).toBe('TARGET_NOT_ALLOWED');
     });
 
-    it('accepts direct student targets through active teacher-student links', async () => {
+    it('accepts direct student targets through active teacher-student assignments', async () => {
         const record = makeTestRecord({ id: 'ielts-writing-1', skill: 'Writing', title: 'IELTS Writing' });
         const records = recordsForTestContent(record);
         records.set('classes', {});
         records.set('student_teacher_links/teacher-1', { 'student-linked': true });
+        records.set('student_teacher_assignments', {
+            'assign-linked': {
+                id: 'assign-linked',
+                teacherId: 'teacher-1',
+                studentId: 'student-linked',
+                status: 'active',
+            },
+        });
         const { firestoreWrites, rtdbWrites } = makeFetchMock(records);
 
         const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({
@@ -410,6 +418,31 @@ describe('homework assignment Worker route', () => {
             path: 'homework_student_safe_test_access/' + assignmentId,
             body: { 'student-linked': true },
         });
+    });
+
+    it('rejects direct student targets when only a stale student_teacher_links entry remains after release', async () => {
+        const record = makeTestRecord({ id: 'ielts-writing-1', skill: 'Writing', title: 'IELTS Writing' });
+        const records = recordsForTestContent(record);
+        records.set('classes', {});
+        records.set('student_teacher_links/teacher-1', { 'student-released': true });
+        records.set('student_teacher_assignments', {
+            'assign-released': {
+                id: 'assign-released',
+                teacherId: 'teacher-1',
+                studentId: 'student-released',
+                status: 'removed',
+            },
+        });
+        makeFetchMock(records);
+
+        const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({
+            contentRef: { contentKind: 'ielts_writing', contentId: 'ielts-writing-1' },
+            target: { type: 'students', studentIds: ['student-released'] },
+        })), env);
+        const body = await response.json() as Record<string, unknown>;
+
+        expect(response.status).toBe(403);
+        expect(body.reasonCode).toBe('TARGET_NOT_ALLOWED');
     });
 
     it('deduplicates direct target aliases with aligned names and UID access grants', async () => {
@@ -572,6 +605,14 @@ describe('homework assignment Worker route', () => {
         const records = recordsForTestContent(makeTestRecord({ id: 'thcs-1', skill: 'Reading', testType: 'THCS-THPT' }));
         records.set('classes', {});
         records.set('student_teacher_links/teacher-1', { 'student-linked': true });
+        records.set('student_teacher_assignments', {
+            'assign-linked': {
+                id: 'assign-linked',
+                teacherId: 'teacher-1',
+                studentId: 'student-linked',
+                status: 'active',
+            },
+        });
         const { rtdbWrites } = makeFetchMock(records);
 
         const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({

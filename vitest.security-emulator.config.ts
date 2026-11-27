@@ -10,6 +10,7 @@ export default defineConfig({
       'src/__tests__/security/student-private-thcs-homework-current-rules.emulator.test.ts',
       'src/__tests__/security/externalAudioCredentialRules.emulator.test.ts',
       'src/__tests__/security/externalAudioPublishRules.emulator.test.ts',
+      'src/__tests__/security/teacherRosterIsolation.emulator.test.ts',
     ],
     fileParallelism: false,
     maxWorkers: 1,

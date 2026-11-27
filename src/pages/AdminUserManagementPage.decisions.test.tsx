@@ -18,7 +18,7 @@ vi.mock('../hooks/useBreadcrumbs', () => ({ addNavigationBreadcrumb: vi.fn() }))
 vi.mock('../services/reportingService', () => ({ reportingService: { trackAction: mocks.trackAction, trackPageView: mocks.trackPageView } }));
 vi.mock('../services/assignmentManager', () => ({
   approveStudentRequest: mocks.approveAssignment, denyStudentRequest: mocks.denyAssignment,
-  getAllAssignmentRequests: mocks.getRequests, createStudentRequest: vi.fn(), removeAssignment: vi.fn(),
+  getAllAssignmentRequests: mocks.getRequests, createStudentRequest: vi.fn(), removeAssignment: vi.fn(), removeAssignments: vi.fn(),
 }));
 vi.mock('../services/courseManager', () => ({
   getAllCourses: vi.fn().mockResolvedValue([]), getCoursesByOwner: vi.fn().mockResolvedValue([]),

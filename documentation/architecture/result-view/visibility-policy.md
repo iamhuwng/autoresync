@@ -1,5 +1,9 @@
 # Result View Visibility Policy
 
+## 2026-11-27 Teacher Lobby Students Post-Merge Audit Hardening
+
+Follow-up audit fixes to PR #344 add `clearStudentSearch` and `clearStudentFilters` to `FEATURE_IDS.teacherStudents` (`/teacher/students`) in `src/config/featureRegistry.ts` and tighten RTDB teacher isolation rules on `student_teacher_assignments`, `student_requests`, and `classes` only. `TeacherStudentHistoryPage`, saved-result reads/writes, `test_results/{resultId}` RTDB rules, the two-step teacher visibility gate, release-state gating, and student result ownership remain unchanged.
+
 ## 2026-11-27 Teacher Lobby Students Roster & Student Card Fixes
 
 PR #344 touches `src/config/featureRegistry.ts` only to register the `teacherStudents` feature (`/teacher/students`) and its teacher student-management observability actions. It does not change `TeacherStudentHistoryPage`, saved-result reads/writes, `test_results/{resultId}` RTDB rules, the two-step teacher visibility gate, release-state gating, student result ownership, or any Firebase security rules.

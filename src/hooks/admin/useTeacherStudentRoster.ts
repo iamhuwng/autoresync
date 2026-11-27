@@ -5,12 +5,12 @@
  * minimum number of round-trips:
  *   1. one indexed query for this teacher's active assignments
  *   2. all assigned student profiles fetched in parallel
- *   3. teacher's classes (with active student memberships), courses, and own
- *      student requests fetched in parallel without blocking student cards
+ *   3. teacher's classes (with active student memberships) and own student
+ *      requests fetched in parallel without blocking student cards
  *
- * Previously the page downloaded the whole `student_teacher_assignments` node
- * three times (`useSecureService`, `getTeacherStudents`, `getAllAssignments`),
- * fetched each student profile sequentially, and ran courses/classes serially.
+ * All slices share monotonic per-slice request generation guards so overlapping
+ * refreshes, teacher switches, or unmounts can never overwrite newer state, and
+ * failures retain previously loaded data while surfacing explicit retryable errors.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -22,7 +22,6 @@ import {
     getTeacherClassesWithMembers,
     type TeacherClassWithMembers,
 } from '../../services/classManager';
-import { getCoursesByOwner } from '../../services/courseManager';
 import { getUserById, type UserProfile } from '../../services/userService';
 import type { AssignmentRequest, StudentTeacherAssignment } from '../../types/assignment.types';
 
@@ -44,7 +43,6 @@ export interface TeacherStudentRoster {
     classes: TeacherClassWithMembers[];
     classOptions: SelectOptionItem[];
     classesByStudent: Record<string, StudentClassTag[]>;
-    courses: SelectOptionItem[];
     requests: AssignmentRequest[];
     pendingRequestCount: number;
     /** True only until the first roster load settles (success or failure). */
@@ -52,6 +50,8 @@ export interface TeacherStudentRoster {
     /** True while a manual refresh runs after the first load. */
     refreshing: boolean;
     error: string | null;
+    classesError: string | null;
+    requestsError: string | null;
     reload: () => Promise<void>;
     reloadClasses: () => Promise<void>;
     reloadRequests: () => Promise<void>;
@@ -63,86 +63,84 @@ export function useTeacherStudentRoster(teacherId: string | null | undefined): T
     const [students, setStudents] = useState<UserProfile[]>([]);
     const [assignments, setAssignments] = useState<StudentTeacherAssignment[]>([]);
     const [classes, setClasses] = useState<TeacherClassWithMembers[]>([]);
-    const [courses, setCourses] = useState<SelectOptionItem[]>([]);
     const [requests, setRequests] = useState<AssignmentRequest[]>([]);
     const [loading, setLoading] = useState<boolean>(Boolean(teacherId));
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [classesError, setClassesError] = useState<string | null>(null);
+    const [requestsError, setRequestsError] = useState<string | null>(null);
 
-    const requestIdRef = useRef(0);
-    const auxRequestIdRef = useRef(0);
+    const rosterRequestIdRef = useRef(0);
+    const classesRequestIdRef = useRef(0);
+    const requestsRequestIdRef = useRef(0);
+    const currentTeacherIdRef = useRef<string | null>(teacherId ?? null);
+    currentTeacherIdRef.current = teacherId ?? null;
     const hasLoadedRef = useRef(false);
 
     const reloadClasses = useCallback(async () => {
+        const expectedTeacherId = teacherId ?? null;
+        if (expectedTeacherId !== currentTeacherIdRef.current) return;
+
+        const requestId = ++classesRequestIdRef.current;
+
         if (!teacherId) {
             setClasses([]);
+            setClassesError(null);
             return;
         }
+
+        setClassesError(null);
         try {
             const fetchedClasses = await getTeacherClassesWithMembers(teacherId);
+            if (requestId !== classesRequestIdRef.current || expectedTeacherId !== currentTeacherIdRef.current) return;
             setClasses(fetchedClasses);
         } catch (err) {
             console.error('[useTeacherStudentRoster] Failed to load classes:', err);
+            if (requestId !== classesRequestIdRef.current || expectedTeacherId !== currentTeacherIdRef.current) return;
+            setClassesError('Could not load your classes. Try again.');
         }
     }, [teacherId]);
 
     const reloadRequests = useCallback(async () => {
+        const expectedTeacherId = teacherId ?? null;
+        if (expectedTeacherId !== currentTeacherIdRef.current) return;
+
+        const requestId = ++requestsRequestIdRef.current;
+
         if (!teacherId) {
             setRequests([]);
+            setRequestsError(null);
             return;
         }
+
+        setRequestsError(null);
         try {
             const fetchedRequests = await getAssignmentRequestsByTeacher(teacherId);
+            if (requestId !== requestsRequestIdRef.current || expectedTeacherId !== currentTeacherIdRef.current) return;
             setRequests(fetchedRequests);
         } catch (err) {
             console.error('[useTeacherStudentRoster] Failed to load requests:', err);
+            if (requestId !== requestsRequestIdRef.current || expectedTeacherId !== currentTeacherIdRef.current) return;
+            setRequestsError('Could not load your student requests. Try again.');
         }
     }, [teacherId]);
 
-    const loadAuxiliaryContext = useCallback(async (activeTeacherId: string) => {
-        const auxId = ++auxRequestIdRef.current;
-        const [classesResult, coursesResult, requestsResult] = await Promise.allSettled([
-            getTeacherClassesWithMembers(activeTeacherId),
-            getCoursesByOwner(activeTeacherId),
-            getAssignmentRequestsByTeacher(activeTeacherId),
-        ]);
-
-        if (auxId !== auxRequestIdRef.current) return;
-
-        if (classesResult.status === 'fulfilled') {
-            setClasses(classesResult.value);
-        } else {
-            console.error('[useTeacherStudentRoster] Failed to load classes:', classesResult.reason);
-        }
-
-        if (coursesResult.status === 'fulfilled') {
-            setCourses(
-                coursesResult.value.map((course) => ({
-                    value: course.id,
-                    label: `${course.name} (${course.code})`,
-                }))
-            );
-        } else {
-            console.error('[useTeacherStudentRoster] Failed to load courses:', coursesResult.reason);
-        }
-
-        if (requestsResult.status === 'fulfilled') {
-            setRequests(requestsResult.value);
-        } else {
-            console.error('[useTeacherStudentRoster] Failed to load requests:', requestsResult.reason);
-        }
-    }, []);
-
     const reload = useCallback(async () => {
-        const requestId = ++requestIdRef.current;
+        const expectedTeacherId = teacherId ?? null;
+        if (expectedTeacherId !== currentTeacherIdRef.current) return;
+
+        const requestId = ++rosterRequestIdRef.current;
 
         if (!teacherId) {
-            // Resolve the loading state for the "no teacher" branch too.
+            classesRequestIdRef.current += 1;
+            requestsRequestIdRef.current += 1;
             setStudents([]);
             setAssignments([]);
             setClasses([]);
-            setCourses([]);
             setRequests([]);
+            setError(null);
+            setClassesError(null);
+            setRequestsError(null);
             setLoading(false);
             setRefreshing(false);
             return;
@@ -151,26 +149,34 @@ export function useTeacherStudentRoster(teacherId: string | null | undefined): T
         if (hasLoadedRef.current) setRefreshing(true);
         setError(null);
 
-        // Fire auxiliary fetches immediately in parallel; do not block rendering
-        // student cards if courses or requests take longer.
-        const auxPromise = loadAuxiliaryContext(teacherId);
+        // Fire auxiliary fetches immediately in parallel via the shared guarded
+        // refreshers so they do not block student cards or race standalone refreshes.
+        const classesPromise = reloadClasses();
+        const requestsPromise = reloadRequests();
 
         try {
             const teacherAssignments = await getAssignmentsByTeacher(teacherId);
             const studentIds = Array.from(new Set(
-                teacherAssignments.map(a => a.studentId).filter(Boolean)
+                teacherAssignments.map((a) => a.studentId).filter(Boolean)
             ));
 
+            let failedProfileCount = 0;
             const profiles = await Promise.all(studentIds.map(async (studentId) => {
                 try {
                     return await getUserById(studentId);
                 } catch (profileError) {
+                    failedProfileCount += 1;
                     console.error(`[useTeacherStudentRoster] Failed to load profile ${studentId}:`, profileError);
                     return null;
                 }
             }));
 
-            if (requestId !== requestIdRef.current) return;
+            if (requestId !== rosterRequestIdRef.current || expectedTeacherId !== currentTeacherIdRef.current) return;
+
+            if (failedProfileCount > 0 && failedProfileCount === studentIds.length) {
+                setError('Could not load your students. Try Sync again.');
+                return;
+            }
 
             setAssignments(teacherAssignments);
             setStudents(
@@ -178,28 +184,40 @@ export function useTeacherStudentRoster(teacherId: string | null | undefined): T
                     .filter((profile): profile is UserProfile => profile !== null)
                     .sort(byNewestFirst)
             );
+            if (failedProfileCount > 0) {
+                setError(`Could not load ${failedProfileCount} student profile(s). Try Sync again.`);
+            }
             hasLoadedRef.current = true;
         } catch (loadError) {
             console.error('[useTeacherStudentRoster] Failed to load roster:', loadError);
-            if (requestId !== requestIdRef.current) return;
+            if (requestId !== rosterRequestIdRef.current || expectedTeacherId !== currentTeacherIdRef.current) return;
             setError('Could not load your students. Try Sync again.');
         } finally {
-            if (requestId === requestIdRef.current) {
+            if (requestId === rosterRequestIdRef.current && expectedTeacherId === currentTeacherIdRef.current) {
                 setLoading(false);
                 setRefreshing(false);
             }
         }
 
-        await auxPromise;
-    }, [teacherId, loadAuxiliaryContext]);
+        await Promise.all([classesPromise, requestsPromise]);
+    }, [teacherId, reloadClasses, reloadRequests]);
 
     useEffect(() => {
         hasLoadedRef.current = false;
+        setStudents([]);
+        setAssignments([]);
+        setClasses([]);
+        setRequests([]);
+        setError(null);
+        setClassesError(null);
+        setRequestsError(null);
         setLoading(Boolean(teacherId));
         void reload();
+
         return () => {
-            requestIdRef.current += 1;
-            auxRequestIdRef.current += 1;
+            rosterRequestIdRef.current += 1;
+            classesRequestIdRef.current += 1;
+            requestsRequestIdRef.current += 1;
         };
     }, [reload, teacherId]);
 
@@ -248,12 +266,13 @@ export function useTeacherStudentRoster(teacherId: string | null | undefined): T
         classes,
         classOptions,
         classesByStudent,
-        courses,
         requests,
         pendingRequestCount,
         loading,
         refreshing,
         error,
+        classesError,
+        requestsError,
         reload,
         reloadClasses,
         reloadRequests,

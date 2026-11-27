@@ -135,19 +135,50 @@ export const getUsersByRole = async (role: string): Promise<UserProfile[]> => {
 };
 
 export const getUserByEmail = async (email: string): Promise<UserProfile | null> => {
-    const usersRef = ref(database, 'users');
-    const emailQuery = query(usersRef, orderByChild('email'), equalTo(email));
-    const snapshot = await get(emailQuery);
+    const trimmed = (email || '').trim();
+    if (!trimmed) {
+        return null;
+    }
 
-    if (snapshot.exists()) {
-        const data = snapshot.val();
-        // Return the first match with uid included (emails should be unique)
-        const entries = Object.entries(data);
-        if (entries.length > 0) {
-            const [key, value] = entries[0] as [string, any];
-            return { ...value, uid: value.uid || key };
+    const normalized = trimmed.toLowerCase();
+    const candidates = normalized === trimmed ? [normalized] : [normalized, trimmed];
+    const usersRef = ref(database, 'users');
+
+    for (const candidate of candidates) {
+        const emailQuery = query(usersRef, orderByChild('email'), equalTo(candidate));
+        const snapshot = await get(emailQuery);
+
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            // Return the first match with uid included (emails should be unique)
+            const entries = Object.entries(data);
+            if (entries.length > 0) {
+                const [key, value] = entries[0] as [string, any];
+                return { ...value, uid: value.uid || key };
+            }
         }
     }
+
+    // Super admins can resolve legacy mixed-case user profiles when exact
+    // RTDB indexed lookup misses after request emails are canonicalized.
+    try {
+        const allUsersSnapshot = await get(usersRef);
+        if (allUsersSnapshot.exists()) {
+            const data = allUsersSnapshot.val() as Record<string, any>;
+            const matched = Object.entries(data).find(
+                ([, value]) =>
+                    typeof value?.email === 'string' &&
+                    value.email.trim().toLowerCase() === normalized
+            );
+            if (matched) {
+                const [key, value] = matched;
+                return { ...value, uid: value.uid || key };
+            }
+        }
+    } catch {
+        // Non-super-admin callers do not have root `/users` read access.
+    }
+
     return null;
 };
 

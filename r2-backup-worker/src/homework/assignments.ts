@@ -526,9 +526,8 @@ async function resolveTarget(
         if (role === 'super_admin') {
             studentIds.forEach((studentId) => allowedStudentIds.add(studentId));
         } else {
-            const [classes, linkedStudents, assignments] = await Promise.all([
+            const [classes, assignments] = await Promise.all([
                 readRtdb<Record<string, any>>(env, accessToken, 'classes'),
-                readRtdb<Record<string, any>>(env, accessToken, 'student_teacher_links/' + uid),
                 readRtdb<Record<string, any>>(env, accessToken, 'student_teacher_assignments'),
             ]);
 
@@ -541,6 +540,12 @@ async function resolveTarget(
                 }
                 const students = isRecord(classData.students) ? classData.students : {};
                 Object.entries(students).forEach(([studentKey, entry]) => {
+                    if (
+                        isRecord(entry) &&
+                        (entry.status === 'pending_approval' || entry.status === 'removed')
+                    ) {
+                        return;
+                    }
                     allowedStudentIds.add(studentKey);
                     if (isRecord(entry) && typeof entry.uid === 'string' && entry.uid.trim()) {
                         const studentUid = entry.uid.trim();
@@ -550,12 +555,8 @@ async function resolveTarget(
                 });
             });
 
-            Object.entries(linkedStudents ?? {}).forEach(([studentId, linked]) => {
-                if (linked === true || (isRecord(linked) && linked.status === 'active')) {
-                    allowedStudentIds.add(studentId);
-                }
-            });
-
+            // Authorize teacher-student targets strictly from active assignment rows
+            // rather than trusting denormalized student_teacher_links alone.
             Object.values(assignments ?? {}).forEach((assignment) => {
                 if (
                     isRecord(assignment) &&

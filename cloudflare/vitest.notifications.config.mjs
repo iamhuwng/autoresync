@@ -18,6 +18,7 @@ export default defineConfig({
       'test/course-enrollment-approval-route.test.ts',
       'test/course-enrollment-authority.test.ts',
       'test/homework-submission-notification-worker.test.ts',
+      'test/writing-notification-teacher-link.test.ts',
     ],
     fileParallelism: false,
     maxWorkers: 1,

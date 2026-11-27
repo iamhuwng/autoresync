@@ -13,7 +13,7 @@ import { FEATURE_IDS } from '../config/featureRegistry';
 import { toast } from '../components/modern/ToastNotification';
 import { getAllCourses, getCoursesByOwner } from '../services/courseManager';
 import { getClasses, enrollStudent } from '../services/classManager';
-import { removeAssignment } from '../services/assignmentManager';
+import { removeAssignments } from '../services/assignmentManager';
 import { IconUsers, IconTrendingUp, IconUserPlus } from '@tabler/icons-react';
 
 // Custom Hooks
@@ -140,21 +140,28 @@ const AdminUserManagementPage = () => {
     }
   };
 
-  const handleConfirmRelease = async (assignmentIds, unenrollCourseIds) => {
+  const handleConfirmRelease = async (assignmentIds) => {
     if (!modals.modals.studentToRelease) return;
+    const studentLabel = modals.modals.studentToRelease.displayName || modals.modals.studentToRelease.email || 'Student';
     modals.setReleaseLoading(true);
     try {
-      const results = await Promise.all(assignmentIds.map(id =>
-        removeAssignment(id, 'Released by admin/teacher', unenrollCourseIds)
-      ));
-      const failed = results.filter(r => !r.success);
-      if (failed.length > 0) userManagement.setError(`Failed to release ${failed.length} assignment(s)`);
-      else {
-        userManagement.setSuccessMessage(`Successfully released ${modals.modals.studentToRelease.displayName || modals.modals.studentToRelease.email}`);
-        await userManagement.loadUsers().then(() => assignments.loadAssignments());
+      const result = await removeAssignments(assignmentIds, 'Released by admin/teacher');
+      const succeededCount = result.releasedIds.length;
+      const failedCount = Math.max(result.failed.length, assignmentIds.length - succeededCount);
+      if (succeededCount > 0) {
+        await userManagement.loadUsers().then(() => assignments.loadAssignments({ force: true }));
+      }
+      if (failedCount > 0 || !result.success) {
+        toast.error(
+          succeededCount > 0
+            ? `Released ${succeededCount} of ${assignmentIds.length} assignments for ${studentLabel}, but ${failedCount} failed.`
+            : `Failed to release ${failedCount} assignment(s) for ${studentLabel}.`
+        );
+      } else {
+        toast.success(`Released ${studentLabel}.`);
       }
     } catch (err) {
-      userManagement.setError('Failed to release student. Please try again.');
+      toast.error('Failed to release student. Please try again.');
     } finally {
       modals.setReleaseLoading(false);
       modals.closeReleaseModal();

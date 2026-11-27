@@ -6,7 +6,8 @@ import { ref, set, get, push, update } from 'firebase/database';
 
 // Mock dependencies
 vi.mock('./firebase', () => ({
-    database: {}
+    database: {},
+    auth: { currentUser: { uid: 'student-1' } }
 }));
 
 vi.mock('firebase/database', () => ({
@@ -41,12 +42,28 @@ describe('Enrollment Inheritance Integration', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
-        (ref as any).mockReturnValue('ref');
+        (ref as any).mockImplementation((_db: unknown, path?: string) => path || '');
         (push as any).mockReturnValue({ key: 'new-id' });
-        // Default get mock to return a valid class
-        (get as any).mockResolvedValue({
-            exists: () => true,
-            val: () => mockClass
+        // Path-aware get mock supporting both scoped self-join reads and class reads
+        (get as any).mockImplementation(async (path: string) => {
+            if (typeof path === 'string' && path.endsWith('/status')) {
+                return { exists: () => true, val: () => mockClass.status };
+            }
+            if (typeof path === 'string' && path.endsWith('/stats/totalStudents')) {
+                return { exists: () => true, val: () => mockClass.stats.totalStudents };
+            }
+            if (
+                typeof path === 'string' &&
+                (path.includes('/students/') ||
+                    path.includes('/membershipDecisions/') ||
+                    path.endsWith('/settings/maxStudents'))
+            ) {
+                return { exists: () => false, val: () => null };
+            }
+            return {
+                exists: () => true,
+                val: () => mockClass
+            };
         });
     });
 

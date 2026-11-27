@@ -1,4 +1,13 @@
-/* StudentCard - native replacement for the former Mantine card internals. */
+/* StudentGrid & StudentCard - native replacement for the former Mantine card internals. */
+
+.student-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: 1.5rem;
+  padding: 0.5rem 0;
+  width: 100%;
+  min-width: 0;
+}
 
 .student-card-item {
   animation: student-card-enter 0.28s ease-out backwards;
