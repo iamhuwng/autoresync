@@ -351,10 +351,11 @@ describe('RTDB Teacher Roster Isolation Rules', () => {
     await assertFails(studentRemoved.ref('classes/class-b/students').get());
     await assertFails(studentRemoved.ref('classes/class-b/createdBy').get());
 
-    // Capacity validation prevents increasing stats/totalStudents past settings/maxStudents
+    // Capacity validation prevents increasing stats/totalStudents past settings/maxStudents,
+    // and the counter can never move without a paired seat transition.
     const teacherB = env.authenticatedContext('teacher-b').database();
     await assertFails(teacherB.ref('classes/class-b/stats/totalStudents').set(51));
-    await assertSucceeds(teacherB.ref('classes/class-b/stats/totalStudents').set(50));
+    await assertFails(teacherB.ref('classes/class-b/stats/totalStudents').set(50));
 
     // Cross-tab CAS capacity check on a 1-seat class with two pending applicants:
     // only one approval with totalStudents 0 -> 1 succeeds; a second tab with stale
@@ -463,6 +464,241 @@ describe('RTDB Teacher Roster Isolation Rules', () => {
       })
     );
 
+    // Status-less new student row and removed->active reactivation are also seat-consuming and blocked when full/uncounted
+    await assertFails(
+      teacherB.ref().update({
+        'classes/class-one-seat/students/student-guest': {
+          id: 'student-guest',
+          name: 'Guest',
+          joinedAt: 2005,
+        },
+      })
+    );
+    await env.withSecurityRulesDisabled(async (context) => {
+      await context.database().ref('classes/class-one-seat/students/student-removed').set({
+        id: 'student-removed',
+        uid: 'student-removed',
+        status: 'removed',
+        joinedAt: 1500,
+      });
+    });
+    await assertFails(
+      teacherB.ref().update({
+        'classes/class-one-seat/students/student-removed/status': 'active',
+      })
+    );
+
+    // Concurrent removals from a 2-seat class enforce -1 CAS on stats/totalStudents
+    await env.withSecurityRulesDisabled(async (context) => {
+      await context.database().ref('classes/class-two-seats').set({
+        id: 'class-two-seats',
+        classCode: 'TWOST2',
+        name: 'Two Seat Class',
+        createdBy: 'teacher-b',
+        status: 'active',
+        settings: { maxStudents: 2 },
+        stats: { totalStudents: 2, activeStudents: 2 },
+        students: {
+          'student-1': { id: 'student-1', uid: 'student-1', status: 'active', joinedAt: 1000 },
+          'student-2': { id: 'student-2', uid: 'student-2', status: 'active', joinedAt: 1001 },
+        },
+      });
+    });
+    // Removal without atomic stats decrement fails
+    await assertFails(teacherB.ref('classes/class-two-seats/students/student-1').remove());
+    // Tab 1 removes student-1 with 2 -> 1: succeeds
+    await assertSucceeds(
+      teacherB.ref().update({
+        'classes/class-two-seats/students/student-1': null,
+        'classes/class-two-seats/stats/totalStudents': 1,
+        'classes/class-two-seats/stats/lastSeatStudentId': 'student-1',
+      })
+    );
+    // Tab 2 tries stale removal of student-2 with totalStudents = 1: fails
+    await assertFails(
+      teacherB.ref().update({
+        'classes/class-two-seats/students/student-2': null,
+        'classes/class-two-seats/stats/totalStudents': 1,
+        'classes/class-two-seats/stats/lastSeatStudentId': 'student-2',
+      })
+    );
+    // Tab 2 retries removal of student-2 with 1 -> 0: succeeds
+    await assertSucceeds(
+      teacherB.ref().update({
+        'classes/class-two-seats/students/student-2': null,
+        'classes/class-two-seats/stats/totalStudents': 0,
+        'classes/class-two-seats/stats/lastSeatStudentId': 'student-2',
+      })
+    );
+
     await assertSucceeds(admin.ref('classes').get());
+  });
+
+  it('binds stats/totalStudents to a paired seat transition and bootstraps counterless classes from the roster', async () => {
+    const teacherB = env.authenticatedContext('teacher-b').database();
+    const admin = env.authenticatedContext('admin-1').database();
+
+    // class-b: totalStudents 1, maxStudents 50, student-2 active, student-pending pending.
+    // The counter cannot be lowered, raised, or deleted without a matching seat transition.
+    await assertFails(teacherB.ref('classes/class-b/stats/totalStudents').set(0));
+    await assertFails(teacherB.ref('classes/class-b/stats/totalStudents').set(2));
+    await assertFails(teacherB.ref('classes/class-b/stats/totalStudents').remove());
+    await assertFails(teacherB.ref('classes/class-b/stats').remove());
+    // A lowering witnessed by a student who still holds a seat is rejected.
+    await assertFails(
+      teacherB.ref().update({
+        'classes/class-b/stats/totalStudents': 0,
+        'classes/class-b/stats/lastSeatStudentId': 'student-2',
+      })
+    );
+    // A raise witnessed by a student who is not entering a seat is rejected.
+    await assertFails(
+      teacherB.ref().update({
+        'classes/class-b/stats/totalStudents': 2,
+        'classes/class-b/stats/lastSeatStudentId': 'student-pending',
+      })
+    );
+    // Activating one student while jumping the counter by +2 is rejected.
+    await assertFails(
+      teacherB.ref().update({
+        'classes/class-b/students/student-pending/status': 'active',
+        'classes/class-b/students/student-pending/approvedAt': 3000,
+        'classes/class-b/students/student-pending/approvedBy': 'teacher-b',
+        'classes/class-b/stats/totalStudents': 3,
+        'classes/class-b/stats/lastSeatStudentId': 'student-pending',
+      })
+    );
+    // The paired +1 succeeds.
+    await assertSucceeds(
+      teacherB.ref().update({
+        'classes/class-b/students/student-pending/status': 'active',
+        'classes/class-b/students/student-pending/approvedAt': 3000,
+        'classes/class-b/students/student-pending/approvedBy': 'teacher-b',
+        'classes/class-b/stats/totalStudents': 2,
+        'classes/class-b/stats/lastSeatStudentId': 'student-pending',
+      })
+    );
+    // Demoting one student while activating another in one write is rejected (opposing CAS).
+    await assertFails(
+      teacherB.ref().update({
+        'classes/class-b/students/student-pending/status': 'pending_approval',
+        'classes/class-b/students/student-removed/status': 'active',
+        'classes/class-b/stats/totalStudents': 2,
+        'classes/class-b/stats/lastSeatStudentId': 'student-removed',
+      })
+    );
+    // Only super_admin may repair a drifted counter directly.
+    await assertSucceeds(admin.ref('classes/class-b/stats/totalStudents').set(2));
+
+    // Notification Worker approve/direct-add tokens are bound to their own student.
+    await env.withSecurityRulesDisabled(async (context) => {
+      await context.database().ref('classes/class-worker-bound').set({
+        id: 'class-worker-bound',
+        classCode: 'WRKBND',
+        name: 'Worker Bound Class',
+        createdBy: 'teacher-b',
+        status: 'active',
+        settings: { maxStudents: 5 },
+        stats: { totalStudents: 0, activeStudents: 0 },
+        students: {
+          'student-1': { id: 'student-1', uid: 'student-1', status: 'pending_approval', joinedAt: 1000 },
+          'student-2': { id: 'student-2', uid: 'student-2', status: 'pending_approval', joinedAt: 1001 },
+        },
+      });
+    });
+    const workerToken = env.authenticatedContext('notification-class-action:act-bound', {
+      notificationClassAction: true,
+      actionId: 'act-bound',
+      classId: 'class-worker-bound',
+      studentId: 'student-2',
+      actionKind: 'approve',
+      actorUid: 'teacher-b',
+    }).database();
+    // Rewriting the counter on behalf of another student's seat is rejected.
+    await assertFails(
+      workerToken.ref().update({
+        'classes/class-worker-bound/stats/totalStudents': 1,
+        'classes/class-worker-bound/stats/lastSeatStudentId': 'student-1',
+      })
+    );
+    await assertFails(workerToken.ref('classes/class-worker-bound/stats/activeStudents').set(99));
+    // The Worker's own paired approval commits.
+    await assertSucceeds(
+      workerToken.ref().update({
+        'classes/class-worker-bound/students/student-2/status': 'active',
+        'classes/class-worker-bound/stats/totalStudents': 1,
+        'classes/class-worker-bound/stats/activeStudents': 1,
+        'classes/class-worker-bound/stats/lastSeatStudentId': 'student-2',
+      })
+    );
+
+    // Counterless (legacy) class that already has an active student and a pending applicant.
+    await env.withSecurityRulesDisabled(async (context) => {
+      await context.database().ref('classes/class-counterless').set({
+        id: 'class-counterless',
+        classCode: 'CNTLSS',
+        name: 'Counterless Class',
+        createdBy: 'teacher-b',
+        status: 'active',
+        settings: { maxStudents: 2 },
+        students: {
+          'student-1': { id: 'student-1', uid: 'student-1', status: 'active', joinedAt: 1000 },
+          'student-pending': { id: 'student-pending', uid: 'student-pending', status: 'pending_approval', joinedAt: 1001 },
+        },
+      });
+    });
+    const newStudent = (id: string) => ({ id, uid: id, status: 'active', joinedAt: 4000 });
+    // A seat write that omits the counter is rejected.
+    await assertFails(
+      teacherB.ref('classes/class-counterless/students/student-2').set(newStudent('student-2'))
+    );
+    // Bootstrapping above maxStudents is rejected.
+    await assertFails(
+      teacherB.ref().update({
+        'classes/class-counterless/students/student-2': newStudent('student-2'),
+        'classes/class-counterless/stats/totalStudents': 3,
+        'classes/class-counterless/stats/lastSeatStudentId': 'student-2',
+      })
+    );
+    // Bootstrapping from the roster (1 active + this seat = 2) commits and fills the class.
+    await assertSucceeds(
+      teacherB.ref().update({
+        'classes/class-counterless/students/student-2': newStudent('student-2'),
+        'classes/class-counterless/stats/totalStudents': 2,
+        'classes/class-counterless/stats/activeStudents': 2,
+        'classes/class-counterless/stats/lastSeatStudentId': 'student-2',
+      })
+    );
+    // The now-initialized counter blocks any further seat (2 + 1 > maxStudents 2).
+    await assertFails(
+      teacherB.ref().update({
+        'classes/class-counterless/students/student-removed': newStudent('student-removed'),
+        'classes/class-counterless/stats/totalStudents': 2,
+        'classes/class-counterless/stats/lastSeatStudentId': 'student-removed',
+      })
+    );
+    await assertFails(
+      teacherB.ref().update({
+        'classes/class-counterless/students/student-removed': newStudent('student-removed'),
+        'classes/class-counterless/stats/totalStudents': 3,
+        'classes/class-counterless/stats/lastSeatStudentId': 'student-removed',
+      })
+    );
+
+    // Removing an active student from a counterless class has no counter to decrement.
+    await env.withSecurityRulesDisabled(async (context) => {
+      await context.database().ref('classes/class-counterless-remove').set({
+        id: 'class-counterless-remove',
+        classCode: 'CNTRMV',
+        name: 'Counterless Remove Class',
+        createdBy: 'teacher-b',
+        status: 'active',
+        settings: { maxStudents: 2 },
+        students: {
+          'student-1': { id: 'student-1', uid: 'student-1', status: 'active', joinedAt: 1000 },
+        },
+      });
+    });
+    await assertSucceeds(teacherB.ref('classes/class-counterless-remove/students/student-1').remove());
   });
 });

@@ -739,6 +739,175 @@ describe('Class Manager - Student Enrollment', () => {
     });
   });
 
+  it('bootstraps a missing stats/totalStudents counter from the roster so existing seats are never undercounted', async () => {
+    const created = await createClass(
+      { name: 'Counterless Seats Class', settings: { maxStudents: 3 } },
+      TEST_TEACHER_UID
+    );
+    const classId = created.classId!;
+
+    await enrollStudent(classId, TEST_STUDENT_UID, 'Student 1', 'student1@test.com', { approvalMode: 'active' });
+    await enrollStudent(classId, TEST_STUDENT_UID_2, 'Student 2', 'student2@test.com', { approvalMode: 'active' });
+    // A pending applicant must not count toward the bootstrapped seat counter.
+    await enrollAsStudent(classId, 'student-pending', 'Pending', 'pending@test.com');
+    removeValueAtPath(`classes/${classId}/stats`);
+
+    const third = await enrollStudent(classId, 'student-3', 'Student 3', 'student3@test.com', { approvalMode: 'active' });
+    expect(third.success).toBe(true);
+    expect(getValueAtPath(`classes/${classId}/stats`)).toMatchObject({
+      totalStudents: 3,
+      activeStudents: 3,
+      lastSeatStudentId: 'student-3',
+    });
+
+    const guest = await addStudent(classId, 'Guest');
+    expect(guest.success).toBe(false);
+    expect(guest.error).toContain('full');
+
+    const approve = await approveAsTeacher(classId, 'student-pending', TEST_TEACHER_UID);
+    expect(approve.success).toBe(false);
+    expect(approve.error).toContain('full');
+  });
+
+  it('bootstraps the counter from the roster for guest adds and approvals on a counterless class', async () => {
+    const created = await createClass(
+      { name: 'Counterless Guest Class', settings: { maxStudents: 4 } },
+      TEST_TEACHER_UID
+    );
+    const classId = created.classId!;
+
+    await enrollStudent(classId, TEST_STUDENT_UID, 'Student 1', 'student1@test.com', { approvalMode: 'active' });
+    await enrollStudent(classId, TEST_STUDENT_UID_2, 'Student 2', 'student2@test.com', { approvalMode: 'active' });
+    removeValueAtPath(`classes/${classId}/stats`);
+
+    const guest = await addStudent(classId, 'Guest');
+    expect(guest.success).toBe(true);
+    expect(getValueAtPath(`classes/${classId}/stats`)).toMatchObject({ totalStudents: 3, activeStudents: 3 });
+
+    await enrollAsStudent(classId, 'student-pending', 'Pending', 'pending@test.com');
+    removeValueAtPath(`classes/${classId}/stats`);
+    const approve = await approveAsTeacher(classId, 'student-pending', TEST_TEACHER_UID);
+    expect(approve.success).toBe(true);
+    expect(getValueAtPath(`classes/${classId}/stats`)).toMatchObject({
+      totalStudents: 4,
+      activeStudents: 4,
+      lastSeatStudentId: 'student-pending',
+    });
+  });
+
+  it('does not invent a seat counter when removing from a counterless class', async () => {
+    const created = await createClass(
+      { name: 'Counterless Removal Class', settings: { maxStudents: 2 } },
+      TEST_TEACHER_UID
+    );
+    const classId = created.classId!;
+
+    await enrollStudent(classId, TEST_STUDENT_UID, 'Student 1', 'student1@test.com', { approvalMode: 'active' });
+    await enrollStudent(classId, TEST_STUDENT_UID_2, 'Student 2', 'student2@test.com', { approvalMode: 'active' });
+    removeValueAtPath(`classes/${classId}/stats`);
+
+    const removed = await removeStudentFromClass(classId, TEST_STUDENT_UID);
+    expect(removed.success).toBe(true);
+    const stats = getValueAtPath(`classes/${classId}/stats`) as Record<string, unknown>;
+    expect(stats).toMatchObject({ activeStudents: 1 });
+    expect(stats).not.toHaveProperty('totalStudents');
+
+    // The next seat write bootstraps the counter from the real roster (1 active + 1 new).
+    const rejoin = await enrollStudent(classId, 'student-3', 'Student 3', 'student3@test.com', { approvalMode: 'active' });
+    expect(rejoin.success).toBe(true);
+    expect(getValueAtPath(`classes/${classId}/stats`)).toMatchObject({ totalStudents: 2, activeStudents: 2 });
+    const full = await addStudent(classId, 'Guest');
+    expect(full.success).toBe(false);
+  });
+
+  it('reports failure and commits nothing when capacity CAS attempts are exhausted', async () => {
+    const created = await createClass(
+      { name: 'CAS Exhaustion Class', settings: { maxStudents: 5 } },
+      TEST_TEACHER_UID
+    );
+    const classId = created.classId!;
+    await enrollStudent(classId, TEST_STUDENT_UID, 'Student 1', 'student1@test.com', { approvalMode: 'active' });
+    await enrollAsStudent(classId, 'student-pending', 'Pending', 'pending@test.com');
+
+    const updateMock = vi.mocked(update);
+    const originalUpdate = updateMock.getMockImplementation();
+    if (!originalUpdate) {
+      throw new Error('Expected mocked firebase update implementation');
+    }
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    let counterWrites = 0;
+    updateMock.mockImplementation(async (target, updates) => {
+      if (Object.keys(updates).some((key) => key.endsWith('stats/totalStudents'))) {
+        counterWrites += 1;
+        throw Object.assign(new Error('PERMISSION_DENIED: Permission denied'), { code: 'PERMISSION_DENIED' });
+      }
+      return originalUpdate(target, updates);
+    });
+
+    try {
+      const enrolled = await enrollStudent(classId, TEST_STUDENT_UID_2, 'Student 2', 'student2@test.com', { approvalMode: 'active' });
+      expect(enrolled.success).toBe(false);
+      expect(counterWrites).toBe(3);
+
+      counterWrites = 0;
+      const guest = await addStudent(classId, 'Guest');
+      expect(guest.success).toBe(false);
+      expect(counterWrites).toBe(3);
+
+      counterWrites = 0;
+      const approved = await approveAsTeacher(classId, 'student-pending', TEST_TEACHER_UID);
+      expect(approved.success).toBe(false);
+      expect(counterWrites).toBe(3);
+
+      counterWrites = 0;
+      const removed = await removeStudentFromClass(classId, TEST_STUDENT_UID);
+      expect(removed.success).toBe(false);
+      expect(counterWrites).toBe(3);
+    } finally {
+      updateMock.mockImplementation(originalUpdate);
+      errorSpy.mockRestore();
+    }
+
+    const classData = getValueAtPath(`classes/${classId}`) as {
+      students: Record<string, { status?: string }>;
+      stats: Record<string, unknown>;
+    };
+    expect(Object.keys(classData.students).sort()).toEqual([TEST_STUDENT_UID, 'student-pending'].sort());
+    expect(classData.students['student-pending'].status).toBe('pending_approval');
+    expect(classData.stats).toMatchObject({ totalStudents: 1 });
+  });
+
+  it('serializes concurrent student removals so stats/totalStudents reaches 0 and re-opens capacity', async () => {
+    const created = await createClass(
+      {
+        name: 'Two-Seat Removal Class',
+        settings: { maxStudents: 2 },
+      },
+      TEST_TEACHER_UID
+    );
+    const classId = created.classId!;
+
+    await enrollStudent(classId, TEST_STUDENT_UID, 'Student 1', 'student1@test.com', { approvalMode: 'active' });
+    await enrollStudent(classId, TEST_STUDENT_UID_2, 'Student 2', 'student2@test.com', { approvalMode: 'active' });
+
+    const [r1, r2] = await Promise.all([
+      removeStudentFromClass(classId, TEST_STUDENT_UID),
+      removeStudentFromClass(classId, TEST_STUDENT_UID_2),
+    ]);
+    expect(r1.success).toBe(true);
+    expect(r2.success).toBe(true);
+
+    const storedStats = getValueAtPath(`classes/${classId}/stats`) as Record<string, unknown>;
+    expect(storedStats).toMatchObject({
+      totalStudents: 0,
+      activeStudents: 0,
+    });
+
+    // Re-enrolling a new student succeeds immediately after both removals
+    const rejoin = await enrollStudent(classId, 'student-3', 'Student 3', 'student3@test.com', { approvalMode: 'active' });
+    expect(rejoin.success).toBe(true);
+  });
+
   it('keeps the membership roster authoritative when a student self-joins', async () => {
     const beforeData = await getClass(testClassId);
     const beforeCount = beforeData?.stats.totalStudents || 0;

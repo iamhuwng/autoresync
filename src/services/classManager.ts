@@ -159,8 +159,12 @@ function normalizeClassSession(classId: string, cls: ClassSession): ClassSession
       allowLateJoin: true,
       requireEmail: false,
     },
+    // `stats.totalStudents` counts seat-consuming students (the persisted counter's
+    // meaning), never pending/removed rows, so a synthesized value cannot overstate
+    // or understate capacity.
     stats: cls.stats || {
-      totalStudents: Object.keys(students).length,
+      totalStudents: Object.values(students).filter((student) =>
+        !student.status || student.status === 'active').length,
       activeStudents: Object.values(students).filter((student) =>
         !student.status || student.status === 'active').length,
       totalAssignments: Object.keys(assignments).length,
@@ -207,28 +211,18 @@ async function canCurrentActorWriteClassStats(classOwnerId?: string): Promise<bo
   }
 }
 
-async function updateEnrollmentStatsIfAuthorized(
-  classId: string,
-  classData: ClassSession,
-  now: number
-): Promise<void> {
-  const canWriteStats = await canCurrentActorWriteClassStats(classData.createdBy);
+function isSeatConsumingStudent(student: Pick<ClassStudent, 'status'>): boolean {
+  return !student.status || student.status === 'active';
+}
 
-  if (!canWriteStats) {
-    return;
-  }
-
-  try {
-    const classRef = ref(database, `${CLASSES_REF}/${classId}`);
-    await update(classRef, {
-      'stats/totalStudents': (classData.stats?.totalStudents || 0) + 1,
-      'stats/activeStudents': (classData.stats?.activeStudents || 0) + 1,
-      updatedAt: now,
-    });
-  } catch (error) {
-    // Stats are derived/auxiliary; enrollment should still succeed if this fails.
-    console.warn(`[ClassManager] Failed to update enrollment stats for class ${classId}:`, error);
-  }
+/**
+ * Seat counter the next seat-consuming write must CAS against. A stored
+ * `stats/totalStudents` is authoritative (RTDB rules require exactly +1). A class
+ * without a stored counter bootstraps it from the real seat-consuming roster so
+ * the first seat write cannot undercount students that already hold seats.
+ */
+function resolveSeatBaseline(persistedTotalStudents: number | null, activeSeatCount: number): number {
+  return persistedTotalStudents ?? activeSeatCount;
 }
 
 function buildClassSummary(classId: string, cls: ClassSession): ClassSummary {
@@ -437,6 +431,23 @@ export async function createClass(request: CreateClassRequest, ownerId?: string)
   }
 }
 
+async function readClassWithPersistedStats(
+  classId: string
+): Promise<{ classData: ClassSession; persistedTotalStudents: number | null } | null> {
+  const snapshot = await get(ref(database, `${CLASSES_REF}/${classId}`));
+  if (!snapshot.exists()) {
+    return null;
+  }
+  const raw = snapshot.val() as ClassSession;
+  const rawTotal = raw?.stats?.totalStudents;
+  const persistedTotalStudents =
+    typeof rawTotal === 'number' && Number.isFinite(rawTotal) ? rawTotal : null;
+  return {
+    classData: normalizeClassSession(classId, raw),
+    persistedTotalStudents,
+  };
+}
+
 /**
  * Remove a student from a class
  */
@@ -444,67 +455,88 @@ export async function removeStudentFromClass(
   classId: string,
   studentId: string
 ): Promise<{ success: boolean; error?: string }> {
-  try {
-    const classRef = ref(database, `${CLASSES_REF}/${classId}`);
-    const classSnapshot = await get(classRef);
-
-    if (!classSnapshot.exists()) {
-      return { success: false, error: 'Class not found' };
-    }
-
-    const classData = classSnapshot.val() as ClassSession;
-    const student = classData.students?.[studentId];
-
-    if (!student) {
-      return { success: false, error: 'Student not found in class' };
-    }
-
-    const now = Date.now();
-
-    await update(classRef, {
-      [`students/${studentId}`]: null,
-    });
-
-    if (student.uid) {
-      try {
-        await update(ref(database), {
-          [`${STUDENT_CLASSES_REF}/${student.uid}/${classId}`]: null,
-        });
-      } catch (cleanupError) {
-        console.warn(`[ClassManager] Failed to clean up student class projection for ${studentId}:`, cleanupError);
-      }
-    }
-
-    // Clean up class-based course enrollments for this student
+  return withClassCapacityLock(classId, async () => {
     try {
-      await cleanupClassBasedCourseEnrollments(classId, student.uid || studentId);
-    } catch (cleanupError) {
-      // Enrollment cleanup is best-effort; roster removal should still succeed.
-      console.warn(`[ClassManager] Failed to clean up class-based enrollments for ${studentId}:`, cleanupError);
-    }
+      const classRef = ref(database, `${CLASSES_REF}/${classId}`);
+      let removedStudent: ClassStudent | null = null;
 
-    // Update class stats if current actor has write permission
-    const canWriteStats = await canCurrentActorWriteClassStats(classData.createdBy);
-    if (canWriteStats) {
-      const totalStudents = classData.stats?.totalStudents ?? Object.keys(classData.students || {}).length;
-      const activeStudents = classData.stats?.activeStudents ?? Object.values(classData.students || {}).filter((s) => s.isOnline).length;
+      for (let attempt = 0; attempt < MAX_CAPACITY_CAS_ATTEMPTS; attempt += 1) {
+        const loaded = await readClassWithPersistedStats(classId);
+        if (!loaded) {
+          return { success: false, error: 'Class not found' };
+        }
 
-      try {
-        await update(classRef, {
-          'stats/totalStudents': Math.max(totalStudents - 1, 0),
-          'stats/activeStudents': Math.max(activeStudents - (student.isOnline ? 1 : 0), 0),
-          updatedAt: now,
-        });
-      } catch (statsError) {
-        console.warn(`[ClassManager] Failed to update class stats after removing ${studentId}:`, statsError);
+        const { classData, persistedTotalStudents } = loaded;
+        const student = classData.students?.[studentId];
+        if (!student) {
+          return { success: false, error: 'Student not found in class' };
+        }
+
+        const now = Date.now();
+        const wasActive = isSeatConsumingStudent(student);
+        const remainingActiveCount = Object.entries(classData.students || {}).filter(
+          ([id, entry]) => id !== studentId && isSeatConsumingStudent(entry)
+        ).length;
+        const canWriteStats = await canCurrentActorWriteClassStats(classData.createdBy);
+
+        const patch: Record<string, unknown> = {
+          [`students/${studentId}`]: null,
+        };
+        if (canWriteStats) {
+          if (wasActive) {
+            // RTDB rules require a stored counter to drop by exactly one together with
+            // the seat-consuming row, naming the removed student as the CAS witness.
+            // A class without a stored counter has nothing to decrement; its counter is
+            // bootstrapped from the roster by the next seat-consuming write.
+            if (persistedTotalStudents !== null) {
+              patch['stats/totalStudents'] = Math.max(persistedTotalStudents - 1, 0);
+              patch['stats/lastSeatStudentId'] = studentId;
+            }
+            patch['stats/activeStudents'] = remainingActiveCount;
+          }
+          patch.updatedAt = now;
+        }
+
+        try {
+          await update(classRef, patch);
+          removedStudent = student;
+          break;
+        } catch (writeError) {
+          if (isPermissionDeniedError(writeError) && attempt + 1 < MAX_CAPACITY_CAS_ATTEMPTS) {
+            continue;
+          }
+          throw writeError;
+        }
       }
-    }
 
-    return { success: true };
-  } catch (error) {
-    console.error('Error removing student from class:', error);
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-  }
+      if (!removedStudent) {
+        return { success: false, error: 'Failed to remove student from class' };
+      }
+
+      if (removedStudent.uid) {
+        try {
+          await update(ref(database), {
+            [`${STUDENT_CLASSES_REF}/${removedStudent.uid}/${classId}`]: null,
+          });
+        } catch (cleanupError) {
+          console.warn(`[ClassManager] Failed to clean up student class projection for ${studentId}:`, cleanupError);
+        }
+      }
+
+      // Clean up class-based course enrollments for this student
+      try {
+        await cleanupClassBasedCourseEnrollments(classId, removedStudent.uid || studentId);
+      } catch (cleanupError) {
+        // Enrollment cleanup is best-effort; roster removal should still succeed.
+        console.warn(`[ClassManager] Failed to clean up class-based enrollments for ${studentId}:`, cleanupError);
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error removing student from class:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  });
 }
 
 /**
@@ -847,58 +879,96 @@ export async function addStudent(
   studentName: string,
   studentEmail?: string
 ): Promise<{ success: boolean; studentId?: string; error?: string }> {
-  try {
-    const studentId = generateId();
-    const now = Date.now();
-
-    const student: ClassStudent = {
-      id: studentId,
-      name: studentName,
-      email: studentEmail,
-      joinedAt: now,
-      lastActiveAt: now,
-      isOnline: true,
-      assignments: {},
-    };
-
-    // Add student to class
-    const studentRef = ref(database, `${CLASSES_REF}/${classId}/students/${studentId}`);
-    await set(studentRef, student);
-
-    // Update class stats (best effort; do not fail enrollment)
+  return withClassCapacityLock(classId, async () => {
     try {
-      const classRef = ref(database, `${CLASSES_REF}/${classId}`);
-      const classSnapshot = await get(classRef);
+      const studentId = generateId();
+      let committedAt = 0;
 
-      if (classSnapshot.exists()) {
-        const classData = classSnapshot.val() as ClassSession;
-        await updateEnrollmentStatsIfAuthorized(classId, classData, now);
+      for (let attempt = 0; attempt < MAX_CAPACITY_CAS_ATTEMPTS; attempt += 1) {
+        const loaded = await readClassWithPersistedStats(classId);
+        const now = Date.now();
+        const student: ClassStudent = {
+          id: studentId,
+          name: studentName,
+          email: studentEmail,
+          joinedAt: now,
+          lastActiveAt: now,
+          isOnline: true,
+          assignments: {},
+        };
+
+        if (loaded) {
+          const { classData, persistedTotalStudents } = loaded;
+          const activeStudentCount = Object.values(classData.students || {}).filter(
+            isSeatConsumingStudent
+          ).length;
+          const persistedStatsTotal = persistedTotalStudents ?? 0;
+          const seatBaseline = resolveSeatBaseline(persistedTotalStudents, activeStudentCount);
+          const maxStudents = Number(classData.settings?.maxStudents);
+          if (
+            Number.isFinite(maxStudents) &&
+            maxStudents > 0 &&
+            Math.max(activeStudentCount, persistedStatsTotal) >= maxStudents
+          ) {
+            return { success: false, error: 'Class is full' };
+          }
+
+          const canWriteStats = await canCurrentActorWriteClassStats(classData.createdBy);
+          const patch: Record<string, unknown> = {
+            [`${CLASSES_REF}/${classId}/students/${studentId}`]: student,
+          };
+          if (canWriteStats) {
+            patch[`${CLASSES_REF}/${classId}/stats/totalStudents`] = seatBaseline + 1;
+            patch[`${CLASSES_REF}/${classId}/stats/activeStudents`] = activeStudentCount + 1;
+            patch[`${CLASSES_REF}/${classId}/stats/lastSeatStudentId`] = studentId;
+            patch[`${CLASSES_REF}/${classId}/updatedAt`] = now;
+          }
+
+          try {
+            await update(ref(database), patch);
+            committedAt = now;
+            break;
+          } catch (writeError) {
+            if (isPermissionDeniedError(writeError) && attempt + 1 < MAX_CAPACITY_CAS_ATTEMPTS) {
+              continue;
+            }
+            throw writeError;
+          }
+        }
+
+        const studentRef = ref(database, `${CLASSES_REF}/${classId}/students/${studentId}`);
+        await set(studentRef, student);
+        committedAt = now;
+        break;
       }
+
+      if (!committedAt) {
+        // Capacity CAS attempts exhausted without a committed write.
+        return { success: false, error: 'Failed to add student to class' };
+      }
+
+      // Also add to legacy session for backward compatibility
+      const legacyRef = ref(database, `${GAME_SESSIONS_REF}/${classId}/players/${studentId}`);
+      await set(legacyRef, {
+        name: studentName,
+        score: 0,
+        joinedAt: committedAt || Date.now(),
+      });
+
+      // Auto-enroll in class courses
+      try {
+        const { autoEnrollStudentInClassCourses } = await import('./enrollmentManager');
+        await autoEnrollStudentInClassCourses(classId, studentId);
+      } catch (e) {
+        console.warn('Failed to auto-enroll student in class courses:', e);
+      }
+
+      return { success: true, studentId };
     } catch (error) {
-      console.warn(`[ClassManager] Failed to read class for stats update (${classId}):`, error);
+      console.error('Error adding student:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
-
-    // Also add to legacy session for backward compatibility
-    const legacyRef = ref(database, `${GAME_SESSIONS_REF}/${classId}/players/${studentId}`);
-    await set(legacyRef, {
-      name: studentName,
-      score: 0,
-      joinedAt: now,
-    });
-
-    // Auto-enroll in class courses
-    try {
-      const { autoEnrollStudentInClassCourses } = await import('./enrollmentManager');
-      await autoEnrollStudentInClassCourses(classId, studentId);
-    } catch (e) {
-      console.warn('Failed to auto-enroll student in class courses:', e);
-    }
-
-    return { success: true, studentId };
-  } catch (error) {
-    console.error('Error adding student:', error);
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-  }
+  });
 }
 
 const classCapacityLocks = new Map<string, Promise<unknown>>();
@@ -1025,17 +1095,17 @@ export async function enrollStudent(
       }
 
       // Teacher/admin direct add commits membership + stats/totalStudents (+1 CAS)
-      // in one atomic multi-path update so concurrent tabs cannot exceed maxStudents.
+      // in one atomic multi-path update from a single raw class snapshot so
+      // concurrent tabs cannot exceed maxStudents.
       let committedAt = 0;
       for (let attempt = 0; attempt < MAX_CAPACITY_CAS_ATTEMPTS; attempt += 1) {
-        const [classData, persistedStatsSnap] = await Promise.all([
-          getClass(classCode),
-          get(ref(database, `${CLASSES_REF}/${classCode}/stats/totalStudents`)),
-        ]);
+        const loaded = await readClassWithPersistedStats(classCode);
 
-        if (!classData) {
+        if (!loaded) {
           return { success: false, error: 'Class not found' };
         }
+
+        const { classData, persistedTotalStudents } = loaded;
 
         if (classData.status !== 'active') {
           return { success: false, error: 'Class is not active' };
@@ -1056,10 +1126,10 @@ export async function enrollStudent(
         }
 
         const activeStudentCount = Object.values(classData.students || {}).filter(
-          (s) => !s.status || s.status === 'active'
+          isSeatConsumingStudent
         ).length;
-        const rawPersistedTotal = persistedStatsSnap.exists() ? Number(persistedStatsSnap.val()) : 0;
-        const persistedStatsTotal = Number.isFinite(rawPersistedTotal) ? rawPersistedTotal : 0;
+        const persistedStatsTotal = persistedTotalStudents ?? 0;
+        const seatBaseline = resolveSeatBaseline(persistedTotalStudents, activeStudentCount);
         const maxStudents = Number(classData.settings?.maxStudents);
         if (
           Number.isFinite(maxStudents) &&
@@ -1091,7 +1161,7 @@ export async function enrollStudent(
         try {
           await update(ref(database), {
             [`${CLASSES_REF}/${classCode}/students/${studentUid}`]: student,
-            [`${CLASSES_REF}/${classCode}/stats/totalStudents`]: persistedStatsTotal + 1,
+            [`${CLASSES_REF}/${classCode}/stats/totalStudents`]: seatBaseline + 1,
             [`${CLASSES_REF}/${classCode}/stats/activeStudents`]: activeStudentCount + 1,
             [`${CLASSES_REF}/${classCode}/stats/lastSeatStudentId`]: studentUid,
             [`${CLASSES_REF}/${classCode}/updatedAt`]: now,
@@ -1105,6 +1175,11 @@ export async function enrollStudent(
           }
           throw writeError;
         }
+      }
+
+      if (!committedAt) {
+        // Capacity CAS attempts exhausted without a committed write.
+        return { success: false, error: 'Failed to enroll student in class' };
       }
 
       void notifyCommittedEvent({
@@ -1155,13 +1230,12 @@ export async function approveClassStudent(
       // first; retrying re-reads fresh capacity and either claims the next seat
       // or returns "Class is full".
       for (let attempt = 0; attempt < MAX_CAPACITY_CAS_ATTEMPTS; attempt += 1) {
-        const [classData, persistedStatsSnap] = await Promise.all([
-          getClass(classCode),
-          get(ref(database, `${CLASSES_REF}/${classCode}/stats/totalStudents`)),
-        ]);
-        if (!classData) {
+        const loaded = await readClassWithPersistedStats(classCode);
+        if (!loaded) {
           return { success: false, error: 'Class not found' };
         }
+
+        const { classData, persistedTotalStudents } = loaded;
         if (teacherId !== classData.createdBy || await getCurrentActorUid() !== classData.createdBy) {
           return { success: false, error: 'Class owner mismatch' };
         }
@@ -1175,10 +1249,10 @@ export async function approveClassStudent(
         }
 
         const currentActiveCount = Object.entries(classData.students || {}).filter(
-          ([id, entry]) => id !== studentId && (!entry.status || entry.status === 'active')
+          ([id, entry]) => id !== studentId && isSeatConsumingStudent(entry)
         ).length;
-        const rawPersistedTotal = persistedStatsSnap.exists() ? Number(persistedStatsSnap.val()) : 0;
-        const persistedStatsTotal = Number.isFinite(rawPersistedTotal) ? rawPersistedTotal : 0;
+        const persistedStatsTotal = persistedTotalStudents ?? 0;
+        const seatBaseline = resolveSeatBaseline(persistedTotalStudents, currentActiveCount);
         const maxStudents = Number(classData.settings?.maxStudents);
         if (
           Number.isFinite(maxStudents) &&
@@ -1189,7 +1263,7 @@ export async function approveClassStudent(
         }
 
         const now = Date.now();
-        const nextStatsTotal = persistedStatsTotal + 1;
+        const nextStatsTotal = seatBaseline + 1;
         const activeCountAfterApproval = currentActiveCount + 1;
         studentUidForCourses = student.uid || studentId;
 
@@ -1215,6 +1289,11 @@ export async function approveClassStudent(
           }
           throw writeError;
         }
+      }
+
+      if (!approvedAt) {
+        // Capacity CAS attempts exhausted without a committed write.
+        return { success: false, error: 'Failed to approve student' };
       }
 
       void notifyCommittedEvent({

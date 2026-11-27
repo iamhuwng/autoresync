@@ -5962,18 +5962,19 @@ var performClassAction = /* @__PURE__ */ __name2(async (input) => {
     return Boolean(row) && (!row.status || row.status === "active");
   }).length;
   const rawPersistedTotal = record3(classData.stats)?.totalStudents;
-  const persistedTotal = typeof rawPersistedTotal === "number" && Number.isFinite(rawPersistedTotal) ? rawPersistedTotal : 0;
+  const persistedTotal = typeof rawPersistedTotal === "number" && Number.isFinite(rawPersistedTotal) ? rawPersistedTotal : null;
+  const seatBaseline = persistedTotal ?? activeCount;
   const max = record3(classData.settings)?.maxStudents;
   if (command.kind === "join-pending" || command.kind === "direct-add") {
     if (currentStudent || Object.values(students).some((value) => record3(value)?.uid === command.studentId)) {
       return { status: 409, body: { code: "class_action_membership_exists" } };
     }
-    if (typeof max === "number" && max > 0 && Math.max(activeCount, persistedTotal) >= max) {
+    if (typeof max === "number" && max > 0 && Math.max(activeCount, persistedTotal ?? 0) >= max) {
       return { status: 409, body: { code: "class_action_class_full" } };
     }
   } else if (!currentStudent || currentStudent.status !== "pending_approval") {
     return { status: 409, body: { code: "class_action_stale" } };
-  } else if (command.kind === "approve" && typeof max === "number" && max > 0 && Math.max(activeCount, persistedTotal) >= max) {
+  } else if (command.kind === "approve" && typeof max === "number" && max > 0 && Math.max(activeCount, persistedTotal ?? 0) >= max) {
     return { status: 409, body: { code: "class_action_class_full" } };
   }
   const studentProfile = command.kind === "join-pending" || command.kind === "direct-add" ? record3(await storage.read(`users/${command.studentId}`)) : null;
@@ -6016,7 +6017,7 @@ var performClassAction = /* @__PURE__ */ __name2(async (input) => {
       value: command.kind === "reject" ? null : command.kind === "approve" ? { ...currentStudent, status: "active" } : studentRow
     },
     ...(command.kind === "direct-add" || command.kind === "approve" ? [
-      { path: `classes/${command.classId}/stats/totalStudents`, value: persistedTotal + 1 },
+      { path: `classes/${command.classId}/stats/totalStudents`, value: seatBaseline + 1 },
       { path: `classes/${command.classId}/stats/activeStudents`, value: activeCount + 1 },
       { path: `classes/${command.classId}/stats/lastSeatStudentId`, value: command.studentId }
     ] : []),
