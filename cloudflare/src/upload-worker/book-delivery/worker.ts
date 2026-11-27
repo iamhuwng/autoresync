@@ -777,9 +777,10 @@ export const deriveFullPdfActivityPageGroupsFromManifest = (
   for (const placement of placements) {
     const unit = units.find((candidate) => candidate.unitKey === placement.nodeKey);
     if (!unit) continue;
-    const groupKeys = placement.pageGroupKeys.length > 0
-      ? placement.pageGroupKeys
-      : (placement.navigationPageGroupKeys ?? []);
+    const groupKeys = [
+      ...placement.pageGroupKeys,
+      ...(placement.navigationPageGroupKeys ?? []),
+    ];
     for (const pageGroupKey of groupKeys) {
       const scopedKey = `${unit.unitKey.length}:${unit.unitKey}:${pageGroupKey}`;
       if (seenScopedKeys.has(scopedKey)) continue;
@@ -803,24 +804,44 @@ export const deriveFullPdfActivityPageGroupsFromPublicationScope = (
   binding: BookDeliveryBinding,
   scope: BookAssemblyPublicationScope<BookAssemblyPublicationResult>,
 ): readonly BookDeliveryReferencePageGroup[] | undefined => {
-  if (binding.sourceSet.strategy !== 'full_pdf') return undefined;
-  const allowedSourceKey = binding.sourceSet.sources[0]?.sourceKey;
-  if (!allowedSourceKey) return undefined;
+  if (binding.sourceSet.strategy !== 'full_pdf' || binding.sourceSet.sources.length !== 1) return undefined;
+  const boundSource = binding.sourceSet.sources[0]!;
+  const allowedSourceKey = boundSource.sourceKey;
   const version = scope.versions?.[binding.book.manifestVersionId];
   if (!version
+    || version.lifecycle !== 'published'
     || version.strategy !== 'full_pdf'
+    || version.manifestVersionId !== binding.book.manifestVersionId
     || version.bookId !== binding.book.bookId
     || version.ownerId !== binding.issuer.ownerId
     || version.publicationId !== binding.book.publicationId
-    || version.publicationRevision !== binding.book.publicationRevision) {
+    || version.publicationRevision !== binding.book.publicationRevision
+    || version.manifest?.sourceSet?.sourceStrategy !== 'full_pdf'
+    || !Array.isArray(version.manifest.sourceSet.sources)
+    || version.manifest.sourceSet.sources.length !== 1
+    || version.manifest.sourceSet.sources[0]!.sourceKey !== allowedSourceKey
+    || version.manifest.sourceSet.sources[0]!.sourceVersionId !== boundSource.sourceVersionId) {
     return undefined;
   }
+  const requiredScopedKeys = new Set<string>();
+  for (const placement of binding.placements) {
+    for (const pageGroupKey of [...placement.pageGroupKeys, ...(placement.navigationPageGroupKeys ?? [])]) {
+      requiredScopedKeys.add(`${placement.nodeKey.length}:${placement.nodeKey}:${pageGroupKey}`);
+    }
+  }
+  if (requiredScopedKeys.size === 0) return [];
   const groups = deriveFullPdfActivityPageGroupsFromManifest(
     version.manifest.units,
     allowedSourceKey,
     binding.placements,
   );
-  return groups.length > 0 ? groups : undefined;
+  const derivedKeys = new Set(
+    groups.map((group) => `${group.nodeKey.length}:${group.nodeKey}:${group.pageGroupKey}`),
+  );
+  for (const requiredKey of requiredScopedKeys) {
+    if (!derivedKeys.has(requiredKey)) return undefined;
+  }
+  return groups;
 };
 
 export const readTrustedFullPdfActivityPageGroups = async (
@@ -829,7 +850,6 @@ export const readTrustedFullPdfActivityPageGroups = async (
   publicationRepository?: Pick<BookAssemblyPublicationRepository<BookAssemblyPublicationResult>, 'readScope'>,
 ): Promise<readonly BookDeliveryReferencePageGroup[] | undefined> => {
   if (binding.sourceSet.strategy !== 'full_pdf') return undefined;
-  if (binding.activityPageGroups && binding.activityPageGroups.length > 0) return binding.activityPageGroups;
   try {
     const repo = publicationRepository
       ?? new FirebaseRestBookAssemblyPublicationRepository({ env, ownerId: binding.issuer.ownerId });

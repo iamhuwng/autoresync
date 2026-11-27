@@ -1,7 +1,10 @@
 import type { BookDeliveryBinding } from '../../../../src/services/book-delivery/bookDelivery.types.ts';
 import type { BookDeliveryRepository } from '../../../../src/services/book-delivery/bookDelivery.entitlement.ts';
 import { createBookDeliveryBinding } from '../../../../src/services/book-delivery/bookDelivery.entitlementFactory.ts';
-import { createBookDeliveryProjectionResolver } from '../../../../src/services/book-delivery/bookDelivery.service.ts';
+import {
+  BookDeliveryProjectionError,
+  createBookDeliveryProjectionResolver,
+} from '../../../../src/services/book-delivery/bookDelivery.service.ts';
 import { FirebaseRestBookDeliveryRepository, type BookDeliveryRepositoryEnv } from '../book-delivery/repository.ts';
 import { FirebaseRestBookAssemblyPublicationRepository, type BookAssemblyPublicationRepositoryEnv } from '../book-assembly/publication-repository.ts';
 import {
@@ -143,6 +146,9 @@ export const createPublicBookProductionHandlers = (options: PublicDependencies &
       }).resolve({ actor: { uid: input.uid }, recipientId: input.uid, contextId });
       return { body: { title: authority.title, projection }, init: { status: 200 } };
     } catch (error) {
+      if (error instanceof BookDeliveryProjectionError) {
+        return { body: { code: error.code }, init: { status: error.status } };
+      }
       console.error('public_book_launch_failed', error instanceof Error ? error.message.slice(0, 160) : 'unknown');
       return { body: { code: error instanceof SyntaxError ? 'public_book_request_invalid' : 'public_book_authority_unavailable' }, init: { status: error instanceof SyntaxError ? 400 : 503 } };
     }

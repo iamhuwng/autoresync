@@ -69,6 +69,40 @@ const scopedNodeGroupKey = (nodeKey: string, pageGroupKey: string): string => (
   `${nodeKey.length}:${nodeKey}:${pageGroupKey}`
 );
 
+const requiredFullPdfActivityGroupTuples = (
+  binding: BookDeliveryBinding,
+): ReadonlySet<string> => {
+  const required = new Set<string>();
+  for (const placement of binding.placements) {
+    for (const pageGroupKey of placement.pageGroupKeys) {
+      required.add(scopedNodeGroupKey(placement.nodeKey, pageGroupKey));
+    }
+    for (const pageGroupKey of placement.navigationPageGroupKeys ?? []) {
+      required.add(scopedNodeGroupKey(placement.nodeKey, pageGroupKey));
+    }
+  }
+  return required;
+};
+
+const coversRequiredFullPdfActivityGroups = (
+  groups: readonly BookDeliveryReferencePageGroup[] | undefined,
+  sourceKey: string,
+  required: ReadonlySet<string>,
+): groups is readonly BookDeliveryReferencePageGroup[] => {
+  if (required.size === 0) return true;
+  if (!groups || groups.length === 0) return false;
+  const covered = new Set<string>();
+  for (const group of groups) {
+    if (group.sourceKey !== sourceKey) continue;
+    if (!group.pages.some((page) => Number.isSafeInteger(page) && page >= 1)) continue;
+    covered.add(scopedNodeGroupKey(group.nodeKey, group.pageGroupKey));
+  }
+  for (const tuple of required) {
+    if (!covered.has(tuple)) return false;
+  }
+  return true;
+};
+
 const fullPdfPageGroups = (
   binding: BookDeliveryBinding,
 ): readonly BookRuntimePageGroupContext[] => {
@@ -96,30 +130,9 @@ const fullPdfPageGroups = (
     }
     validPages.forEach((page) => entry!.pages.add(page));
   };
-  if (binding.activityPageGroups && binding.activityPageGroups.length > 0) {
-    for (const group of binding.activityPageGroups) {
-      if (group.sourceKey !== sourceKey) continue;
-      recordNodeGroupPages(group.nodeKey, group.pageGroupKey, group.pages);
-    }
-  } else {
-    const addPlacementScopes = (
-      nodeKey: string,
-      pageGroupKeys: readonly string[],
-      scopes: BookDeliveryPlacement['sourcePageScopes'],
-    ) => {
-      const pages = scopes
-        .filter((scope) => scope.sourceKey === sourceKey)
-        .flatMap((scope) => scope.pages);
-      for (const pageGroupKey of pageGroupKeys) {
-        recordNodeGroupPages(nodeKey, pageGroupKey, pages);
-      }
-    };
-    for (const placement of binding.placements) {
-      addPlacementScopes(placement.nodeKey, placement.pageGroupKeys, placement.sourcePageScopes);
-      if (placement.navigationPageGroupKeys && placement.navigationPageScopes) {
-        addPlacementScopes(placement.nodeKey, placement.navigationPageGroupKeys, placement.navigationPageScopes);
-      }
-    }
+  for (const group of binding.activityPageGroups ?? []) {
+    if (group.sourceKey !== sourceKey) continue;
+    recordNodeGroupPages(group.nodeKey, group.pageGroupKey, group.pages);
   }
   const result: BookRuntimePageGroupContext[] = [];
   for (const entry of entries.values()) {
@@ -234,18 +247,44 @@ export const createBookDeliveryProjectionResolver = (options: {
         && binding.sourceSet.sources[0]?.physicalPageCount === undefined
         ? await options.resolveFullPdfPhysicalPageCount?.(binding)
         : undefined;
-      const hydratedFullPdfActivityPageGroups = binding.sourceSet.strategy === 'full_pdf'
-        && (!binding.activityPageGroups || binding.activityPageGroups.length === 0)
-        ? await options.resolveFullPdfActivityPageGroups?.(binding)
-        : undefined;
+      let effectiveFullPdfBinding = binding;
+      if (binding.sourceSet.strategy === 'full_pdf') {
+        const fullPdfSourceKey = binding.sourceSet.sources[0]?.sourceKey;
+        const requiredActivityGroups = requiredFullPdfActivityGroupTuples(binding);
+        if (requiredActivityGroups.size > 0) {
+          if (!fullPdfSourceKey) {
+            throw new BookDeliveryProjectionError('book-delivery-stale-binding', 409);
+          }
+          if (!coversRequiredFullPdfActivityGroups(
+            binding.activityPageGroups,
+            fullPdfSourceKey,
+            requiredActivityGroups,
+          )) {
+            let hydratedFullPdfActivityPageGroups: readonly BookDeliveryReferencePageGroup[] | undefined;
+            try {
+              hydratedFullPdfActivityPageGroups = await options.resolveFullPdfActivityPageGroups?.(binding);
+            } catch {
+              throw new BookDeliveryProjectionError('book-delivery-stale-binding', 409);
+            }
+            if (!coversRequiredFullPdfActivityGroups(
+              hydratedFullPdfActivityPageGroups,
+              fullPdfSourceKey,
+              requiredActivityGroups,
+            )) {
+              throw new BookDeliveryProjectionError('book-delivery-stale-binding', 409);
+            }
+            effectiveFullPdfBinding = {
+              ...binding,
+              activityPageGroups: hydratedFullPdfActivityPageGroups,
+            };
+          }
+        }
+      }
       const validHydratedPageCount = typeof hydratedFullPdfPageCount === 'number'
         && Number.isSafeInteger(hydratedFullPdfPageCount)
         && hydratedFullPdfPageCount >= 1
         ? hydratedFullPdfPageCount
         : undefined;
-      const effectiveFullPdfBinding = hydratedFullPdfActivityPageGroups && hydratedFullPdfActivityPageGroups.length > 0
-        ? { ...binding, activityPageGroups: hydratedFullPdfActivityPageGroups }
-        : binding;
       const resolvedFullPdfSourceSet = validHydratedPageCount !== undefined
         && binding.sourceSet.strategy === 'full_pdf'
         ? {

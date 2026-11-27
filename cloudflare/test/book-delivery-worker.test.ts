@@ -1405,5 +1405,38 @@ describe('Book Delivery Worker contract', () => {
       { pageGroupKey: 'b', combinedPhysicalPages: [6] },
       { nodeKey: 'u1::a', pageGroupKey: 'intro', combinedPhysicalPages: [10] },
     ]);
+
+    // Fail closed (409) when legacy full_pdf hydration cannot read or match the pinned manifest
+    const missingManifestHandlers = createBookDeliveryWorkerHandlers({
+      repository: legacyRepo as any,
+      publicationRepository: new InMemoryBookAssemblyPublicationRepository({}),
+      readFullPdfPhysicalPageCount: async () => 20,
+    });
+    const missingManifestResult = await missingManifestHandlers.resolve({
+      env,
+      uid: 'teacher-1',
+      recipientId: 'teacher-1',
+      contextId: 'preview-1',
+    });
+    expect(missingManifestResult.init.status).toBe(409);
+    expect(missingManifestResult.body).toEqual({ code: 'book-delivery-stale-binding' });
+
+    const failingScopeHandlers = createBookDeliveryWorkerHandlers({
+      repository: legacyRepo as any,
+      publicationRepository: {
+        readScope: async () => {
+          throw new Error('rtdb_unavailable');
+        },
+      } as any,
+      readFullPdfPhysicalPageCount: async () => 20,
+    });
+    const failingScopeResult = await failingScopeHandlers.resolve({
+      env,
+      uid: 'teacher-1',
+      recipientId: 'teacher-1',
+      contextId: 'preview-1',
+    });
+    expect(failingScopeResult.init.status).toBe(409);
+    expect(failingScopeResult.body).toEqual({ code: 'book-delivery-stale-binding' });
   });
 });
