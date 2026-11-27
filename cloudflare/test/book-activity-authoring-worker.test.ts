@@ -1805,4 +1805,72 @@ describe('Book Activity authoring Worker boundary', () => {
     expect(current.state['teacher-1'].operations?.[expiredCompleteOpId]).toBeUndefined();
     expect(current.state['teacher-1'].candidates?.['cand-pending-old']).toBeDefined();
   });
+
+  it('preserves old binding-pending receipts at the 512-operation cap by evicting terminal entries first and fails closed when all 512 are pending', async () => {
+    const oldPendingOpId = operation('900');
+    const makePendingEntry = (idx: number, createdAt: number) => ({
+      ownerId: 'teacher-1',
+      fingerprint: `fnv1a64:${String(idx).padStart(16, '0')}`,
+      createdAt,
+      result: {
+        status: 'binding-pending',
+        candidateId: `cand-p-${idx}`,
+        binding: {
+          schemaVersion: 1,
+          phase: 'binding-pending',
+          ownerId: 'teacher-1',
+          bookId: 'book-1',
+          unitKey: 'unit-1',
+          activityKey: `slot-${idx}`,
+          activityId: `act-p-${idx}`,
+          candidateId: `cand-p-${idx}`,
+          candidateRevision: 3,
+          candidateLifecycle: 'saved',
+        },
+      },
+    });
+    const mixedOps: Record<string, unknown> = {
+      [oldPendingOpId]: makePendingEntry(0, 1_699_990_000_000),
+    };
+    const hexOp = (idx: number) => operation(idx.toString(16).padStart(3, '0'));
+    for (let idx = 1; idx < 512; idx += 1) {
+      mixedOps[hexOp(idx)] = {
+        ownerId: 'teacher-1',
+        fingerprint: `fnv1a64:${String(idx + 5000).padStart(16, '0')}`,
+        createdAt: 1_699_999_000_000 + idx,
+        result: { status: 'saved', candidateId: `cand-t-${idx}` },
+      };
+    }
+    const mixed = worker({
+      state: { 'teacher-1': { operations: mixedOps } },
+    });
+    const stagedMixed = await mixed.handlers.stage({
+      request: request({ operationId: operation('f90'), expectedRevision: 0, content: activity }),
+      env: {},
+      uid: 'teacher-1',
+    });
+    expect(stagedMixed.init.status).toBe(200);
+    // Old pending receipt survived insertion at 512 cap; oldest terminal entry (idx 1) was evicted instead
+    expect(mixed.state['teacher-1'].operations?.[oldPendingOpId]).toBeDefined();
+    expect(mixed.state['teacher-1'].operations?.[hexOp(1)]).toBeUndefined();
+    expect(Object.keys(mixed.state['teacher-1'].operations ?? {}).length).toBe(512);
+
+    // All 512 pending -> new operation fails closed with 409 capacity-exceeded without mutating state
+    const allPendingOps: Record<string, unknown> = {};
+    for (let idx = 0; idx < 512; idx += 1) {
+      allPendingOps[hexOp(0x200 + idx)] = makePendingEntry(idx, 1_699_999_000_000 + idx);
+    }
+    const fullPending = worker({
+      state: { 'teacher-1': { operations: allPendingOps } },
+    });
+    const rejected = await fullPending.handlers.stage({
+      request: request({ operationId: operation('f91'), expectedRevision: 0, content: activity }),
+      env: {},
+      uid: 'teacher-1',
+    });
+    expect(rejected.init.status).toBe(409);
+    expect(rejected.body).toEqual({ status: 'capacity-exceeded' });
+    expect(Object.keys(fullPending.state['teacher-1'].candidates ?? {}).length).toBe(0);
+    expect(Object.keys(fullPending.state['teacher-1'].operations ?? {}).length).toBe(512);
+  });
 });

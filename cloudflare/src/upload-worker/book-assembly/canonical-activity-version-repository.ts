@@ -741,14 +741,72 @@ implements ExactPublishedActivityVersionReader {
     const canonical = parseCanonicalFromRtdb(rawCanonical);
     if (!canonical || !sameCanonicalIdentity(canonical, request, bookActivity)) return null;
     const placementIds = (bookSafeProjection as Record<string, unknown>).placementIds as string[];
-    const carriedForwardSuccessor = canonical.provenance.kind === 'initial-book-publication'
-      && canonical.provenance.bookId === request.bookId
-      && canonical.provenance.manifestVersionId !== request.manifestVersionId
-      && canonical.provenance.manifestVersionId === bookActivity.canonicalOriginManifestVersionId
-      && canonical.provenance.publicationId === bookActivity.canonicalOriginPublicationId
-      && canonical.placementIds.length > 0;
-    if (!carriedForwardSuccessor
-      && stable([...placementIds].sort()) !== stable([...canonical.placementIds].sort())) {
+    const exactPlacementMatch = stable([...placementIds].sort()) === stable([...canonical.placementIds].sort());
+    const originManifestVersionId = typeof bookActivity.canonicalOriginManifestVersionId === 'string'
+      ? bookActivity.canonicalOriginManifestVersionId
+      : undefined;
+    const originPublicationId = typeof bookActivity.canonicalOriginPublicationId === 'string'
+      ? bookActivity.canonicalOriginPublicationId
+      : undefined;
+    const originOperationId = typeof bookActivity.canonicalOriginOperationId === 'string'
+      ? bookActivity.canonicalOriginOperationId
+      : undefined;
+    let carriedForwardSuccessor = false;
+    if (!exactPlacementMatch
+      && canonical.placementIds.length > 0
+      && originManifestVersionId !== undefined
+      && originManifestVersionId !== request.manifestVersionId
+      && originPublicationId !== undefined
+      && originOperationId !== undefined
+      && PATH_ID.test(originManifestVersionId)
+      && PATH_ID.test(originPublicationId)
+      && canonical.createdByOperationId === originOperationId) {
+      if (canonical.provenance.kind === 'initial-book-publication') {
+        carriedForwardSuccessor = canonical.provenance.bookId === request.bookId
+          && canonical.provenance.manifestVersionId === originManifestVersionId
+          && canonical.provenance.publicationId === originPublicationId;
+      } else if (canonical.provenance.kind === 'activity-revision'
+        && canonical.activityVersion > 1
+        && typeof canonical.predecessorActivityVersionId === 'string'
+        && canonical.predecessorActivityVersionId.length > 0) {
+        const originRequest: ExactPublishedActivityVersionRequest = {
+          ...request,
+          manifestVersionId: originManifestVersionId,
+          publicationId: originPublicationId,
+        };
+        const [originManifest, originBookActivity, originOperation] = await Promise.all([
+          rtdb.readValue(manifestPath(request.bookId, originManifestVersionId)),
+          rtdb.readValue(bookActivityVersionPath(request.bookId, originManifestVersionId, request.activityVersionId)),
+          rtdb.readValue(bookOperationPath(request.bookId, originOperationId)),
+        ]);
+        const originPublicationRevision = isRecord(originManifest)
+          ? originManifest.publicationRevision
+          : undefined;
+        if (sameManifest(originManifest, originRequest)
+          && typeof originPublicationRevision === 'number'
+          && originPublicationRevision < (publicationRevision as number)
+          && sameBookActivityVersion(originBookActivity, originRequest, originPublicationRevision)
+          && (originBookActivity as Record<string, unknown>).createdByCommandId === originOperationId
+          && publicationVisible(current, originOperation, originBookActivity as Record<string, unknown>, originRequest)) {
+          const originSafeProjection = await rtdb.readValue(
+            bookSafeProjectionPath(
+              request.bookId,
+              (originBookActivity as Record<string, unknown>).safeProjectionId as string,
+            ),
+          );
+          if (sameBookSafeProjection(
+            originSafeProjection,
+            originBookActivity as Record<string, unknown>,
+            originRequest,
+            originPublicationRevision,
+          )) {
+            const originPlacementIds = (originSafeProjection as Record<string, unknown>).placementIds as string[];
+            carriedForwardSuccessor = stable([...originPlacementIds].sort()) === stable([...canonical.placementIds].sort());
+          }
+        }
+      }
+    }
+    if (!exactPlacementMatch && !carriedForwardSuccessor) {
       return null;
     }
     const placements = await Promise.all(

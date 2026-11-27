@@ -236,7 +236,8 @@ export const createFullPdfPublicationWorkerHandlers = (options: {
         const requestOperationId = operationId(input.request, allocateOperationId);
         const bookId = id(body.bookId, 'invalid_book_id');
         const fingerprint = await requestFingerprint(input.uid, body);
-        const stored = (await options.repository.readScope(bookId)).operations?.[requestOperationId];
+        const scope = await options.repository.readScope(bookId);
+        const stored = scope.operations?.[requestOperationId];
         if (stored) {
           if (stored.ownerId !== input.uid || stored.fingerprint !== fingerprint) {
             return { body: { code: 'idempotency_conflict' }, init: { status: 409 } };
@@ -255,6 +256,67 @@ export const createFullPdfPublicationWorkerHandlers = (options: {
                 result: replayed,
               },
               init: { status: statusFor(replayed) },
+            };
+          }
+        }
+        if (scope.current?.updatedByCommandId === requestOperationId) {
+          const committedVersion = scope.versions?.[scope.current.manifestVersionId];
+          if (scope.current.operationFingerprint !== fingerprint
+            || (committedVersion && committedVersion.ownerId !== input.uid)) {
+            return { body: { code: 'idempotency_conflict' }, init: { status: 409 } };
+          }
+          const recovered = await options.repository.transaction<BookAssemblyPublicationResult>(
+            bookId,
+            (recoveredScope) => {
+              const recoveredOp = recoveredScope.operations?.[requestOperationId];
+              if (recoveredOp) {
+                if (recoveredOp.ownerId !== input.uid || recoveredOp.fingerprint !== fingerprint) {
+                  return {
+                    outcome: { status: 'idempotency-conflict', failureCode: 'idempotency-conflict' },
+                    write: false,
+                  };
+                }
+                return {
+                  outcome: { ...structuredClone(recoveredOp.result), status: 'replayed' },
+                  write: false,
+                };
+              }
+              const current = recoveredScope.current;
+              const version = current ? recoveredScope.versions?.[current.manifestVersionId] : undefined;
+              if (current?.updatedByCommandId === requestOperationId
+                && current.operationFingerprint === fingerprint
+                && version
+                && version.ownerId === input.uid) {
+                return {
+                  outcome: {
+                    status: 'replayed',
+                    pointer: structuredClone(current),
+                    version: structuredClone(version),
+                  },
+                  write: false,
+                };
+              }
+              return {
+                outcome: { status: 'conflict', failureCode: 'stale-current-pointer' },
+                write: false,
+              };
+            },
+            requestOperationId,
+            fingerprint,
+          );
+          if (recovered.status === 'idempotency-conflict') {
+            return { body: { code: 'idempotency_conflict' }, init: { status: 409 } };
+          }
+          if (recovered.pointer && recovered.version) {
+            return {
+              body: {
+                operationId: requestOperationId,
+                manifestVersionId: recovered.pointer.manifestVersionId,
+                publicationId: recovered.pointer.publicationId,
+                publicationRevision: recovered.pointer.publicationRevision,
+                result: recovered,
+              },
+              init: { status: statusFor(recovered) },
             };
           }
         }

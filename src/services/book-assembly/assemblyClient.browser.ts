@@ -190,6 +190,27 @@ const savedActivityKeysByUnit = (value: unknown): Readonly<Record<string, readon
     return [unitKey, activityKeys.map((activityKey) => safeId(activityKey, 'activity_key'))];
   }));
 };
+const savedCandidateIdsByUnit = (
+  value: unknown,
+): Readonly<Record<string, Readonly<Record<string, string>>>> | undefined => {
+  if (value === undefined) return undefined;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new BookAssemblyClientError('invalid_response', 502);
+  }
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([unitKey, slots]) => {
+    safeId(unitKey, 'unit_key');
+    if (!slots || typeof slots !== 'object' || Array.isArray(slots)) {
+      throw new BookAssemblyClientError('invalid_response', 502);
+    }
+    return [
+      unitKey,
+      Object.fromEntries(Object.entries(slots as Record<string, unknown>).map(([activityKey, candidateId]) => [
+        safeId(activityKey, 'activity_key'),
+        safeId(candidateId, 'candidate_id'),
+      ])),
+    ];
+  }));
+};
 const result = (value: Record<string, unknown>): BookAssemblyMutationResult => {
   const receipt = value.receipt;
   if (typeof value.status !== 'string'
@@ -353,6 +374,7 @@ export const createBookAssemblyClient = (options: AssemblyClientOptions) => {
       }
       try {
         const sharedSavedKeys = savedActivityKeysByUnit(parsed.savedActivityKeysByUnit);
+        const sharedSavedCandidateIds = savedCandidateIdsByUnit(parsed.savedCandidateIdsByUnit);
         if (parsed.manifestsById === undefined || parsed.manifestsById === null
           || typeof parsed.manifestsById !== 'object' || Array.isArray(parsed.manifestsById)) {
           throw new Error('invalid_response');
@@ -389,7 +411,11 @@ export const createBookAssemblyClient = (options: AssemblyClientOptions) => {
               throw new Error('invalid_response');
             }
           }
-          return { candidate, savedActivityKeysByUnit: sharedSavedKeys };
+          return {
+            candidate,
+            savedActivityKeysByUnit: sharedSavedKeys,
+            ...(sharedSavedCandidateIds ? { savedCandidateIdsByUnit: sharedSavedCandidateIds } : {}),
+          };
         });
         for (const [unitKey, keys] of Object.entries(sharedSavedKeys)) {
           const ownerDraft = mappedDrafts.find((entry) => entry.candidate.unitKey === unitKey);
@@ -506,6 +532,7 @@ export const createBookAssemblyClient = (options: AssemblyClientOptions) => {
       readonly unitKey: string;
       readonly candidateId: string;
       readonly expectedCandidateRevision: number;
+      readonly allowUnpublishedValidatedRollback?: true;
     }) {
       safeOperationId(input.operationId);
       safeId(input.bookId, 'book_id');
@@ -573,9 +600,11 @@ export const createBookAssemblyClient = (options: AssemblyClientOptions) => {
       if (!parsed.candidate || typeof parsed.candidate !== 'object' || Array.isArray(parsed.candidate)) {
         throw new BookAssemblyClientError('invalid_response', 502);
       }
+      const parsedSavedCandidateIds = savedCandidateIdsByUnit(parsed.savedCandidateIdsByUnit);
       return {
         candidate: parsed.candidate as BookAssemblyCandidateRecord,
         savedActivityKeysByUnit: savedActivityKeysByUnit(parsed.savedActivityKeysByUnit),
+        ...(parsedSavedCandidateIds ? { savedCandidateIdsByUnit: parsedSavedCandidateIds } : {}),
       };
     },
   };

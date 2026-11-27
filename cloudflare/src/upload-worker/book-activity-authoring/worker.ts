@@ -596,16 +596,27 @@ const operationResult = (
     }
     return { result: { ...clone(old.result), replayed: true }, write: false };
   }
-  const result = create();
-  const retained = Object.entries(operations)
+  const existing = Object.entries(operations)
     .flatMap(([id, value]) => {
-      const operation = asOperation(value);
-      return operation ? [[id, operation] as const] : [];
-    })
+      const entry = asOperation(value);
+      return entry ? [[id, entry] as const] : [];
+    });
+  // Preserve unresolved binding-pending receipts across cap eviction so their
+  // exact replay state cannot be silently discarded; fail closed if full.
+  const pending = existing
+    .filter(([, entry]) => isPendingBindingOperation(entry))
+    .sort(([, left], [, right]) => right.createdAt - left.createdAt);
+  if (pending.length >= MAX_OPERATIONS_PER_OWNER) {
+    return { result: { status: 'capacity-exceeded' }, write: false };
+  }
+  const pendingIds = new Set(pending.map(([id]) => id));
+  const terminalRetained = existing
+    .filter(([id]) => !pendingIds.has(id))
     .sort(([, left], [, right]) => right.createdAt - left.createdAt)
-    .slice(0, MAX_OPERATIONS_PER_OWNER - 1);
+    .slice(0, MAX_OPERATIONS_PER_OWNER - 1 - pending.length);
+  const result = create();
   root.operations = {
-    ...Object.fromEntries(retained),
+    ...Object.fromEntries([...pending, ...terminalRetained]),
     [operationId]: { ownerId, fingerprint, result: clone(result), createdAt: at },
   };
   return { result, write: true };

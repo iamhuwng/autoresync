@@ -986,6 +986,117 @@ describe('unit Activity JSON import', () => {
       }
     });
 
+    it('carries HTTP 409 binding-conflict durable commit receipt through HTTP transport so Slot 1 is not discarded', async () => {
+      const { createActivityAuthoringTransport } = await import('../book-activity/activityStorage.service');
+      const { createActivityAuthoringRepository } = await import('../book-activity/activityAuthoring.repository');
+      const { createActivityAuthoringService } = await import('../book-activity/activityAuthoring.service');
+
+      const discardedCandidates: string[] = [];
+      let stageCount = 0;
+      const fetchImpl: typeof fetch = async (input, init) => {
+        const url = String(input);
+        const body = init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : {};
+        if (url.endsWith('/stage')) {
+          stageCount += 1;
+          const candidateId = stageCount === 1 ? 'cand-http-a' : 'cand-http-b';
+          return new Response(JSON.stringify({
+            status: 'staged',
+            candidateId,
+            targetActivityId: body.targetActivityId,
+            revision: 1,
+            lifecycle: 'staged',
+            validation: { valid: true, errors: [] },
+            diff: null,
+            evidenceRefs: body.evidenceRefs ?? [],
+            sourceEvidenceRefs: body.sourceEvidenceRefs ?? [],
+            answerEvidenceRefs: body.answerEvidenceRefs ?? [],
+          }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (url.endsWith('/validate')) {
+          return new Response(JSON.stringify({
+            status: 'validated',
+            candidateId: body.candidateId,
+            revision: 2,
+            lifecycle: 'validated',
+            validation: { valid: true, errors: [] },
+            diff: null,
+            evidenceRefs: body.evidenceRefs ?? [],
+            sourceEvidenceRefs: body.sourceEvidenceRefs ?? [],
+            answerEvidenceRefs: body.answerEvidenceRefs ?? [],
+          }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (url.endsWith('/save-draft')) {
+          return new Response(JSON.stringify({
+            status: 'binding-conflict',
+            activityId: bookScopedActivityTargetId('book-1', 'activity-a'),
+            revision: 1,
+            candidateId: 'cand-http-a',
+            candidateRevision: 3,
+            lifecycle: 'saved',
+            validation: { valid: true, errors: [] },
+            diff: null,
+            evidenceRefs: [],
+            binding: {
+              schemaVersion: 1,
+              ownerId: 'teacher-1',
+              bookId: 'book-1',
+              unitKey: 'unit-1',
+              activityKey: 'activity-a',
+              activityId: bookScopedActivityTargetId('book-1', 'activity-a'),
+              candidateId: 'cand-http-a',
+              candidateRevision: 3,
+              candidateLifecycle: 'saved',
+              phase: 'binding-conflict',
+            },
+          }), { status: 409, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (url.endsWith('/discard')) {
+          discardedCandidates.push(String(body.candidateId));
+          return new Response(JSON.stringify({
+            status: 'discarded',
+            candidateId: body.candidateId,
+            revision: 3,
+            lifecycle: 'discarded',
+          }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        return new Response('{}', { status: 404 });
+      };
+
+      const authoring = createActivityAuthoringService(
+        createActivityAuthoringRepository(
+          createActivityAuthoringTransport({
+            baseUrl: 'https://authoring.example',
+            getIdToken: async () => 'token-1',
+            fetchImpl,
+          }),
+        ),
+        { bookId: 'book-1' },
+      );
+
+      let caught: unknown;
+      try {
+        await stageUnitActivityImportBundle({
+          text: bundle(),
+          manifest,
+          unitKey: 'unit-1',
+          activityAuthoring: authoring,
+          resolveActivityTargetId: (slot) => bookScopedActivityTargetId('book-1', slot.activityKey),
+        });
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught).toBeInstanceOf(UnitActivityImportPartialCommitError);
+      expect(caught).toMatchObject({
+        code: 'partial-commit-failed',
+        committedActivityKeys: ['activity-a'],
+        rolledBackActivityKeys: [],
+        failedActivityKey: 'activity-a',
+      });
+      // Slot 1 durably committed before 409 binding-conflict -> ONLY uncommitted Slot 2 discarded
+      expect(discardedCandidates).toEqual(['cand-http-b']);
+    });
+
     it('allows ordinary textbook URLs in activity prompts while still blocking private storage URLs and script tags', () => {
       const textbookUrlBundle = bundle({
         slots: [

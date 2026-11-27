@@ -364,8 +364,9 @@ const assertGenericRuntimeProjection = (value: Record<string, unknown>): void =>
   if (value.pageGroups !== undefined) {
     if (!Array.isArray(value.pageGroups)) fail('invalid_response', 502);
     value.pageGroups.forEach((group) => {
-      if (!isRecord(group) || !exactKeys(group, ['pageGroupKey', 'combinedPhysicalPages'])
+      if (!isRecord(group) || !exactKeys(group, ['pageGroupKey', 'combinedPhysicalPages'], ['nodeKey'])
         || typeof group.pageGroupKey !== 'string' || !ID.test(group.pageGroupKey)
+        || (group.nodeKey !== undefined && (typeof group.nodeKey !== 'string' || !ID.test(group.nodeKey)))
         || !Array.isArray(group.combinedPhysicalPages)
         || group.combinedPhysicalPages.some((page) => !Number.isSafeInteger(page) || (page as number) < 1)) {
         fail('invalid_response', 502);
@@ -473,11 +474,17 @@ const assertGenericRuntimeProjection = (value: Record<string, unknown>): void =>
         || activity.navigationPageGroupKeys.length === 0
         || !uniqueStrings(activity.navigationPageGroupKeys)
         || !activity.navigationPageGroupKeys.every((key) => typeof key === 'string' && ID.test(key))
-        || !Array.isArray(activity.navigationPageScopes)
-        || activity.navigationPageScopes.length === 0) {
+        || !Array.isArray(activity.navigationPageScopes)) {
         fail('invalid_response', 502);
       }
-      if (sourceSet.strategy === 'full_pdf') {
+      if (sourceSet.strategy === 'component_pdfs') {
+        if (activity.navigationPageScopes.length !== 0) {
+          fail('invalid_response', 502);
+        }
+      } else {
+        if (activity.navigationPageScopes.length === 0) {
+          fail('invalid_response', 502);
+        }
         activity.navigationPageScopes.forEach((scope) => {
           if (!isRecord(scope) || !exactKeys(scope, ['sourceKey', 'pages'])
             || typeof scope.sourceKey !== 'string' || !sourceKeys.includes(scope.sourceKey)

@@ -575,6 +575,26 @@ export const stageUnitActivityImportBundle = async ({
             targetActivityId: result.targetActivityId,
             savedActivityRevision: (expectedActivityRevisions[slot.activityKey] ?? 0) + 1,
           });
+        } else if (saveError instanceof ActivityAuthoringHttpError
+          && saveError.statusCode === 409
+          && (saveError.body.status === 'binding-conflict'
+            || saveError.body.binding?.phase === 'binding-conflict')) {
+          // HTTP 409 binding-conflict means 12C durably committed the Activity
+          // draft before the Unit-slot binding step conflicted; never discard it
+          // or let callers revert the Assembly manifest underneath it.
+          const committedRevision = saveError.body.revision
+            ?? ((expectedActivityRevisions[slot.activityKey] ?? 0) + 1);
+          committedCandidateIds.add(result.candidateId);
+          if (saveError.body.candidateId) committedCandidateIds.add(saveError.body.candidateId);
+          committedEntries.push({
+            activityKey: slot.activityKey,
+            targetActivityId: saveError.body.activityId ?? result.targetActivityId,
+            savedActivityRevision: committedRevision,
+          });
+          throw new UnitActivityImportError(
+            'activity-binding-pending',
+            `Activity slot ${slot.activityKey} saved content at revision ${committedRevision}, but its Unit binding conflicted.`,
+          );
         }
         throw saveError;
       }
@@ -656,7 +676,8 @@ export const stageUnitActivityImportBundle = async ({
             unitActivityBinding: { unitKey, activityKey: entry.activityKey },
             replaceExistingUnitActivityBinding: true,
           });
-          if (restoredSaved.status === 'saved') {
+          if (restoredSaved.status === 'saved'
+            && (!restoredSaved.binding || restoredSaved.binding.phase === 'complete')) {
             rolledBackKeys.push(entry.activityKey);
           }
         } catch {

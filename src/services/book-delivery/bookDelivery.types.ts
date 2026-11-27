@@ -171,6 +171,8 @@ export interface BookRuntimeStudentDocumentRequest {
 }
 
 export interface BookRuntimePageGroupContext {
+  /** Present when a full_pdf Page Group key is reused across multiple Units so runtime rendering isolates each Unit unambiguously. */
+  readonly nodeKey?: string;
   readonly pageGroupKey: string;
   readonly combinedPhysicalPages: readonly number[];
 }

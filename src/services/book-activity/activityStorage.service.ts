@@ -43,6 +43,7 @@ export type ActivityAuthoringFailureCode =
   | 'book_activity_authoring_failed';
 
 export type ActivityAuthoringFailureStatus =
+  | 'binding-conflict'
   | 'candidate_too_large'
   | 'capacity-exceeded'
   | 'conflict'
@@ -52,10 +53,30 @@ export type ActivityAuthoringFailureStatus =
   | 'invalid'
   | 'not-found';
 
+export interface ActivityAuthoringFailureBindingReceipt {
+  schemaVersion: 1;
+  ownerId: string;
+  bookId: string;
+  unitKey: string;
+  activityKey: string;
+  activityId: string;
+  candidateId: string;
+  candidateRevision: number;
+  candidateLifecycle: 'saved';
+  phase: 'binding-pending' | 'complete' | 'binding-conflict';
+}
+
 export interface ActivityAuthoringFailureBody {
   code?: ActivityAuthoringFailureCode;
   status?: ActivityAuthoringFailureStatus;
   currentRevision?: number;
+  activityId?: string;
+  revision?: number;
+  candidateId?: string;
+  candidateRevision?: number;
+  lifecycle?: 'saved';
+  replayed?: true;
+  binding?: ActivityAuthoringFailureBindingReceipt;
 }
 
 const FAILURE_CODES = new Set<ActivityAuthoringFailureCode>([
@@ -90,6 +111,7 @@ const FAILURE_CODES = new Set<ActivityAuthoringFailureCode>([
   'book_activity_authoring_failed',
 ]);
 const FAILURE_STATUSES = new Set<ActivityAuthoringFailureStatus>([
+  'binding-conflict',
   'candidate_too_large',
   'capacity-exceeded',
   'conflict',
@@ -124,10 +146,49 @@ const plainRecord = (value: unknown): Record<string, unknown> | null => (
     : null
 );
 
+const SAFE_FAILURE_ID = /^[A-Za-z0-9_-]{1,160}$/u;
+const SAFE_BINDING_KEY_ID = /^[A-Za-z0-9][A-Za-z0-9_:-]{0,159}$/u;
+
+const failureBindingReceipt = (value: unknown): ActivityAuthoringFailureBindingReceipt | undefined => {
+  const binding = plainRecord(value);
+  if (!binding
+    || binding.schemaVersion !== 1
+    || typeof binding.ownerId !== 'string' || !SAFE_FAILURE_ID.test(binding.ownerId)
+    || typeof binding.bookId !== 'string' || !SAFE_FAILURE_ID.test(binding.bookId)
+    || typeof binding.unitKey !== 'string' || !SAFE_BINDING_KEY_ID.test(binding.unitKey)
+    || typeof binding.activityKey !== 'string' || !SAFE_BINDING_KEY_ID.test(binding.activityKey)
+    || typeof binding.activityId !== 'string' || !SAFE_FAILURE_ID.test(binding.activityId)
+    || typeof binding.candidateId !== 'string' || !SAFE_FAILURE_ID.test(binding.candidateId)
+    || typeof binding.candidateRevision !== 'number'
+    || !Number.isSafeInteger(binding.candidateRevision)
+    || binding.candidateRevision < 0
+    || binding.candidateLifecycle !== 'saved'
+    || (binding.phase !== 'binding-pending'
+      && binding.phase !== 'complete'
+      && binding.phase !== 'binding-conflict')) {
+    return undefined;
+  }
+  return {
+    schemaVersion: 1,
+    ownerId: binding.ownerId,
+    bookId: binding.bookId,
+    unitKey: binding.unitKey,
+    activityKey: binding.activityKey,
+    activityId: binding.activityId,
+    candidateId: binding.candidateId,
+    candidateRevision: binding.candidateRevision,
+    candidateLifecycle: 'saved',
+    phase: binding.phase,
+  };
+};
+
 const failureBody = (value: unknown): ActivityAuthoringFailureBody => {
   const body = plainRecord(value);
   if (!body) return {};
   const currentRevision = body.currentRevision;
+  const revision = body.revision;
+  const candidateRevision = body.candidateRevision;
+  const parsedBinding = failureBindingReceipt(body.binding);
   return {
     ...(typeof body.code === 'string'
       && FAILURE_CODES.has(body.code as ActivityAuthoringFailureCode)
@@ -142,6 +203,21 @@ const failureBody = (value: unknown): ActivityAuthoringFailureBody => {
       && currentRevision >= 0
       ? { currentRevision }
       : {}),
+    ...(typeof body.activityId === 'string' && SAFE_FAILURE_ID.test(body.activityId)
+      ? { activityId: body.activityId }
+      : {}),
+    ...(typeof revision === 'number' && Number.isSafeInteger(revision) && revision >= 0
+      ? { revision }
+      : {}),
+    ...(typeof body.candidateId === 'string' && SAFE_FAILURE_ID.test(body.candidateId)
+      ? { candidateId: body.candidateId }
+      : {}),
+    ...(typeof candidateRevision === 'number' && Number.isSafeInteger(candidateRevision) && candidateRevision >= 0
+      ? { candidateRevision }
+      : {}),
+    ...(body.lifecycle === 'saved' ? { lifecycle: 'saved' as const } : {}),
+    ...(body.replayed === true ? { replayed: true as const } : {}),
+    ...(parsedBinding ? { binding: parsedBinding } : {}),
   };
 };
 

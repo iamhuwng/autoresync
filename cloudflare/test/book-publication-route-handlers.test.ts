@@ -1239,4 +1239,275 @@ describe('Book publication route composition', () => {
     expect(v2Canonical?.provenance.kind).toBe('activity-revision');
     expect(v2Canonical?.predecessorActivityVersionId).toBeDefined();
   });
+
+  it('recovers Component-PDF publish on both sides of the pointer write using FirebaseRestBookAssemblyPublicationRepository', async () => {
+    const { FirebaseRestBookAssemblyPublicationRepository } = await import(
+      '../src/upload-worker/book-assembly/publication-repository.ts'
+    );
+    const { bookAssemblyActivityVersionScopeKey } = await import(
+      '../../src/services/book-assembly/publicationTransaction.service.ts'
+    );
+    const db = new Map<string, unknown>();
+    const cloneValue = <T>(value: T): T => structuredClone(value);
+    const getAt = (path: string): unknown => {
+      if (db.has(path)) return cloneValue(db.get(path));
+      const prefix = `${path}/`;
+      const children: Record<string, unknown> = {};
+      for (const [key, value] of db.entries()) {
+        if (!key.startsWith(prefix)) continue;
+        const rest = key.slice(prefix.length).split('/');
+        let cursor = children;
+        for (let idx = 0; idx < rest.length - 1; idx += 1) {
+          const segment = rest[idx]!;
+          if (!cursor[segment] || typeof cursor[segment] !== 'object') cursor[segment] = {};
+          cursor = cursor[segment] as Record<string, unknown>;
+        }
+        cursor[rest[rest.length - 1]!] = cloneValue(value);
+      }
+      return Object.keys(children).length > 0 ? children : null;
+    };
+    const setAt = (path: string, value: unknown): void => {
+      if (value === null) {
+        db.delete(path);
+        return;
+      }
+      db.set(path, cloneValue(value));
+    };
+    let failNextPostPointerWrite = false;
+    let etagCounter = 1;
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url);
+      const path = decodeURIComponent(url.pathname.replace(/^\/|\.json$/gu, ''));
+      const method = (init?.method ?? 'GET').toUpperCase();
+      if (method === 'GET') {
+        const value = getAt(path);
+        return new Response(JSON.stringify(value), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ETag: value === null ? 'null_etag' : `etag-${etagCounter}` },
+        });
+      }
+      const parsed = init?.body ? JSON.parse(String(init.body)) : null;
+      if (method === 'PATCH' && parsed && typeof parsed === 'object') {
+        for (const [subpath, childValue] of Object.entries(parsed as Record<string, unknown>)) {
+          setAt(`${path}/${subpath}`, childValue);
+        }
+        etagCounter += 1;
+        return new Response(JSON.stringify(parsed), { status: 200 });
+      }
+      if (method === 'PUT') {
+        if (failNextPostPointerWrite && (path.includes('/audits/') || path.includes('/operations/'))) {
+          failNextPostPointerWrite = false;
+          return new Response('simulated_crash_after_pointer', { status: 503 });
+        }
+        const ifMatch = new Headers(init?.headers).get('if-match');
+        const current = getAt(path);
+        if (ifMatch === 'null_etag' && current !== null) {
+          return new Response('', { status: 412 });
+        }
+        setAt(path, parsed);
+        etagCounter += 1;
+        return new Response(JSON.stringify(parsed), { status: 200 });
+      }
+      return new Response('', { status: 405 });
+    };
+
+    const makeRepo = () => new FirebaseRestBookAssemblyPublicationRepository({
+      env: {
+        FIREBASE_DB_URL: 'https://test.firebaseio.com',
+        BOOK_ASSEMBLY_SERVICE_IDENTITY: 'book-assembly@example.iam.gserviceaccount.com',
+      } as never,
+      ownerId: 'teacher-1',
+      fetchImpl,
+      getAccessToken: async () => 'token-1',
+    });
+
+    // Seed an uncommitted prepared activity_versions row BEFORE any pointer commit
+    const preparedKey = bookAssemblyActivityVersionScopeKey('manifest:orphan', 'activityVersion:orphan');
+    setAt(`book_assembly_publications/books/book-1/activity_versions/${preparedKey}`, {
+      schemaVersion: 1,
+      activityId: 'activity:slot-a',
+      activityVersionId: 'activityVersion:orphan',
+      activityVersion: 1,
+      ownerId: 'teacher-1',
+      bookId: 'book-1',
+      manifestVersionId: 'manifest:orphan',
+      publicationId: 'pub:orphan',
+      publicationRevision: 1,
+      unitKey: 'unit-1',
+      activityKey: 'slot-a',
+      createdByCommandId: '00000000-0000-4000-8000-000000000001',
+      createdAt: now,
+      sourcePages: [{ sourceKey: 'source-1', sourceVersionId: 'source-v1', physicalPageNumber: 1 }],
+      canonicalPayloadFingerprint: 'fnv1a64:deadbeefdeadbeef',
+      safeProjectionId: 'proj:orphan',
+      canonicalOriginManifestVersionId: 'manifest:orphan',
+      canonicalOriginPublicationId: 'pub:orphan',
+      canonicalOriginOperationId: '00000000-0000-4000-8000-000000000001',
+      payloadFingerprint: 'fnv1a64:deadbeefdeadbeef',
+    });
+
+    const writer = new InMemoryCanonicalActivityVersionRepository();
+    const fixedOpId = '00000000-0000-4000-8000-000000000555';
+    const wholeInput = {
+      ownerId: 'teacher-1',
+      bookId: 'book-1',
+      bookRevision: 9,
+      sourceSetRevision: 3,
+      sourceSet: authority('component_pdfs').sourceSet,
+      activationReceipt: {
+        operationId: 'act-op-recovery',
+        bookId: 'book-1',
+        bookRevision: 9,
+        sourceSetRevision: 3,
+        studentDocument: {
+          sourceVersionId: 'student-doc-v1',
+          descriptorRevision: 1,
+          descriptorFingerprint: 'fnv1a64:0123456789abcdef',
+        },
+        unitCandidates: [{ unitKey: 'unit-1', candidateId: 'candidate-1', candidateRevision: 6 }],
+        activities: [{
+          unitKey: 'unit-1',
+          activityKey: 'slot-a',
+          activityId: 'activity:slot-a',
+          activityCandidateId: 'activity-candidate-1',
+          activityCandidateRevision: 3,
+        }],
+      },
+      units: [{
+        unitKey: 'unit-1',
+        candidateId: 'candidate-1',
+        candidateRevision: 6,
+        manifest: candidate('component_pdfs').manifest,
+      }],
+      studentDocument: {
+        schemaVersion: 1 as const,
+        bookId: 'book-1',
+        sourceVersionId: 'student-doc-v1',
+        descriptorRevision: 1,
+        byteSize: 1024,
+        sha256Hex: 'a'.repeat(64),
+        physicalPageCount: 2,
+        studentSafeStatus: 'ready' as const,
+        components: [{
+          sourceKey: 'source-1',
+          sourceVersionId: 'source-v1',
+          sourceOrder: 1,
+          ownerNodeKey: 'unit-1',
+          localPageCount: 2,
+          combinedStartPage: 1,
+          combinedEndPage: 2,
+        }],
+        createdAt: now,
+      },
+      registryVersion: 'registry-1',
+      activities: [{
+        unitKey: 'unit-1',
+        activityKey: 'slot-a',
+        activityId: 'activity:slot-a',
+        activityCandidateId: 'activity-candidate-1',
+        activityCandidateRevision: 3,
+      }],
+    };
+    const committedLineageFromScope = async (scope: BookAssemblyPublicationScope<BookAssemblyPublicationResult>) => {
+      const committed = new Set<string>();
+      if (scope.current?.manifestVersionId) committed.add(scope.current.manifestVersionId);
+      for (const op of Object.values(scope.operations ?? {})) {
+        if (op.result?.status === 'published' && op.result.pointer?.manifestVersionId) {
+          committed.add(op.result.pointer.manifestVersionId);
+        }
+      }
+      const prev = Object.values(scope.activityVersions ?? {})
+        .filter((entry) => entry.activityId === 'activity:slot-a' && committed.has(entry.manifestVersionId))
+        .sort((left, right) => right.activityVersion - left.activityVersion)[0];
+      return {
+        'slot-a': prev
+          ? { activityId: prev.activityId, lastActivityVersionId: prev.activityVersionId, lastActivityVersion: prev.activityVersion }
+          : { activityId: 'activity:slot-a' },
+      };
+    };
+    const handlers = createBookAssemblyPublicationRouteHandlers({
+      repositoryFactory: () => makeRepo(),
+      activityVersionWriterFactory: () => writer,
+      allocateOperationId: () => fixedOpId,
+      allocateId: (kind, key) => (kind === 'activity' ? `activity:${key}` : `${kind}:${key}`),
+      now: () => now,
+      componentPdf: {
+        readUser: async () => ({ role: 'teacher', status: 'active' }),
+        readAuthority: async () => authority('component_pdfs'),
+        readWholeActivationApprovalInput: async () => wholeInput as never,
+        readCandidate: async () => candidate('component_pdfs'),
+        readActivities,
+        readPreviewApproval: async () => ({
+          ...currentApproval(),
+          wholeActivationFingerprint: wholeActivationApprovalFingerprint(wholeInput as never),
+        }),
+        sourceIsPreviewReady: async () => true,
+        createRequestScope: ({ readPublicationScope }) => ({
+          readUser: async () => ({ role: 'teacher', status: 'active' }),
+          readAuthority: async () => authority('component_pdfs'),
+          readWholeActivationApprovalInput: async () => wholeInput as never,
+          readCandidate: async () => candidate('component_pdfs'),
+          readActivities,
+          readPreviewApproval: async () => ({
+            ...currentApproval(),
+            wholeActivationFingerprint: wholeActivationApprovalFingerprint(wholeInput as never),
+          }),
+          sourceIsPreviewReady: async () => true,
+          readLineage: async ({ bookId }) => committedLineageFromScope(await readPublicationScope(bookId)),
+        }),
+      },
+    });
+    const env = {
+      BOOK_COMPONENT_PDF_PUBLICATION_ENABLED: 'true',
+      readDatabaseValue: async () => ({ role: 'teacher', status: 'active' }),
+    };
+    const publishReq = () => request('/book-assembly/component-pdf-publications', {
+      bookId: 'book-1',
+      expectedCurrentPublicationId: null,
+      expectedBookRevision: 9,
+      expectedSourceSetRevision: 3,
+      unitApprovals: [{
+        unitKey: 'unit-1',
+        candidateId: 'candidate-1',
+        candidateRevision: 6,
+        ...body().previewApproval,
+      }],
+    });
+
+    // Attempt 1: ignores uncommitted prepared row, moves pointer, then crashes BEFORE writing audits/operations!
+    const prepareCanonicalSpy = vi.spyOn(writer, 'prepare');
+    failNextPostPointerWrite = true;
+    const crashed = await handlers.componentPdfPublish({ request: publishReq(), env, uid: 'teacher-1' });
+    expect(crashed.init.status).toBe(500);
+    // Pointer IS committed at revision 1, while operations/audits are missing
+    expect(getAt('book_assembly_publications/books/book-1/current')).toMatchObject({
+      publicationRevision: 1,
+      updatedByCommandId: fixedOpId,
+    });
+    expect(getAt(`book_assembly_publications/books/book-1/operations/${fixedOpId}`)).toBeNull();
+    expect(prepareCanonicalSpy).toHaveBeenCalledTimes(1);
+    const preparedRecord = prepareCanonicalSpy.mock.calls[0]![0];
+    expect(preparedRecord.activityVersion).toBe(1);
+    expect(preparedRecord.predecessorActivityVersionId).toBeUndefined();
+
+    // Attempt 2 (retry with same operationId): forwards operationFingerprint to FirebaseRestBookAssemblyPublicationRepository
+    // which reconstructs missing audits & operations markers and replays cleanly without writing orphaned v2 canonical records!
+    prepareCanonicalSpy.mockClear();
+    const recovered = await handlers.componentPdfPublish({ request: publishReq(), env, uid: 'teacher-1' });
+    expect(recovered.init.status).toBe(200);
+    expect(recovered.body).toMatchObject({
+      operationId: fixedOpId,
+      publicationRevision: 1,
+      result: { status: 'replayed', pointer: { publicationRevision: 1 } },
+    });
+    expect(prepareCanonicalSpy).not.toHaveBeenCalled();
+    expect(getAt(`book_assembly_publications/books/book-1/operations/${fixedOpId}`)).toMatchObject({
+      ownerId: 'teacher-1',
+      result: { status: 'published' },
+    });
+    expect(getAt(`book_assembly_publications/books/book-1/audits/publish:${fixedOpId}`)).toMatchObject({
+      action: 'publish',
+      status: 'committed',
+    });
+  });
 });

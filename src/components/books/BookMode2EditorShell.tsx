@@ -220,6 +220,7 @@ const BookMode2EditorShell = ({
     readonly candidate: BookAssemblyCandidateRecord | null;
     readonly candidatesByUnit: Readonly<Record<string, BookAssemblyCandidateRecord>>;
     readonly savedActivityKeysByUnit: Readonly<Record<string, readonly string[]>>;
+    readonly savedCandidateIdsByUnit: Readonly<Record<string, Readonly<Record<string, string>>>>;
   }>({
     bookId: book.bookId,
     status: assemblyInitialCandidate !== undefined || access === 'public-readonly'
@@ -227,6 +228,7 @@ const BookMode2EditorShell = ({
     candidate: assemblyInitialCandidate ?? null,
     candidatesByUnit: assemblyInitialCandidate ? { [assemblyInitialCandidate.unitKey]: assemblyInitialCandidate } : {},
     savedActivityKeysByUnit: {},
+    savedCandidateIdsByUnit: {},
   });
   useEffect(() => {
     if (assemblyInitialCandidate !== undefined
@@ -235,23 +237,30 @@ const BookMode2EditorShell = ({
       || (!firstComponentDraft && candidateOwnerKeys.length === 0)) {
       setLoadedAssemblyCandidate((current) => current.bookId === book.bookId && current.status === 'loaded'
         ? current
-        : { bookId: book.bookId, status: 'loaded', candidate: null, candidatesByUnit: {}, savedActivityKeysByUnit: {} });
+        : { bookId: book.bookId, status: 'loaded', candidate: null, candidatesByUnit: {}, savedActivityKeysByUnit: {}, savedCandidateIdsByUnit: {} });
       return;
     }
     let active = true;
-    setLoadedAssemblyCandidate({ bookId: book.bookId, status: 'loading', candidate: null, candidatesByUnit: {}, savedActivityKeysByUnit: {} });
+    setLoadedAssemblyCandidate({ bookId: book.bookId, status: 'loading', candidate: null, candidatesByUnit: {}, savedActivityKeysByUnit: {}, savedCandidateIdsByUnit: {} });
     const commitLoadedDrafts = (drafts: readonly LoadedCurrentAssemblyDraft[]) => {
       if (!active) return;
       const sorted = [...drafts].sort((left, right) => right.candidate.updatedAt.localeCompare(left.candidate.updatedAt));
       const latest = sorted[0] ?? null;
       const candidatesByUnit: Record<string, BookAssemblyCandidateRecord> = {};
       const savedActivityKeysByUnit: Record<string, readonly string[]> = {};
+      const savedCandidateIdsByUnit: Record<string, Record<string, string>> = {};
       for (const entry of sorted) {
         if (!candidatesByUnit[entry.candidate.unitKey]) {
           candidatesByUnit[entry.candidate.unitKey] = entry.candidate;
         }
         for (const [unitKey, keys] of Object.entries(entry.savedActivityKeysByUnit)) {
           savedActivityKeysByUnit[unitKey] = [...new Set([...(savedActivityKeysByUnit[unitKey] ?? []), ...keys])];
+        }
+        for (const [unitKey, slotCandidates] of Object.entries(entry.savedCandidateIdsByUnit ?? {})) {
+          savedCandidateIdsByUnit[unitKey] = {
+            ...(savedCandidateIdsByUnit[unitKey] ?? {}),
+            ...slotCandidates,
+          };
         }
       }
       setLoadedAssemblyCandidate({
@@ -260,6 +269,7 @@ const BookMode2EditorShell = ({
         candidate: latest?.candidate ?? null,
         candidatesByUnit,
         savedActivityKeysByUnit,
+        savedCandidateIdsByUnit,
       });
     };
     const loadByUnitKeys = async (): Promise<readonly LoadedCurrentAssemblyDraft[]> => {
@@ -306,6 +316,7 @@ const BookMode2EditorShell = ({
         candidate: null,
         candidatesByUnit: {},
         savedActivityKeysByUnit: {},
+        savedCandidateIdsByUnit: {},
       });
     });
     return () => {
@@ -429,6 +440,10 @@ const BookMode2EditorShell = ({
     && loadedAssemblyCandidate.bookId === book.bookId
       ? loadedAssemblyCandidate.savedActivityKeysByUnit
       : {};
+  const resolvedInitialSavedCandidateIdsByUnit = assemblyInitialCandidate === undefined
+    && loadedAssemblyCandidate.bookId === book.bookId
+      ? loadedAssemblyCandidate.savedCandidateIdsByUnit
+      : {};
   const candidateLoadFailed = assemblyInitialCandidate === undefined
     && loadedAssemblyCandidate.bookId === book.bookId
     && loadedAssemblyCandidate.status === 'error';
@@ -535,6 +550,7 @@ const BookMode2EditorShell = ({
         assemblyInitialSavedActivityKeysByUnit={assemblyInitialCandidate !== undefined
           ? (assemblyInitialSavedActivityKeysByUnit ?? {})
           : resolvedInitialSavedActivityKeysByUnit}
+        assemblyInitialSavedCandidateIdsByUnit={resolvedInitialSavedCandidateIdsByUnit}
         assemblyBookRevision={assemblyBookRevision}
         assemblySourceSetRevision={assemblySourceSetRevision}
         sourceSetAttachmentClient={resolvedSourceSetAttachmentClient}

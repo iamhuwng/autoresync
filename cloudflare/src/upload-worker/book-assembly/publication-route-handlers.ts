@@ -504,7 +504,7 @@ const createComponentPdfHandler = (
   if (!ports) return unavailable('book_component_pdf_publication_dependencies_unavailable');
   return async (input) => {
     let worker: ReturnType<typeof createComponentPdfPublicationWorkerHandlers>;
-    let requestPorts: NonNullable<BookAssemblyPublicationRouteOptions['componentPdf']> | undefined;
+    let reconciliationActivationReader: NonNullable<BookAssemblyPublicationRouteOptions['componentPdf']>['readWholeActivationApprovalInput'] | undefined;
     try {
       const baseRepository = (options.repositoryFactory ?? defaultRepositoryFactory)(input.env, input.uid);
       const initialScopeByBook = new Map<string, Promise<BookAssemblyPublicationScope<BookAssemblyPublicationResult>>>();
@@ -518,13 +518,15 @@ const createComponentPdfHandler = (
       };
       const repository: BookAssemblyPublicationRepository<BookAssemblyPublicationResult> = {
         readScope: readInitialScope,
-        transaction: (bookId, mutate, txOptions) => baseRepository.transaction(bookId, mutate, txOptions),
+        transaction: (bookId, mutate, operationId, operationFingerprint) =>
+          baseRepository.transaction(bookId, mutate, operationId, operationFingerprint),
       };
-      requestPorts = ports.createRequestScope
+      const scopedPorts = ports.createRequestScope
         ? ports.createRequestScope({ readPublicationScope: readInitialScope })
         : ports;
+      reconciliationActivationReader = scopedPorts.readWholeActivationApprovalInput;
       worker = createComponentPdfPublicationWorkerHandlers({
-        readUser: (uid) => requestPorts.readUser({ env: input.env, actorId: uid }),
+        readUser: (uid) => scopedPorts.readUser({ env: input.env, actorId: uid }),
         repository,
         activityVersionWriter: (
           options.activityVersionWriterFactory ?? defaultActivityVersionWriterFactory
@@ -536,32 +538,32 @@ const createComponentPdfHandler = (
           unitKey,
           candidateId,
           input.uid,
-          requestPorts.readCandidate,
+          scopedPorts.readCandidate,
         ),
-        readAuthority: (bookId) => requestPorts.readAuthority({ env: input.env, actorId: input.uid, bookId }),
-        readWholeActivationApprovalInput: (bookId) => requestPorts.readWholeActivationApprovalInput({
+        readAuthority: (bookId) => scopedPorts.readAuthority({ env: input.env, actorId: input.uid, bookId }),
+        readWholeActivationApprovalInput: (bookId) => scopedPorts.readWholeActivationApprovalInput({
           env: input.env, actorId: input.uid, bookId,
         }),
-        readActivities: ({ ownerId, bookId, unitKey, activityKeys }) => requestPorts.readActivities({
+        readActivities: ({ ownerId, bookId, unitKey, activityKeys }) => scopedPorts.readActivities({
           env: input.env, actorId: input.uid,
           bookId,
           unitKey,
           ownerId,
           activityKeys,
         }),
-        readPreviewApproval: ({ bookId, unitKey, approvalId }) => requestPorts.readPreviewApproval({
+        readPreviewApproval: ({ bookId, unitKey, approvalId }) => scopedPorts.readPreviewApproval({
           env: input.env, actorId: input.uid,
           bookId,
           unitKey,
           approvalId,
         }).then(normalizePreviewApproval),
-        sourceIsPreviewReady: ({ bookId, sourceVersionId }) => requestPorts.sourceIsPreviewReady({
+        sourceIsPreviewReady: ({ bookId, sourceVersionId }) => scopedPorts.sourceIsPreviewReady({
           env: input.env, actorId: input.uid,
           bookId,
           sourceVersionId,
         }),
-        ...(requestPorts.readLineage ? {
-          readLineage: (bookId: string, unitKey: string) => requestPorts.readLineage!({
+        ...(scopedPorts.readLineage ? {
+          readLineage: (bookId: string, unitKey: string) => scopedPorts.readLineage!({
             env: input.env, actorId: input.uid,
             bookId,
             unitKey,
@@ -586,7 +588,7 @@ const createComponentPdfHandler = (
         input,
         result,
         requestBody,
-        requestPorts?.readWholeActivationApprovalInput,
+        reconciliationActivationReader,
       );
     } catch {
       return { body: { code: 'book_assembly_activity_binding_unavailable' }, init: { status: 503 } };

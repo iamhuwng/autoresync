@@ -12,6 +12,7 @@ import { FirebaseRestBookAssemblyPublicationRepository } from '../book-assembly/
 import { FirebaseRestBookDeliveryRepository } from '../book-delivery/repository.ts';
 import {
   createTrustedBookDeliveryPublication,
+  readTrustedFullPdfActivityPageGroups,
   readTrustedFullPdfPhysicalPageCount,
   resolveTrustedBookDeliveryStudentDocument,
 } from '../book-delivery/worker.ts';
@@ -218,6 +219,7 @@ export const createProductionCourseBookCommand = (env: WorkerEnv) => {
               ? readTrustedFullPdfPhysicalPageCount(env, binding.issuer.ownerId, binding.book.bookId, sourceVersionId)
               : Promise.resolve(undefined);
           },
+          resolveFullPdfActivityPageGroups: (binding) => readTrustedFullPdfActivityPageGroups(env, binding),
         }).resolve({
           recipientId: input.studentId, contextId: input.placement.courseMaterialId,
           actor: { uid: input.studentId },
@@ -256,6 +258,7 @@ export const resolveCurrentCourseBook = async (env: WorkerEnv, uid: string, cour
         ? readTrustedFullPdfPhysicalPageCount(env, binding.issuer.ownerId, binding.book.bookId, sourceVersionId)
         : Promise.resolve(undefined);
     },
+    resolveFullPdfActivityPageGroups: (binding) => readTrustedFullPdfActivityPageGroups(env, binding),
   }).resolve({
     recipientId: uid, contextId: courseMaterialId, actor: { uid },
   });

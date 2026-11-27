@@ -309,4 +309,86 @@ describe('Book Delivery projection resolver', () => {
       context: { kind: 'course', contextId: 'course-1' },
     });
   });
+
+  it('preserves per-Unit nodeKey for colliding full_pdf Page Group keys and hydrates legacy bindings from the pinned manifest', async () => {
+    const legacyBinding = createBookDeliveryBinding({
+      bindingId: 'binding-legacy-collide',
+      revision: 1,
+      status: 'active',
+      recipient: { recipientId: 'student-1', recipientKind: 'student' },
+      issuer: { ownerId: 'teacher-1', authorityBoundary: 'book-owner' },
+      context: {
+        kind: 'solo',
+        contextId: 'solo-collide-1',
+        recipientId: 'student-1',
+        ownerId: 'teacher-1',
+        entitlementBasis: 'solo',
+      },
+      publication: {
+        ...publication(),
+        outline: [
+          { nodeKey: 'root', parentNodeKey: null, nodeType: 'section', order: 1 },
+          { nodeKey: 'u1', parentNodeKey: 'root', nodeType: 'unit', order: 1 },
+          { nodeKey: 'u2', parentNodeKey: 'root', nodeType: 'unit', order: 2 },
+        ],
+        scope: { kind: 'placements', nodeKeys: [], placementIds: ['p-1', 'p-2'] },
+        placements: [
+          {
+            placementId: 'p-1',
+            activityId: 'a-1',
+            activityVersionId: 'a-1-v1',
+            activityVersion: 1,
+            nodeKey: 'u1',
+            order: 1,
+            contextMode: 'required',
+            pageGroupKeys: ['intro', 'practice'],
+            sourcePageScopes: [{ sourceKey: 'full', pages: [4, 7] }],
+          },
+          {
+            placementId: 'p-2',
+            activityId: 'a-2',
+            activityVersionId: 'a-2-v1',
+            activityVersion: 1,
+            nodeKey: 'u2',
+            order: 2,
+            contextMode: 'required',
+            pageGroupKeys: ['intro'],
+            sourcePageScopes: [{ sourceKey: 'full', pages: [10] }],
+          },
+        ],
+      },
+      createdAt: now,
+    });
+    const legacyRepo = {
+      resolveCurrent: async () => ({
+        record: { binding: legacyBinding, recordRevision: 1, status: 'active' as const, createdAt: now, updatedAt: now },
+        pointer: {
+          bindingId: legacyBinding.bindingId,
+          bindingRevision: 1,
+          recipientId: 'student-1',
+          contextId: 'solo-collide-1',
+          contextKind: 'solo' as const,
+          status: 'active' as const,
+          updatedAt: now,
+        },
+      }),
+    } as unknown as BookDeliveryRepository;
+    const projection = await createBookDeliveryProjectionResolver({
+      repository: legacyRepo,
+      resolveFullPdfActivityPageGroups: async () => [
+        { nodeKey: 'u1', pageGroupKey: 'intro', sourceKey: 'full', pages: [4] },
+        { nodeKey: 'u1', pageGroupKey: 'practice', sourceKey: 'full', pages: [7] },
+        { nodeKey: 'u2', pageGroupKey: 'intro', sourceKey: 'full', pages: [10] },
+      ],
+    }).resolve({
+      recipientId: 'student-1',
+      contextId: 'solo-collide-1',
+      actor: { uid: 'student-1' },
+    });
+    expect(projection.pageGroups).toEqual([
+      { nodeKey: 'u1', pageGroupKey: 'intro', combinedPhysicalPages: [4] },
+      { pageGroupKey: 'practice', combinedPhysicalPages: [7] },
+      { nodeKey: 'u2', pageGroupKey: 'intro', combinedPhysicalPages: [10] },
+    ]);
+  });
 });

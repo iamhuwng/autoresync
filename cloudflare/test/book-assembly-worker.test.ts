@@ -920,4 +920,133 @@ describe('PRD0062 ticket 13A Assembly candidate Worker', () => {
     expect(lastOp).toBeDefined();
     expect(replayed.init.status).toBe(409); // different expected candidateId/revision => idempotency conflict check intact
   });
+
+  it('guards allowUnpublishedValidatedRollback discard to newly created unpublished unbound validated drafts', async () => {
+    const repository = new MemoryRepository();
+    let published = false;
+    let bound = false;
+    const handlers = createBookAssemblyWorkerHandlers({
+      repository,
+      readBookAuthority: async () => repository.book,
+      createCandidateId: () => 'candidate-rollback-1',
+      isCandidatePublished: async () => published,
+      bindingRepositoryFactory: () => ({
+        read: async () => null,
+        readBookBindings: async () => (bound ? {
+          'unit-1': {
+            'activity-1': {
+              schemaVersion: 1,
+              ownerId: 'teacher-1',
+              bookId: 'book-1',
+              unitKey: 'unit-1',
+              activityKey: 'activity-1',
+              activityId: 'activity-target-1',
+              candidateId: 'act-cand-1',
+              candidateRevision: 3,
+              candidateLifecycle: 'saved',
+            },
+          },
+        } : {}),
+        bindCandidate: async () => 'created',
+        recordPublication: async () => 'updated',
+      }),
+    });
+
+    const created = await handlers.create({
+      request: request({
+        operationId: op('c101'),
+        bookId: 'book-1',
+        expectedBookRevision: 4,
+        expectedSourceSetRevision: 2,
+        unitKey: 'unit-1',
+        manifest: manifest(),
+      }),
+      env: mutationEnv() as never,
+      uid: 'teacher-1',
+      bookId: 'book-1',
+    });
+    expect(created.init.status).toBe(200);
+    const validated = await handlers.validate({
+      request: request({
+        operationId: op('c102'),
+        bookId: 'book-1',
+        unitKey: 'unit-1',
+        candidateId: 'candidate-rollback-1',
+        expectedCandidateRevision: 1,
+      }),
+      env: mutationEnv() as never,
+      uid: 'teacher-1',
+      bookId: 'book-1',
+    });
+    expect(validated.init.status).toBe(200);
+
+    // Default discard of validated candidate stays rejected with 409 conflict
+    const defaultDiscard = await handlers.discard({
+      request: request({
+        operationId: op('c103'),
+        bookId: 'book-1',
+        unitKey: 'unit-1',
+        candidateId: 'candidate-rollback-1',
+        expectedCandidateRevision: 2,
+      }),
+      env: mutationEnv() as never,
+      uid: 'teacher-1',
+      bookId: 'book-1',
+    });
+    expect(defaultDiscard.init.status).toBe(409);
+
+    // Blocked when a saved Unit-Activity binding exists
+    bound = true;
+    const blockedByBinding = await handlers.discard({
+      request: request({
+        operationId: op('c104'),
+        bookId: 'book-1',
+        unitKey: 'unit-1',
+        candidateId: 'candidate-rollback-1',
+        expectedCandidateRevision: 2,
+        allowUnpublishedValidatedRollback: true,
+      }),
+      env: mutationEnv() as never,
+      uid: 'teacher-1',
+      bookId: 'book-1',
+    });
+    expect(blockedByBinding.init.status).toBe(409);
+    bound = false;
+
+    // Blocked when published
+    published = true;
+    const blockedByPublish = await handlers.discard({
+      request: request({
+        operationId: op('c105'),
+        bookId: 'book-1',
+        unitKey: 'unit-1',
+        candidateId: 'candidate-rollback-1',
+        expectedCandidateRevision: 2,
+        allowUnpublishedValidatedRollback: true,
+      }),
+      env: mutationEnv() as never,
+      uid: 'teacher-1',
+      bookId: 'book-1',
+    });
+    expect(blockedByPublish.init.status).toBe(409);
+    published = false;
+
+    // Succeeds when sole unpublished, unactivated, unbound validated candidate
+    const allowedDiscard = await handlers.discard({
+      request: request({
+        operationId: op('c106'),
+        bookId: 'book-1',
+        unitKey: 'unit-1',
+        candidateId: 'candidate-rollback-1',
+        expectedCandidateRevision: 2,
+        allowUnpublishedValidatedRollback: true,
+      }),
+      env: mutationEnv() as never,
+      uid: 'teacher-1',
+      bookId: 'book-1',
+    });
+    expect(allowedDiscard.init.status).toBe(200);
+    expect(allowedDiscard.body).toMatchObject({ status: 'discarded' });
+    expect(repository.root.current).toBeUndefined();
+  });
 });

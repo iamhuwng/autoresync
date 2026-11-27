@@ -3,6 +3,7 @@ import type {
   BookDeliveryBinding,
   BookDeliveryContextKind,
   BookDeliveryPlacement,
+  BookDeliveryReferencePageGroup,
   BookRuntimeDeliveryProjection,
   BookRuntimePageGroupContext,
 } from './bookDelivery.types';
@@ -64,66 +65,90 @@ const contextDescription = (
   return parts.length > 0 ? parts.join('; ') : 'No source context required.';
 };
 
+const scopedNodeGroupKey = (nodeKey: string, pageGroupKey: string): string => (
+  `${nodeKey.length}:${nodeKey}:${pageGroupKey}`
+);
+
 const fullPdfPageGroups = (
   binding: BookDeliveryBinding,
 ): readonly BookRuntimePageGroupContext[] => {
   if (binding.sourceSet.strategy !== 'full_pdf') return [];
   const sourceKey = binding.sourceSet.sources[0]?.sourceKey;
   if (!sourceKey) return [];
-  const byKey = new Map<string, Set<number>>();
+  const entries = new Map<string, { readonly nodeKey: string; readonly pageGroupKey: string; readonly pages: Set<number> }>();
+  const nodeKeysByGroupKey = new Map<string, Set<string>>();
   const activityKeys = new Set<string>();
+  const recordNodeGroupPages = (nodeKey: string, pageGroupKey: string, pages: readonly number[]) => {
+    const validPages = pages.filter((page) => Number.isSafeInteger(page) && page >= 1);
+    if (validPages.length === 0) return;
+    activityKeys.add(pageGroupKey);
+    let nodes = nodeKeysByGroupKey.get(pageGroupKey);
+    if (!nodes) {
+      nodes = new Set<string>();
+      nodeKeysByGroupKey.set(pageGroupKey, nodes);
+    }
+    nodes.add(nodeKey);
+    const tupleKey = scopedNodeGroupKey(nodeKey, pageGroupKey);
+    let entry = entries.get(tupleKey);
+    if (!entry) {
+      entry = { nodeKey, pageGroupKey, pages: new Set<number>() };
+      entries.set(tupleKey, entry);
+    }
+    validPages.forEach((page) => entry!.pages.add(page));
+  };
   if (binding.activityPageGroups && binding.activityPageGroups.length > 0) {
     for (const group of binding.activityPageGroups) {
       if (group.sourceKey !== sourceKey) continue;
-      const pages = group.pages.filter((page) => Number.isSafeInteger(page) && page >= 1);
-      if (pages.length === 0) continue;
-      activityKeys.add(group.pageGroupKey);
-      let set = byKey.get(group.pageGroupKey);
-      if (!set) {
-        set = new Set<number>();
-        byKey.set(group.pageGroupKey, set);
-      }
-      pages.forEach((page) => set!.add(page));
+      recordNodeGroupPages(group.nodeKey, group.pageGroupKey, group.pages);
     }
   } else {
-    const addPages = (pageGroupKeys: readonly string[], scopes: BookDeliveryPlacement['sourcePageScopes']) => {
+    const addPlacementScopes = (
+      nodeKey: string,
+      pageGroupKeys: readonly string[],
+      scopes: BookDeliveryPlacement['sourcePageScopes'],
+    ) => {
       const pages = scopes
         .filter((scope) => scope.sourceKey === sourceKey)
-        .flatMap((scope) => scope.pages)
-        .filter((page) => Number.isSafeInteger(page) && page >= 1);
-      if (pages.length === 0) return;
+        .flatMap((scope) => scope.pages);
       for (const pageGroupKey of pageGroupKeys) {
-        activityKeys.add(pageGroupKey);
-        let set = byKey.get(pageGroupKey);
-        if (!set) {
-          set = new Set<number>();
-          byKey.set(pageGroupKey, set);
-        }
-        pages.forEach((page) => set!.add(page));
+        recordNodeGroupPages(nodeKey, pageGroupKey, pages);
       }
     };
     for (const placement of binding.placements) {
-      addPages(placement.pageGroupKeys, placement.sourcePageScopes);
+      addPlacementScopes(placement.nodeKey, placement.pageGroupKeys, placement.sourcePageScopes);
       if (placement.navigationPageGroupKeys && placement.navigationPageScopes) {
-        addPages(placement.navigationPageGroupKeys, placement.navigationPageScopes);
+        addPlacementScopes(placement.nodeKey, placement.navigationPageGroupKeys, placement.navigationPageScopes);
       }
     }
   }
+  const result: BookRuntimePageGroupContext[] = [];
+  for (const entry of entries.values()) {
+    const collidesAcrossUnits = (nodeKeysByGroupKey.get(entry.pageGroupKey)?.size ?? 0) > 1;
+    result.push({
+      ...(collidesAcrossUnits ? { nodeKey: entry.nodeKey } : {}),
+      pageGroupKey: entry.pageGroupKey,
+      combinedPhysicalPages: [...entry.pages].sort((left, right) => left - right),
+    });
+  }
+  const referenceByKey = new Map<string, Set<number>>();
   for (const group of binding.referencePageGroups ?? []) {
     if (group.sourceKey !== sourceKey || activityKeys.has(group.pageGroupKey)) continue;
     const pages = group.pages.filter((page) => Number.isSafeInteger(page) && page >= 1);
     if (pages.length === 0) continue;
-    let set = byKey.get(group.pageGroupKey);
+    let set = referenceByKey.get(group.pageGroupKey);
     if (!set) {
       set = new Set<number>();
-      byKey.set(group.pageGroupKey, set);
+      referenceByKey.set(group.pageGroupKey, set);
     }
     pages.forEach((page) => set!.add(page));
   }
-  return [...byKey.entries()].map(([pageGroupKey, pages]) => ({
-    pageGroupKey,
-    combinedPhysicalPages: [...pages].sort((left, right) => left - right),
-  }));
+  for (const [pageGroupKey, pages] of referenceByKey.entries()) {
+    result.push({
+      pageGroupKey,
+      combinedPhysicalPages: [...pages].sort((left, right) => left - right),
+    });
+  }
+  return result;
 };
 
 const actionFlags = (kind: BookDeliveryContextKind): BookRuntimeDeliveryProjection['actionFlags'] => ({
@@ -150,6 +175,10 @@ export const createBookDeliveryProjectionResolver = (options: {
   } | null>;
   /** Optional trusted full_pdf physical page count lookup to hydrate older persisted bindings. */
   readonly resolveFullPdfPhysicalPageCount?: (binding: BookDeliveryBinding) => Promise<number | undefined>;
+  /** Optional trusted full_pdf per-group Activity Page Group lookup to hydrate older persisted bindings from their pinned manifest. */
+  readonly resolveFullPdfActivityPageGroups?: (
+    binding: BookDeliveryBinding,
+  ) => Promise<readonly BookDeliveryReferencePageGroup[] | undefined>;
 }) => {
   const makeOpaqueRouteKey = options.makeOpaqueRouteKey ?? routeKey;
   const allowedContexts = new Set<BookDeliveryContextKind>([
@@ -205,11 +234,18 @@ export const createBookDeliveryProjectionResolver = (options: {
         && binding.sourceSet.sources[0]?.physicalPageCount === undefined
         ? await options.resolveFullPdfPhysicalPageCount?.(binding)
         : undefined;
+      const hydratedFullPdfActivityPageGroups = binding.sourceSet.strategy === 'full_pdf'
+        && (!binding.activityPageGroups || binding.activityPageGroups.length === 0)
+        ? await options.resolveFullPdfActivityPageGroups?.(binding)
+        : undefined;
       const validHydratedPageCount = typeof hydratedFullPdfPageCount === 'number'
         && Number.isSafeInteger(hydratedFullPdfPageCount)
         && hydratedFullPdfPageCount >= 1
         ? hydratedFullPdfPageCount
         : undefined;
+      const effectiveFullPdfBinding = hydratedFullPdfActivityPageGroups && hydratedFullPdfActivityPageGroups.length > 0
+        ? { ...binding, activityPageGroups: hydratedFullPdfActivityPageGroups }
+        : binding;
       const resolvedFullPdfSourceSet = validHydratedPageCount !== undefined
         && binding.sourceSet.strategy === 'full_pdf'
         ? {
@@ -247,7 +283,7 @@ export const createBookDeliveryProjectionResolver = (options: {
         outline: binding.outline,
         sourceSet: combined ? { strategy: 'component_pdfs' as const, sources: [] } : resolvedFullPdfSourceSet,
         documentRequests,
-        pageGroups: combined ? combined.pageGroups : fullPdfPageGroups(binding),
+        pageGroups: combined ? combined.pageGroups : fullPdfPageGroups(effectiveFullPdfBinding),
         activities: binding.placements.map((placement) => ({
           placementId: placement.placementId,
           activityId: placement.activityId,

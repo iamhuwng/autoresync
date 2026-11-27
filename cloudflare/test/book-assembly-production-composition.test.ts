@@ -3,7 +3,9 @@ import {
   createProductionBookAssemblyRouteOptions,
   isFullPdfPublicationSourceReady,
   readExactSavedActivityContent,
+  readVerifiedDraftActivityCandidateIds,
   readVerifiedDraftActivityKeys,
+  selectCommittedComponentPdfLineage,
 } from '../src/upload-worker/book-assembly/production-composition.ts';
 import { normalizeActivity } from '../../src/services/book-activity/activityCanonical.service.ts';
 import { fingerprintComponentPdfActivationValue } from '../../src/services/book-assembly/componentPdfActivation.service.ts';
@@ -329,5 +331,82 @@ describe('production source publication boundary', () => {
     );
     expect(verifiedFromCache).toEqual(['u02-ex1']);
     expect(readBookBindings).not.toHaveBeenCalled();
+
+    const verifiedCandidateMap = await readVerifiedDraftActivityCandidateIds(
+      assembly as never,
+      { readBookBindings },
+      { readOwnerRoot: async () => ({ candidates: { [binding.candidateId]: saved }, activities: { [binding.activityId]: activity } }) },
+      { candidates: { [binding.candidateId]: saved }, activities: { [binding.activityId]: activity } } as never,
+      { 'unit-02': { 'u02-ex1': binding as never } },
+    );
+    expect(verifiedCandidateMap).toEqual({ 'u02-ex1': binding.candidateId });
+  });
+
+  it('ignores uncommitted prepared activity_versions rows in Component-PDF lineage until commit evidence exists', () => {
+    const activated = [{ unitKey: 'unit-1', activityKey: 'slot-a', activityId: 'activity-1' }];
+    const uncommittedPreparedScope = {
+      activityVersions: {
+        'orphan-row': {
+          schemaVersion: 1,
+          activityId: 'activity-1',
+          activityVersionId: 'av-orphan-1',
+          activityVersion: 1,
+          ownerId: 'teacher-1',
+          bookId: 'book-1',
+          manifestVersionId: 'manifest-uncommitted-1',
+          publicationId: 'pub-uncommitted-1',
+          publicationRevision: 1,
+          unitKey: 'unit-1',
+          activityKey: 'slot-a',
+          createdByCommandId: 'op-crashed-before-pointer',
+          createdAt: '2026-07-24T00:00:00.000Z',
+          sourcePages: [],
+          payloadFingerprint: 'fnv1a64:0123456789abcdef',
+        },
+      },
+    };
+    expect(selectCommittedComponentPdfLineage(
+      uncommittedPreparedScope as never,
+      'teacher-1',
+      'book-1',
+      'unit-1',
+      activated,
+    )).toEqual({
+      'slot-a': { activityId: 'activity-1' },
+    });
+
+    // Once committed via current pointer (and ignoring an uncommitted v2 prepared row), v1 is returned
+    const committedV1WithUncommittedV2 = {
+      current: { manifestVersionId: 'manifest-1', publicationId: 'pub-1', publicationRevision: 1 },
+      activityVersions: {
+        'row-v1': {
+          ...uncommittedPreparedScope.activityVersions['orphan-row'],
+          activityVersionId: 'av-1',
+          activityVersion: 1,
+          manifestVersionId: 'manifest-1',
+          publicationId: 'pub-1',
+        },
+        'row-v2-uncommitted': {
+          ...uncommittedPreparedScope.activityVersions['orphan-row'],
+          activityVersionId: 'av-2-orphan',
+          activityVersion: 2,
+          manifestVersionId: 'manifest-2-uncommitted',
+          publicationId: 'pub-2-uncommitted',
+        },
+      },
+    };
+    expect(selectCommittedComponentPdfLineage(
+      committedV1WithUncommittedV2 as never,
+      'teacher-1',
+      'book-1',
+      'unit-1',
+      activated,
+    )).toEqual({
+      'slot-a': {
+        activityId: 'activity-1',
+        lastActivityVersionId: 'av-1',
+        lastActivityVersion: 1,
+      },
+    });
   });
 });

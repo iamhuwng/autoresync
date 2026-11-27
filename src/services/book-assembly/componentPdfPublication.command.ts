@@ -289,9 +289,9 @@ export const createComponentPdfPublicationCommand = (
     });
     return {
       operationId,
-      manifestVersionId,
-      publicationId: plan.studentSafeProjection.publicationId,
-      publicationRevision: plan.studentSafeProjection.publicationRevision,
+      manifestVersionId: result.pointer?.manifestVersionId ?? manifestVersionId,
+      publicationId: result.pointer?.publicationId ?? plan.studentSafeProjection.publicationId,
+      publicationRevision: result.pointer?.publicationRevision ?? plan.studentSafeProjection.publicationRevision,
       result,
     };
   } catch (error) {

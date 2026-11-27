@@ -534,6 +534,15 @@ const validateBookDeliveryBindingUnsafe = (value: unknown): BookDeliveryValidati
       ...(Array.isArray(placement.navigationPageGroupKeys) ? placement.navigationPageGroupKeys : []),
     ]),
   );
+  const placementGroupScopes = new Set<string>(
+    placements.flatMap((placement) => {
+      const nodeKey = String(placement.nodeKey);
+      return [
+        ...(Array.isArray(placement.pageGroupKeys) ? placement.pageGroupKeys : []),
+        ...(Array.isArray(placement.navigationPageGroupKeys) ? placement.navigationPageGroupKeys : []),
+      ].map((pageGroupKey) => `${nodeKey.length}:${nodeKey}:${String(pageGroupKey)}`);
+    }),
+  );
   if (Object.hasOwn(binding, 'activityPageGroups')) {
     if (!boundedArray(binding.activityPageGroups)) {
       error(errors, 'invalid-value', 'binding.activityPageGroups', 'Activity page groups must be a bounded array.');
@@ -545,8 +554,9 @@ const validateBookDeliveryBindingUnsafe = (value: unknown): BookDeliveryValidati
         if (!id(group.nodeKey) || !outlineKeys.has(group.nodeKey)) {
           error(errors, 'contradictory-scope', `${path}.nodeKey`, 'Activity page group node is absent from the frozen outline.');
         }
-        const scopedKey = `${String(group.nodeKey)}::${String(group.pageGroupKey)}`;
-        if (!id(group.pageGroupKey) || seenActivityGroupScopes.has(scopedKey) || !activityPageGroupKeys.has(group.pageGroupKey)) {
+        const nodeKey = String(group.nodeKey);
+        const scopedKey = `${nodeKey.length}:${nodeKey}:${String(group.pageGroupKey)}`;
+        if (!id(group.pageGroupKey) || seenActivityGroupScopes.has(scopedKey) || !placementGroupScopes.has(scopedKey)) {
           error(errors, 'duplicate-id', `${path}.pageGroupKey`, 'Activity page group key must match a bound placement and be unique per node.');
         } else {
           seenActivityGroupScopes.add(scopedKey);

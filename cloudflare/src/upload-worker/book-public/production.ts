@@ -6,6 +6,7 @@ import { FirebaseRestBookDeliveryRepository, type BookDeliveryRepositoryEnv } fr
 import { FirebaseRestBookAssemblyPublicationRepository, type BookAssemblyPublicationRepositoryEnv } from '../book-assembly/publication-repository.ts';
 import {
   createTrustedBookDeliveryPublication,
+  deriveFullPdfActivityPageGroupsFromPublicationScope,
   readTrustedFullPdfPhysicalPageCount,
   resolveTrustedBookDeliveryStudentDocument,
 } from '../book-delivery/worker.ts';
@@ -138,6 +139,7 @@ export const createPublicBookProductionHandlers = (options: PublicDependencies &
             ? readPageCount(input.env, value.issuer.ownerId, value.book.bookId, sourceVersionId)
             : Promise.resolve(undefined);
         },
+        resolveFullPdfActivityPageGroups: async (value) => deriveFullPdfActivityPageGroupsFromPublicationScope(value, scope),
       }).resolve({ actor: { uid: input.uid }, recipientId: input.uid, contextId });
       return { body: { title: authority.title, projection }, init: { status: 200 } };
     } catch (error) {

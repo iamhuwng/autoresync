@@ -4,6 +4,7 @@ import { createBookDeliveryBinding } from '../../../../src/services/book-deliver
 import { createBookDeliveryProjectionResolver } from '../../../../src/services/book-delivery/bookDelivery.service.ts';
 import type {
   BookDeliveryBinding,
+  BookDeliveryReferencePageGroup,
   BookRuntimeDeliveryProjection,
   BookRuntimePageGroupContext,
 } from '../../../../src/services/book-delivery/bookDelivery.types.ts';
@@ -19,6 +20,7 @@ import {
 } from '../book-assembly/publication-repository.ts';
 import {
   createTrustedBookDeliveryPublication,
+  readTrustedFullPdfActivityPageGroups,
   readTrustedFullPdfPhysicalPageCount,
   resolveTrustedBookDeliveryStudentDocument,
 } from '../book-delivery/worker.ts';
@@ -120,6 +122,9 @@ export interface ClassBookDeliveryPorts {
     readonly pageGroups: readonly BookRuntimePageGroupContext[];
   } | null>;
   readonly resolveFullPdfPhysicalPageCount?: (binding: BookDeliveryBinding) => Promise<number | undefined>;
+  readonly resolveFullPdfActivityPageGroups?: (
+    binding: BookDeliveryBinding,
+  ) => Promise<readonly BookDeliveryReferencePageGroup[] | undefined>;
 }
 
 const assertCopy = (copy: ClassBookCopyIdentity | null, placement: ClassBookPlacement): ClassBookCopyIdentity => {
@@ -225,6 +230,7 @@ const createPorts = (env: WorkerEnv): ClassBookDeliveryPorts => {
         ? readTrustedFullPdfPhysicalPageCount(env, binding.issuer.ownerId, binding.book.bookId, sourceVersionId)
         : Promise.resolve(undefined);
     },
+    resolveFullPdfActivityPageGroups: (binding) => readTrustedFullPdfActivityPageGroups(env, binding, assemblies),
     async loadPublication(placement) {
       const scope = await assemblies.readScope(placement.pins.bookId);
       if (scope.current?.manifestVersionId !== placement.pins.manifestVersionId) {
@@ -314,6 +320,7 @@ export const createClassBookDeliveryProductionAdapter = (ports: ClassBookDeliver
       allowedAdapterContexts: ['class'],
       resolveStudentDocument: ports.resolveStudentDocument,
       resolveFullPdfPhysicalPageCount: ports.resolveFullPdfPhysicalPageCount,
+      resolveFullPdfActivityPageGroups: ports.resolveFullPdfActivityPageGroups,
     }).resolve({
       recipientId: input.studentId,
       contextId: deliveryContextId(input),
@@ -384,6 +391,7 @@ export const createClassBookDeliveryProductionAdapter = (ports: ClassBookDeliver
         allowedAdapterContexts: ['class'],
         resolveStudentDocument: ports.resolveStudentDocument,
         resolveFullPdfPhysicalPageCount: ports.resolveFullPdfPhysicalPageCount,
+        resolveFullPdfActivityPageGroups: ports.resolveFullPdfActivityPageGroups,
       }).resolve({ recipientId: input.studentId, contextId, actor: { uid: input.studentId } });
     },
     resolve,

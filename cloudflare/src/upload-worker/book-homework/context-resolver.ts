@@ -241,14 +241,94 @@ export class BookHomeworkAuthoritativeContextResolver implements BookHomeworkCon
     const carriedForwardProjection = activity.safeProjectionId
       ? scope.activitySafeProjections?.[activity.safeProjectionId]
       : undefined;
+    const hasCommittedRevisionOrigin = (() => {
+      if (!canonical
+        || canonical.provenance?.kind !== 'activity-revision'
+        || canonical.activityVersion <= 1
+        || typeof canonical.predecessorActivityVersionId !== 'string'
+        || canonical.predecessorActivityVersionId.length === 0
+        || !activity.canonicalOriginManifestVersionId
+        || activity.canonicalOriginManifestVersionId === manifest.manifestVersionId
+        || !activity.canonicalOriginPublicationId
+        || !activity.canonicalOriginOperationId
+        || canonical.createdByOperationId !== activity.canonicalOriginOperationId) {
+        return false;
+      }
+      const originManifest = scope.versions?.[activity.canonicalOriginManifestVersionId];
+      if (!originManifest
+        || originManifest.lifecycle !== 'published'
+        || originManifest.bookId !== book.bookId
+        || originManifest.ownerId !== ownerId
+        || originManifest.manifestVersionId !== activity.canonicalOriginManifestVersionId
+        || originManifest.publicationId !== activity.canonicalOriginPublicationId
+        || originManifest.publicationRevision >= manifest.publicationRevision) {
+        return false;
+      }
+      const originActivity = sole(Object.values(scope.activityVersions ?? {}).filter((entry) => (
+        entry.bookId === book.bookId
+        && entry.ownerId === ownerId
+        && entry.manifestVersionId === originManifest.manifestVersionId
+        && entry.publicationId === originManifest.publicationId
+        && entry.publicationRevision === originManifest.publicationRevision
+        && entry.activityId === activity.activityId
+        && entry.activityVersionId === activity.activityVersionId
+        && entry.activityVersion === activity.activityVersion
+        && entry.createdByCommandId === activity.canonicalOriginOperationId
+        && entry.canonicalPayloadFingerprint === canonical.payloadFingerprint
+      ))) as BookAssemblyActivityVersionRecord | null;
+      if (!originActivity || !originActivity.safeProjectionId) return false;
+      const originOp = scope.operations?.[originActivity.createdByCommandId] as {
+        readonly ownerId?: string;
+        readonly result?: {
+          readonly status?: string;
+          readonly pointer?: { readonly manifestVersionId?: string; readonly publicationId?: string };
+        };
+      } | undefined;
+      const originOpCommitted = Boolean(originOp
+        && originOp.ownerId === ownerId
+        && originOp.result?.status === 'published'
+        && originOp.result.pointer?.manifestVersionId === originManifest.manifestVersionId
+        && originOp.result.pointer?.publicationId === originManifest.publicationId);
+      const originAuditCommitted = Object.values(scope.audits ?? {}).some((audit) => (
+        audit.ownerId === ownerId
+        && audit.bookId === book.bookId
+        && audit.action === 'publish'
+        && audit.status === 'committed'
+        && audit.manifestVersionId === originManifest.manifestVersionId
+        && audit.publicationId === originManifest.publicationId
+      ));
+      if (!originOpCommitted && !originAuditCommitted) return false;
+      const originProjection = scope.activitySafeProjections?.[originActivity.safeProjectionId];
+      if (!originProjection
+        || originProjection.bookId !== book.bookId
+        || originProjection.ownerId !== ownerId
+        || originProjection.manifestVersionId !== originManifest.manifestVersionId
+        || originProjection.publicationId !== originManifest.publicationId
+        || originProjection.publicationRevision !== originManifest.publicationRevision
+        || originProjection.activityId !== activity.activityId
+        || originProjection.activityVersionId !== activity.activityVersionId) {
+        return false;
+      }
+      const canonicalPlacements = [...canonical.placementIds].sort();
+      const originPlacements = [...originProjection.placementIds].sort();
+      return canonicalPlacements.length > 0
+        && canonicalPlacements.length === originPlacements.length
+        && canonicalPlacements.every((id, index) => id === originPlacements[index]);
+    })();
+    const carriedForwardOriginAuthorized = canonical !== null
+      && canonical.placementIds.length > 0
+      && (
+        (canonical.provenance?.kind === 'initial-book-publication'
+          && canonical.provenance.bookId === book.bookId
+          && canonical.provenance.manifestVersionId !== manifest.manifestVersionId
+          && canonical.provenance.manifestVersionId === activity.canonicalOriginManifestVersionId
+          && canonical.provenance.publicationId === activity.canonicalOriginPublicationId
+          && canonical.createdByOperationId === activity.canonicalOriginOperationId)
+        || hasCommittedRevisionOrigin
+      );
     const placementAuthorized = canonical !== null && (
       canonical.placementIds.includes(storedPlacement.placementId)
-      || (canonical.provenance.kind === 'initial-book-publication'
-        && canonical.provenance.bookId === book.bookId
-        && canonical.provenance.manifestVersionId !== manifest.manifestVersionId
-        && canonical.provenance.manifestVersionId === activity.canonicalOriginManifestVersionId
-        && canonical.provenance.publicationId === activity.canonicalOriginPublicationId
-        && canonical.placementIds.length > 0
+      || (carriedForwardOriginAuthorized
         && carriedForwardProjection !== undefined
         && carriedForwardProjection.bookId === book.bookId
         && carriedForwardProjection.ownerId === ownerId

@@ -1075,4 +1075,193 @@ describe('canonical Activity Version Firebase repositories', () => {
     });
     await expect(reader.readExact(successorRequest)).resolves.toEqual(canonicalRecord());
   });
+
+  it('reads carried-forward Full-PDF activity-revision (v2) when committed Book-local origin matches, and fails closed on origin mismatch', async () => {
+    const baseCanonical = canonicalRecord();
+    const revisionOpId = '00000000-0000-4000-8000-000000000777';
+    const revisionWithoutFp = {
+      schemaVersion: 1 as const,
+      lifecycle: 'published' as const,
+      activityId: baseCanonical.activityId,
+      activityVersionId: 'activity-version-2',
+      activityVersion: 2,
+      ownerId: baseCanonical.ownerId,
+      activity: baseCanonical.activity,
+      projection: baseCanonical.projection,
+      predecessorActivityVersionId: baseCanonical.activityVersionId,
+      placementIds: ['placement-v2-origin'],
+      evidenceRefs: [],
+      sourceContextFingerprint: 'fnv1a64:0123456789abcdef',
+      createdByOperationId: revisionOpId,
+      publishedAt: '2026-07-24T01:00:00.000Z',
+      provenance: {
+        kind: 'activity-revision' as const,
+        candidateId: 'cand-rev-2',
+        candidateRevision: 2,
+        evidenceRefs: [],
+        sourceContext: { fingerprint: 'fnv1a64:0123456789abcdef' },
+      },
+    };
+    const revisionCanonical = {
+      ...revisionWithoutFp,
+      payloadFingerprint: createCanonicalActivityVersionFingerprint(revisionWithoutFp),
+    };
+    const carriedRequest = {
+      ...request,
+      manifestVersionId: 'manifest-3',
+      publicationId: 'publication-3',
+      activityVersionId: 'activity-version-2',
+      activityVersion: 2,
+      payloadFingerprint: revisionCanonical.payloadFingerprint,
+    };
+    const originPaths = {
+      manifest: `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${request.bookId}/versions/manifest-2`,
+      bookActivityVersion: `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${request.bookId}/activity_versions/${bookAssemblyActivityVersionScopeKey('manifest-2', 'activity-version-2')}`,
+      bookSafeProjection: `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${request.bookId}/activity_safe_projections/projection-v2-origin`,
+      operation: `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${request.bookId}/operations/${revisionOpId}`,
+    };
+    const successorPaths = {
+      manifest: `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${request.bookId}/versions/manifest-3`,
+      bookActivityVersion: `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${request.bookId}/activity_versions/${bookAssemblyActivityVersionScopeKey('manifest-3', 'activity-version-2')}`,
+      bookSafeProjection: `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${request.bookId}/activity_safe_projections/projection-v3-successor`,
+      bookPlacement: `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${request.bookId}/placements/placement-v3-successor`,
+      current: `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${request.bookId}/current`,
+      canonical: `book_activity/versions/${request.activityId}/activity-version-2`,
+      studentSafeProjection: `book_activity/student_safe_projections/${request.activityId}/activity-version-2`,
+    };
+    const validState = (): Record<string, unknown> => ({
+      [originPaths.manifest]: {
+        schemaVersion: 1,
+        lifecycle: 'published',
+        bookId: request.bookId,
+        manifestVersionId: 'manifest-2',
+        publicationId: 'publication-2',
+        publicationRevision: 2,
+        ownerId: request.ownerId,
+        manifest: {},
+        studentSafeProjection: {},
+      },
+      [originPaths.bookActivityVersion]: {
+        ...bookActivityVersionRecord(),
+        manifestVersionId: 'manifest-2',
+        publicationId: 'publication-2',
+        publicationRevision: 2,
+        activityVersionId: 'activity-version-2',
+        activityVersion: 2,
+        createdByCommandId: revisionOpId,
+        canonicalPayloadFingerprint: revisionCanonical.payloadFingerprint,
+        safeProjectionId: 'projection-v2-origin',
+        canonicalOriginManifestVersionId: 'manifest-2',
+        canonicalOriginPublicationId: 'publication-2',
+        canonicalOriginOperationId: revisionOpId,
+      },
+      [originPaths.bookSafeProjection]: {
+        ...bookSafeProjectionRecord(),
+        projectionId: 'projection-v2-origin',
+        manifestVersionId: 'manifest-2',
+        publicationId: 'publication-2',
+        publicationRevision: 2,
+        activityVersionId: 'activity-version-2',
+        placementIds: ['placement-v2-origin'],
+      },
+      [originPaths.operation]: {
+        ownerId: request.ownerId,
+        result: {
+          status: 'published',
+          pointer: { manifestVersionId: 'manifest-2', publicationId: 'publication-2' },
+        },
+      },
+      [successorPaths.manifest]: {
+        schemaVersion: 1,
+        lifecycle: 'published',
+        bookId: request.bookId,
+        manifestVersionId: 'manifest-3',
+        publicationId: 'publication-3',
+        publicationRevision: 3,
+        ownerId: request.ownerId,
+        manifest: {},
+        studentSafeProjection: {},
+      },
+      [successorPaths.bookActivityVersion]: {
+        ...bookActivityVersionRecord(),
+        manifestVersionId: 'manifest-3',
+        publicationId: 'publication-3',
+        publicationRevision: 3,
+        activityVersionId: 'activity-version-2',
+        activityVersion: 2,
+        canonicalPayloadFingerprint: revisionCanonical.payloadFingerprint,
+        safeProjectionId: 'projection-v3-successor',
+        canonicalOriginManifestVersionId: 'manifest-2',
+        canonicalOriginPublicationId: 'publication-2',
+        canonicalOriginOperationId: revisionOpId,
+      },
+      [successorPaths.bookSafeProjection]: {
+        ...bookSafeProjectionRecord(),
+        projectionId: 'projection-v3-successor',
+        manifestVersionId: 'manifest-3',
+        publicationId: 'publication-3',
+        publicationRevision: 3,
+        activityVersionId: 'activity-version-2',
+        placementIds: ['placement-v3-successor'],
+      },
+      [successorPaths.bookPlacement]: {
+        ...bookPlacementRecord(),
+        placementId: 'placement-v3-successor',
+        manifestVersionId: 'manifest-3',
+        publicationId: 'publication-3',
+        publicationRevision: 3,
+        activityVersionId: 'activity-version-2',
+      },
+      [successorPaths.current]: {
+        manifestVersionId: 'manifest-3',
+        publicationId: 'publication-3',
+      },
+      [successorPaths.canonical]: revisionCanonical,
+      [successorPaths.studentSafeProjection]: {
+        schemaVersion: 1,
+        projectionKind: 'student-safe',
+        activityId: revisionCanonical.activityId,
+        activityVersionId: revisionCanonical.activityVersionId,
+        ownerId: revisionCanonical.ownerId,
+        content: revisionCanonical.projection,
+        payloadFingerprint: revisionCanonical.payloadFingerprint,
+        createdByOperationId: revisionCanonical.createdByOperationId,
+        publishedAt: revisionCanonical.publishedAt,
+      },
+    });
+
+    const okReader = new FirebaseRestExactPublishedActivityVersionReader({
+      env: readerEnv(),
+      fetchImpl: createFetchHarness(validState()).fetchImpl,
+      getAccessToken: accessToken,
+    });
+    await expect(okReader.readExact(carriedRequest)).resolves.toEqual(revisionCanonical);
+
+    // Uncommitted origin (missing origin operation) fails closed
+    const missingOriginOp = validState();
+    delete missingOriginOp[originPaths.operation];
+    const missingOriginReader = new FirebaseRestExactPublishedActivityVersionReader({
+      env: readerEnv(),
+      fetchImpl: createFetchHarness(missingOriginOp).fetchImpl,
+      getAccessToken: accessToken,
+    });
+    await expect(missingOriginReader.readExact(carriedRequest)).resolves.toBeNull();
+
+    // Exact placement equality still applies on the origin manifest itself
+    const originMismatch = validState();
+    originMismatch[originPaths.bookSafeProjection] = {
+      ...(originMismatch[originPaths.bookSafeProjection] as Record<string, unknown>),
+      placementIds: ['placement-wrong'],
+    };
+    const originMismatchReader = new FirebaseRestExactPublishedActivityVersionReader({
+      env: readerEnv(),
+      fetchImpl: createFetchHarness(originMismatch).fetchImpl,
+      getAccessToken: accessToken,
+    });
+    await expect(originMismatchReader.readExact({
+      ...carriedRequest,
+      manifestVersionId: 'manifest-2',
+      publicationId: 'publication-2',
+    })).resolves.toBeNull();
+  });
 });

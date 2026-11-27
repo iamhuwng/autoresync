@@ -2011,4 +2011,235 @@ describe('BookAssemblyWorkspace', () => {
     expect(screen.getAllByText(/Manifest changes could not be reverted/i).length).toBeGreaterThan(0);
   });
 
+  it('cleans up newly created validated candidates on Phase 1 failure, preserves manifest on HTTP 409 binding-conflict, and loads prior slot snapshots for compensation', async () => {
+    const user = userEvent.setup();
+    const { ActivityAuthoringHttpError } = await import('../../services/book-activity/activityStorage.service');
+
+    // Case 1: Newly created + validated candidate (no previousCandidate) when Phase 1 stage fails -> calls guarded discard
+    const repoNew = repository();
+    vi.mocked(repoNew.create).mockImplementationOnce(async (input) => ({
+      status: 'created',
+      candidate: { ...candidate(), unitKey: input.unitKey, candidateId: 'cand-brand-new', revision: 1, lifecycle: 'draft', manifest: input.manifest },
+      receipt: { operationId: input.operationId, status: 'created', fingerprint: 'fp', createdAt: '2026-07-24T00:00:00.000Z' },
+      conflict: null,
+    }));
+    vi.mocked(repoNew.validate).mockImplementationOnce(async (input) => ({
+      status: 'validated',
+      candidate: { ...candidate(), unitKey: input.unitKey, candidateId: 'cand-brand-new', revision: 2, lifecycle: 'validated' },
+      receipt: { operationId: input.operationId, status: 'validated', fingerprint: 'fp', createdAt: '2026-07-24T00:00:00.000Z' },
+      conflict: null,
+    }));
+    vi.mocked(repoNew.discard).mockImplementationOnce(async (input) => ({
+      status: 'discarded',
+      candidate: { ...candidate(), unitKey: input.unitKey, candidateId: 'cand-brand-new', revision: 3, lifecycle: 'discarded', manifest: null },
+      receipt: { operationId: input.operationId, status: 'discarded', fingerprint: 'fp', createdAt: '2026-07-24T00:00:00.000Z' },
+      conflict: null,
+    }));
+    const authoringFailNew = activityAuthoring();
+    vi.mocked(authoringFailNew.stage).mockRejectedValueOnce(new Error('stage_phase1_failed'));
+    const r1 = renderWorkspace({
+      repository: repoNew,
+      activityAuthoring: authoringFailNew,
+      initialCandidate: null,
+      validateCandidateAfterSave: true,
+    });
+    await user.click(screen.getAllByRole('button', { name: 'Bind' })[0]);
+    await user.click(screen.getByRole('button', { name: 'Add unit' }));
+    const createdUnitButton = screen.getByRole('button', { name: /^unit: / });
+    const createdUnitKey = createdUnitButton.textContent!.replace(/^unit:\s*/u, '').trim();
+    await user.clear(screen.getByLabelText('One-based physical pages'));
+    await user.type(screen.getByLabelText('One-based physical pages'), '2');
+    await user.clear(screen.getByLabelText('Default physical page'));
+    await user.type(screen.getByLabelText('Default physical page'), '2');
+    await user.clear(screen.getByLabelText('Activity key'));
+    await user.type(screen.getByLabelText('Activity key'), 'activity-reading-1');
+    await user.selectOptions(screen.getByLabelText('Context requirement'), 'required');
+    await user.click(screen.getByRole('button', { name: 'Add mapping' }));
+    const baseUnitPayload = JSON.parse(unitImportJson());
+    const createdUnitPayload = JSON.stringify({
+      ...baseUnitPayload,
+      unitKey: createdUnitKey,
+      slots: baseUnitPayload.slots.map((slot: Record<string, unknown>) => ({
+        ...slot,
+        answerEvidenceRefs: [`pageGroup:${createdUnitKey}-pages-full-2-activity`],
+      })),
+    });
+    fireEvent.change(screen.getByLabelText('Paste Unit Activity JSON'), { target: { value: createdUnitPayload } });
+    await user.click(screen.getByRole('button', { name: 'Stage Unit JSON' }));
+    await waitFor(() => expect(repoNew.discard).toHaveBeenCalledTimes(1));
+    expect(repoNew.discard).toHaveBeenCalledWith(expect.objectContaining({
+      unitKey: createdUnitKey,
+      candidateId: 'cand-brand-new',
+      expectedCandidateRevision: 2,
+      allowUnpublishedValidatedRollback: true,
+    }));
+    r1.unmount();
+
+    // Case 2: HTTP 409 binding-conflict on Slot 1 keeps manifest (never reverts it!)
+    const oneSlotManifest = {
+      ...candidate().manifest!,
+      units: [{
+        unitKey: 'unit-1',
+        activitySlots: [
+          { activityKey: 'activity-reading-1', order: 1, contextRequirement: 'required' as const, pageGroupKeys: ['pages-full-2-activity'] },
+        ],
+        pageGroups: [
+          { pageGroupKey: 'pages-full-2-activity', sourceKey: 'full', pages: [2], defaultPhysicalPageNumber: 2, activityKeys: ['activity-reading-1'], mode: 'activity' as const },
+        ],
+      }],
+    };
+    const repo409 = repository();
+    const authoring409 = activityAuthoring();
+    vi.mocked(authoring409.saveDraft).mockRejectedValueOnce(new ActivityAuthoringHttpError(409, {
+      status: 'binding-conflict',
+      activityId: bookScopedActivityTargetId('book-1', 'activity-reading-1'),
+      revision: 1,
+      candidateId: 'cand-1',
+      candidateRevision: 3,
+      lifecycle: 'saved',
+      binding: {
+        schemaVersion: 1,
+        ownerId: 'teacher-1',
+        bookId: 'book-1',
+        unitKey: 'unit-1',
+        activityKey: 'activity-reading-1',
+        activityId: bookScopedActivityTargetId('book-1', 'activity-reading-1'),
+        candidateId: 'cand-1',
+        candidateRevision: 3,
+        candidateLifecycle: 'saved',
+        phase: 'binding-conflict',
+      },
+    }));
+    const r2 = renderWorkspace({
+      repository: repo409,
+      activityAuthoring: authoring409,
+      initialCandidate: { ...candidate(), manifest: oneSlotManifest },
+    });
+    await user.click(screen.getByRole('button', { name: 'Add section' }));
+    fireEvent.change(screen.getByLabelText('Paste Unit Activity JSON'), { target: { value: unitImportJson() } });
+    await user.click(screen.getByRole('button', { name: 'Stage Unit JSON' }));
+    await waitFor(() => expect(authoring409.saveDraft).toHaveBeenCalledTimes(1));
+    expect(repo409.replace).toHaveBeenCalledTimes(1);
+    expect(authoring409.discard).not.toHaveBeenCalled();
+    r2.unmount();
+
+    // Case 3: initialSavedCandidateIdsByUnit loads previous slot snapshot and compensates Slot 1 when Slot 2 fails
+    const twoSlotManifest = {
+      ...candidate().manifest!,
+      units: [{
+        unitKey: 'unit-1',
+        activitySlots: [
+          { activityKey: 'activity-reading-1', order: 1, contextRequirement: 'required' as const, pageGroupKeys: ['pages-full-2-activity'] },
+          { activityKey: 'activity-reading-2', order: 2, contextRequirement: 'required' as const, pageGroupKeys: ['pages-full-2-activity'] },
+        ],
+        pageGroups: [
+          { pageGroupKey: 'pages-full-2-activity', sourceKey: 'full', pages: [2], defaultPhysicalPageNumber: 2, activityKeys: ['activity-reading-1', 'activity-reading-2'], mode: 'activity' as const },
+        ],
+      }],
+    };
+    const twoSlotJson = JSON.stringify({
+      promptVersion: 'book-unit-json-v1',
+      schemaVersion: 'prd0062.unit_activity_import.v1',
+      bookId: 'book-1',
+      unitKey: 'unit-1',
+      slots: ['activity-reading-1', 'activity-reading-2'].map((activityKey) => ({
+        activityKey,
+        content: JSON.parse(unitImportJson()).slots[0].content,
+        evidenceRefs: [`import:${activityKey}`],
+        sourceEvidenceRefs: ['source:full:page:2'],
+        answerEvidenceRefs: ['source:full:page:2'],
+      })),
+    });
+    const priorContent = { ...JSON.parse(unitImportJson()).slots[0].content, title: 'Prior Saved Slot 1' };
+    const authoringComp = activityAuthoring();
+    vi.mocked(authoringComp.loadCandidate).mockResolvedValueOnce({
+      status: 'loaded',
+      candidate: {
+        candidateId: 'saved-cand-prior-1',
+        targetActivityId: bookScopedActivityTargetId('book-1', 'activity-reading-1'),
+        ownerId: 'teacher-1',
+        bookId: 'book-1',
+        targetRevision: 1,
+        revision: 3,
+        lifecycle: 'saved',
+        content: priorContent,
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: ['import:prior-1'],
+        sourceEvidenceRefs: ['source:full:page:2'],
+        answerEvidenceRefs: ['source:full:page:2'],
+        updatedAt: 1000,
+      },
+    });
+    vi.mocked(authoringComp.stage)
+      .mockResolvedValueOnce({
+        status: 'staged',
+        candidateId: 'cand-new-1',
+        targetActivityId: bookScopedActivityTargetId('book-1', 'activity-reading-1'),
+        revision: 1,
+        lifecycle: 'staged',
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [],
+      })
+      .mockResolvedValueOnce({
+        status: 'staged',
+        candidateId: 'cand-new-2',
+        targetActivityId: bookScopedActivityTargetId('book-1', 'activity-reading-2'),
+        revision: 1,
+        lifecycle: 'staged',
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [],
+      })
+      .mockResolvedValueOnce({
+        status: 'staged',
+        candidateId: 'cand-rollback-1',
+        targetActivityId: bookScopedActivityTargetId('book-1', 'activity-reading-1'),
+        revision: 1,
+        lifecycle: 'staged',
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [],
+      });
+    vi.mocked(authoringComp.saveDraft)
+      .mockResolvedValueOnce({
+        status: 'saved',
+        activityId: bookScopedActivityTargetId('book-1', 'activity-reading-1'),
+        candidateId: 'cand-new-1',
+        candidateRevision: 3,
+        revision: 2,
+        lifecycle: 'saved',
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [],
+      })
+      .mockRejectedValueOnce(new Error('save_slot_2_boom'))
+      .mockResolvedValueOnce({
+        status: 'saved',
+        activityId: bookScopedActivityTargetId('book-1', 'activity-reading-1'),
+        candidateId: 'cand-rollback-1',
+        candidateRevision: 3,
+        revision: 3,
+        lifecycle: 'saved',
+        validation: { valid: true, errors: [] },
+        diff: null,
+        evidenceRefs: [],
+      });
+    renderWorkspace({
+      repository: repository(),
+      activityAuthoring: authoringComp,
+      initialCandidate: { ...candidate(), manifest: twoSlotManifest },
+      initialSavedCandidateIdsByUnit: { 'unit-1': { 'activity-reading-1': 'saved-cand-prior-1' } },
+    });
+    fireEvent.change(screen.getByLabelText('Paste Unit Activity JSON'), { target: { value: twoSlotJson } });
+    await user.click(screen.getByRole('button', { name: 'Stage Unit JSON' }));
+    await waitFor(() => expect(authoringComp.saveDraft).toHaveBeenCalledTimes(3));
+    expect(authoringComp.loadCandidate).toHaveBeenCalledWith('saved-cand-prior-1');
+    expect(authoringComp.stage).toHaveBeenNthCalledWith(3, expect.objectContaining({
+      content: priorContent,
+      expectedRevision: 2,
+    }));
+  });
+
 });

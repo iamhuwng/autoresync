@@ -33,6 +33,7 @@ import {
   UnitActivityImportError,
   UnitActivityImportPartialCommitError,
 } from '../../services/book-assembly/unitActivityImport.service';
+import type { PreviousSlotSnapshot } from '../../services/book-assembly/unitActivityImport.service';
 import {
   buildBulkUnitActivityImportPrompt,
   buildUnitActivityImportPrompt,
@@ -99,6 +100,8 @@ export interface BookAssemblyWorkspaceProps {
   readonly initialCandidatesByUnit?: Readonly<Record<string, BookAssemblyCandidateRecord>>;
   /** Exact saved Unit-Activity bindings returned with the current Assembly draft. */
   readonly initialSavedActivityKeysByUnit?: Readonly<Record<string, readonly string[]>>;
+  /** Optional saved 12C candidate IDs per Unit slot so multi-slot replace can load rollback snapshots. */
+  readonly initialSavedCandidateIdsByUnit?: Readonly<Record<string, Readonly<Record<string, string>>>>;
   /** Units already published in the Book's current publication. */
   readonly publishedUnitKeys?: readonly string[];
   readonly repository?: UnitAssemblyRepository;
@@ -404,6 +407,7 @@ const BookAssemblyWorkspace = ({
   initialCandidate,
   initialCandidatesByUnit = {},
   initialSavedActivityKeysByUnit = {},
+  initialSavedCandidateIdsByUnit = {},
   publishedUnitKeys = [],
   repository,
   migrationClient,
@@ -512,9 +516,20 @@ const BookAssemblyWorkspace = ({
   const nodeButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const pendingFocusNodeKeyRef = useRef<string | null>(null);
   const unitImportAbortRef = useRef<AbortController | null>(null);
+  const savedSlotSnapshotsRef = useRef<Record<string, Record<string, PreviousSlotSnapshot>>>({});
+  const savedCandidateIdsRef = useRef<Record<string, Record<string, string>>>({});
   const structureImportInputRef = useRef<HTMLInputElement | null>(null);
   const persistenceBusyRef = useRef(false);
   persistenceBusyRef.current = status === 'saving' || unitImportBusy || activationBusy;
+
+  useEffect(() => {
+    for (const [unitKey, slots] of Object.entries(initialSavedCandidateIdsByUnit)) {
+      savedCandidateIdsRef.current[unitKey] = {
+        ...(savedCandidateIdsRef.current[unitKey] ?? {}),
+        ...slots,
+      };
+    }
+  }, [initialSavedCandidateIdsByUnit]);
 
   useEffect(() => {
     setEffectiveBookRevision((current) => Math.max(current, bookRevision));
@@ -1286,7 +1301,14 @@ const BookAssemblyWorkspace = ({
       attachedSourceSet: SourceSetCandidate | null;
       candidatesByUnit: Record<string, BookAssemblyCandidateRecord>;
     },
-  ): Promise<Pick<BookAssemblyMutationResult, 'status' | 'candidate'> & Partial<Pick<BookAssemblyMutationResult, 'receipt'>>> => {
+  ): Promise<
+    Pick<BookAssemblyMutationResult, 'status' | 'candidate'>
+    & Partial<Pick<BookAssemblyMutationResult, 'receipt'>>
+    & {
+      readonly createdNewCandidate: boolean;
+      readonly authority: { readonly bookRevision: number; readonly sourceSetRevision: number };
+    }
+  > => {
     let authority = sessionContext
       ? { ...sessionContext.authority }
       : {
@@ -1346,6 +1368,8 @@ const BookAssemblyWorkspace = ({
       return {
         status: 'validated',
         candidate: loaded.candidate,
+        createdNewCandidate: false,
+        authority,
         receipt: {
           operationId: activationOperationId,
           fingerprint: receipt.inputFingerprint,
@@ -1393,14 +1417,17 @@ const BookAssemblyWorkspace = ({
       if (validManifest.units.length > 1 && !repository!.discoverDrafts) {
         throw new Error('component_pdf_draft_discovery_unavailable');
       }
-      const saveUnit = async (key: string): Promise<Pick<BookAssemblyMutationResult, 'status' | 'candidate'>> => {
+      const saveUnit = async (key: string): Promise<
+        Pick<BookAssemblyMutationResult, 'status' | 'candidate'>
+        & { readonly createdNewCandidate: boolean; readonly authority: { readonly bookRevision: number; readonly sourceSetRevision: number } }
+      > => {
         const existing = existingByUnit.get(key);
         if (existing?.bookId === bookId && existing.unitKey === key
           && existing.bookRevision === authority.bookRevision && existing.sourceSetRevision === authority.sourceSetRevision
           && existing.lifecycle === 'validated' && existing.manifest
           && fingerprintBookAssemblyOperation(existing.manifest) === fingerprintBookAssemblyOperation(validManifest)
           && (repository!.discoverDrafts || current?.candidate === existing)) {
-          return { status: 'validated', candidate: existing };
+          return { status: 'validated', candidate: existing, createdNewCandidate: false, authority };
         }
         let saved = existing ? await repository!.replace({
           operationId: operationId(), bookId, unitKey: key,
@@ -1411,6 +1438,7 @@ const BookAssemblyWorkspace = ({
           operationId: operationId(), bookId, unitKey: key,
           expectedBookRevision: 0, expectedSourceSetRevision: 0, manifest: validManifest,
         });
+        const createdHere = !existing && Boolean(saved.candidate) && saved.status !== 'conflict';
         if (saved.candidate && saved.status !== 'conflict' && saved.candidate.lifecycle !== 'validated') {
           saved = await repository!.validate({
             operationId: operationId(), bookId, unitKey: key,
@@ -1421,7 +1449,7 @@ const BookAssemblyWorkspace = ({
         if (saved.candidate && sessionContext) {
           sessionContext.candidatesByUnit[key] = saved.candidate;
         }
-        return saved;
+        return { ...saved, createdNewCandidate: createdHere, authority };
       };
       for (const unit of validManifest.units.filter((entry) => entry.unitKey !== unitKey)) {
         const saved = await saveUnit(unit.unitKey);
@@ -1429,12 +1457,17 @@ const BookAssemblyWorkspace = ({
       }
       return saveUnit(unitKey);
     }
+    const unitCandidatesMap = sessionContext?.candidatesByUnit ?? candidatesByUnit;
+    const hadExistingForUnit = Boolean(
+      unitCandidatesMap[unitKey] ?? (candidate?.unitKey === unitKey ? candidate : null),
+    );
     let result = await persistManifest(
       validManifest,
       unitKey,
       authority,
-      sessionContext?.candidatesByUnit ?? candidatesByUnit,
+      unitCandidatesMap,
     );
+    const createdNewCandidate = !hadExistingForUnit && Boolean(result.candidate) && result.status !== 'conflict';
     if (validateCandidateAfterSave && result.candidate && result.candidate.lifecycle !== 'validated') {
       result = await repository!.validate({
         operationId: operationId(),
@@ -1447,7 +1480,7 @@ const BookAssemblyWorkspace = ({
     if (result.candidate && sessionContext) {
       sessionContext.candidatesByUnit[unitKey] = result.candidate;
     }
-    return result;
+    return { ...result, createdNewCandidate, authority };
   };
 
   const finishComponentSetup = async () => {
@@ -1727,6 +1760,92 @@ const BookAssemblyWorkspace = ({
     });
   };
 
+  const loadPreviousSnapshotsForUnit = async (
+    unitKey: string,
+    slotActivityKeys: readonly string[],
+    expectedActivityRevisions: Readonly<Record<string, number>>,
+  ): Promise<Readonly<Record<string, PreviousSlotSnapshot>> | undefined> => {
+    if (!activityAuthoring) return undefined;
+    const snapshots: Record<string, PreviousSlotSnapshot> = {};
+    const missingKeys: string[] = [];
+    for (const activityKey of slotActivityKeys) {
+      const cached = savedSlotSnapshotsRef.current[unitKey]?.[activityKey];
+      if (cached) {
+        snapshots[activityKey] = cached;
+      } else {
+        missingKeys.push(activityKey);
+      }
+    }
+    if (missingKeys.length > 0) {
+      const needsLookup = missingKeys.some((activityKey) => (
+        !savedCandidateIdsRef.current[unitKey]?.[activityKey]
+        && ((expectedActivityRevisions[activityKey] ?? 0) > 0
+          || (importedActivityKeysByUnit[unitKey] ?? []).includes(activityKey))
+      ));
+      if (needsLookup && repository?.loadCurrent) {
+        try {
+          const currentDraft = await repository.loadCurrent(bookId, unitKey);
+          for (const [draftUnitKey, slotCandidates] of Object.entries(currentDraft?.savedCandidateIdsByUnit ?? {})) {
+            savedCandidateIdsRef.current[draftUnitKey] = {
+              ...(savedCandidateIdsRef.current[draftUnitKey] ?? {}),
+              ...slotCandidates,
+            };
+          }
+        } catch {
+          // Best-effort snapshot hydration must never block an import.
+        }
+      }
+      for (const activityKey of missingKeys) {
+        const candidateId = savedCandidateIdsRef.current[unitKey]?.[activityKey];
+        if (!candidateId || typeof activityAuthoring.loadCandidate !== 'function') continue;
+        try {
+          const loaded = await activityAuthoring.loadCandidate(candidateId);
+          if (loaded.status === 'loaded' && loaded.candidate.lifecycle === 'saved') {
+            const snapshot: PreviousSlotSnapshot = {
+              content: loaded.candidate.content,
+              evidenceRefs: loaded.candidate.evidenceRefs,
+              sourceEvidenceRefs: loaded.candidate.sourceEvidenceRefs,
+              answerEvidenceRefs: loaded.candidate.answerEvidenceRefs,
+            };
+            snapshots[activityKey] = snapshot;
+            savedSlotSnapshotsRef.current[unitKey] = {
+              ...(savedSlotSnapshotsRef.current[unitKey] ?? {}),
+              [activityKey]: snapshot,
+            };
+          }
+        } catch {
+          // Best-effort snapshot hydration must never block an import.
+        }
+      }
+    }
+    return Object.keys(snapshots).length > 0 ? snapshots : undefined;
+  };
+
+  const rememberImportedSlotSnapshots = (
+    unitKey: string,
+    importResult: Awaited<ReturnType<typeof stageUnitActivityImportBundle>>,
+  ) => {
+    const nextSnapshots: Record<string, PreviousSlotSnapshot> = {
+      ...(savedSlotSnapshotsRef.current[unitKey] ?? {}),
+    };
+    for (const slot of importResult.bundle.slots) {
+      nextSnapshots[slot.activityKey] = {
+        content: slot.content,
+        evidenceRefs: slot.evidenceRefs,
+        sourceEvidenceRefs: slot.sourceEvidenceRefs,
+        answerEvidenceRefs: slot.answerEvidenceRefs,
+      };
+    }
+    savedSlotSnapshotsRef.current[unitKey] = nextSnapshots;
+    const nextCandidateIds: Record<string, string> = {
+      ...(savedCandidateIdsRef.current[unitKey] ?? {}),
+    };
+    for (const stagedEntry of importResult.staged) {
+      nextCandidateIds[stagedEntry.unitActivityBinding.activityKey] = stagedEntry.candidateId;
+    }
+    savedCandidateIdsRef.current[unitKey] = nextCandidateIds;
+  };
+
   const importUnitJson = async (expectedActivityRevisions: Readonly<Record<string, number>> = {}) => {
     if (persistenceBusyRef.current) return;
     const unitKey = selectedUnitKey;
@@ -1761,7 +1880,7 @@ const BookAssemblyWorkspace = ({
       const rawUnitText = unitImportTextByUnit[unitKey] ?? '';
       // Validate the bundle shape before mutating the Assembly contract. The
       // Worker performs the authoritative schema/context validation afterward.
-      parseUnitActivityImportBundle(rawUnitText, validManifest, unitKey);
+      const parsedBundle = parseUnitActivityImportBundle(rawUnitText, validManifest, unitKey);
       const previousCandidate = candidatesByUnit[unitKey] ?? (candidate?.unitKey === unitKey ? candidate : null);
       const previousManifest = previousCandidate?.manifest ?? null;
       const previousSnapshot = previousManifest
@@ -1795,6 +1914,11 @@ const BookAssemblyWorkspace = ({
       onDirtyChange?.(false);
       setUnitImportStatus('Validating Unit JSON...');
       setUnitImportCancelable(true);
+      const previousSnapshotsBySlot = await loadPreviousSnapshotsForUnit(
+        unitKey,
+        parsedBundle.slots.map((slot) => slot.activityKey),
+        expectedActivityRevisions,
+      );
       let importResult: Awaited<ReturnType<typeof stageUnitActivityImportBundle>>;
       try {
         importResult = await stageUnitActivityImportBundle({
@@ -1803,6 +1927,7 @@ const BookAssemblyWorkspace = ({
           unitKey,
           activityAuthoring,
           expectedActivityRevisions,
+          previousSnapshotsBySlot,
           resolveActivityTargetId: (slot) => {
             const unit = validManifest.units.find((entry) => entry.unitKey === unitKey);
             return unit?.activitySlots.some((entry) => entry.activityKey === slot.activityKey)
@@ -1837,8 +1962,8 @@ const BookAssemblyWorkspace = ({
                 unitKey,
                 candidateId: assemblyResult.candidate.candidateId,
                 expectedCandidateRevision: assemblyResult.candidate.revision,
-                expectedBookRevision: effectiveBookRevision,
-                expectedSourceSetRevision: effectiveSourceSetRevision,
+                expectedBookRevision: assemblyResult.authority.bookRevision,
+                expectedSourceSetRevision: assemblyResult.authority.sourceSetRevision,
                 manifest: previousManifest,
               });
             } catch (rollbackError) {
@@ -1860,7 +1985,7 @@ const BookAssemblyWorkspace = ({
             setCandidatesByUnit((prev) => ({ ...prev, [unitKey]: restored.candidate! }));
             setSavedSnapshot(previousSnapshot);
             onDirtyChange?.(true);
-          } else if (!previousCandidate && assemblyResult.status === 'created') {
+          } else if (!previousCandidate && assemblyResult.createdNewCandidate) {
             try {
               const discarded = await repository.discard({
                 operationId: operationId(),
@@ -1868,6 +1993,9 @@ const BookAssemblyWorkspace = ({
                 unitKey,
                 candidateId: assemblyResult.candidate.candidateId,
                 expectedCandidateRevision: assemblyResult.candidate.revision,
+                ...(assemblyResult.candidate.lifecycle === 'validated'
+                  ? { allowUnpublishedValidatedRollback: true as const }
+                  : {}),
               });
               if (!['discarded', 'replayed'].includes(discarded.status)) {
                 throw new Error(mutationErrorMessage(discarded));
@@ -1893,6 +2021,7 @@ const BookAssemblyWorkspace = ({
         throw importError;
       }
       setUnitImportCancelable(false);
+      rememberImportedSlotSnapshots(unitKey, importResult);
       setImportedActivityKeysByUnit((current) => ({
         ...current,
         [unitKey]: importResult.bundle.slots.map((slot) => slot.activityKey),
@@ -2069,6 +2198,11 @@ const BookAssemblyWorkspace = ({
         setSavedSnapshot(nextBulkSnapshot);
         onDirtyChange?.(false);
         setUnitImportCancelable(true);
+        const previousBulkSnapshotsBySlot = await loadPreviousSnapshotsForUnit(
+          bundle.unitKey,
+          bundle.slots.map((slot) => slot.activityKey),
+          expectedRevisionsByUnit[bundle.unitKey] ?? {},
+        );
         try {
           const importResult = await stageUnitActivityImportBundle({
             text: JSON.stringify(bundle),
@@ -2076,6 +2210,7 @@ const BookAssemblyWorkspace = ({
             unitKey: bundle.unitKey,
             activityAuthoring,
             expectedActivityRevisions: expectedRevisionsByUnit[bundle.unitKey] ?? {},
+            previousSnapshotsBySlot: previousBulkSnapshotsBySlot,
             resolveActivityTargetId: (slot) => {
               const unit = validManifest.units.find((entry) => entry.unitKey === bundle.unitKey);
               return unit?.activitySlots.some((entry) => entry.activityKey === slot.activityKey)
@@ -2086,6 +2221,7 @@ const BookAssemblyWorkspace = ({
             signal: controller.signal,
           });
           setUnitImportCancelable(false);
+          rememberImportedSlotSnapshots(bundle.unitKey, importResult);
           totalSlots += importResult.staged.length;
           importedUnits += 1;
           setImportedActivityKeysByUnit((current) => ({
@@ -2177,7 +2313,7 @@ const BookAssemblyWorkspace = ({
             setCandidatesByUnit((prev) => ({ ...prev, [bundle.unitKey]: restored.candidate! }));
             setSavedSnapshot(previousBulkSnapshot);
             onDirtyChange?.(true);
-          } else if (!previousBulkCandidate && assemblyResult.status === 'created') {
+          } else if (!previousBulkCandidate && assemblyResult.createdNewCandidate) {
             try {
               const discarded = await repository.discard({
                 operationId: operationId(),
@@ -2185,6 +2321,9 @@ const BookAssemblyWorkspace = ({
                 unitKey: bundle.unitKey,
                 candidateId: assemblyResult.candidate.candidateId,
                 expectedCandidateRevision: assemblyResult.candidate.revision,
+                ...(assemblyResult.candidate.lifecycle === 'validated'
+                  ? { allowUnpublishedValidatedRollback: true as const }
+                  : {}),
               });
               if (!['discarded', 'replayed'].includes(discarded.status)) {
                 throw new Error(mutationErrorMessage(discarded));
