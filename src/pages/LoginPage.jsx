@@ -29,6 +29,20 @@ const DEV_LOGIN_CREDENTIALS = import.meta.env.MODE === 'production' ? {} : {
   student: { id: 'student', email: 'student@test.com', password: 'student' },
 };
 
+const preloadAuthenticatedShell = (roleHint = null) => {
+  if (import.meta.env.MODE === 'test') return;
+  void import('../routes/AuthenticatedRoutes').catch(() => { });
+  if (roleHint === 'student') {
+    void import('../routes/StudentRoleRoutes').catch(() => { });
+    void import('./StudentDashboardPage.jsx').catch(() => { });
+  } else if (roleHint === 'teacher') {
+    void import('../routes/TeacherRoleRoutes').catch(() => { });
+    void import('./TeacherLobbyPage.jsx').catch(() => { });
+  } else if (roleHint === 'super_admin') {
+    void import('../routes/AdminRoleRoutes').catch(() => { });
+  }
+};
+
 const inputStyle = {
   width: '100%',
   boxSizing: 'border-box',
@@ -134,6 +148,7 @@ const LoginPage = () => {
       return;
     }
     if (!loading && user && profile) {
+      preloadAuthenticatedShell(profile.role);
       if (profile.role === 'super_admin') {
         navigate('/admin/dashboard', { replace: true });
       } else if (profile.role === 'teacher') {
@@ -220,6 +235,7 @@ const LoginPage = () => {
     googleLoginInFlight.current = true;
     setGoogleLoginPending(true);
     setLoginError(null);
+    preloadAuthenticatedShell();
     trackAction('login', { method: 'google' });
     try {
       const result = await login();
@@ -253,6 +269,9 @@ const LoginPage = () => {
         ? Object.values(DEV_LOGIN_CREDENTIALS).find((credential) => credential.id === value && credential.password === password)
         : null;
     trackAction('login', { method: devCredential ? 'dev_id' : isEmail ? 'email' : 'student_id' });
+    preloadAuthenticatedShell(
+      devCredential?.id === 'teacher' ? 'teacher' : (!devCredential && !isEmail ? 'student' : null),
+    );
     try {
       if (devCredential) await loginWithEmail(devCredential.email, password);
       else if (isEmail) await loginWithEmail(value, password);
@@ -337,6 +356,7 @@ const LoginPage = () => {
     if (formPending || googleLoginPending || devLoading) return;
     setLoginError(null);
     setDevLoading(role);
+    preloadAuthenticatedShell(role === 'student' ? 'student' : 'teacher');
     trackAction('login', { method: 'dev', role });
     try {
       const credentials = DEV_LOGIN_CREDENTIALS[role] ?? DEV_LOGIN_CREDENTIALS.student;
