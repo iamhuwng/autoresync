@@ -382,6 +382,70 @@ describe('AuthContext', () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
+  it('ignores stale ensure-id results that resolve while firebaseSignOut is still in flight', async () => {
+    const mockUser = {
+      uid: 'mid-logout-student-uid',
+      emailVerified: true,
+      email: 'student@test.com',
+      displayName: 'Mid Logout Student',
+      photoURL: null,
+      getIdToken: vi.fn().mockResolvedValue('firebase-id-token'),
+    };
+    let resolveIdentifierRead: (value: unknown) => void = () => {};
+    let resolveSignOut: () => void = () => {};
+    mockSignInWithEmailAndPassword.mockResolvedValue({ user: mockUser });
+    mockSignOut.mockImplementationOnce(() => new Promise<void>((resolve) => {
+      resolveSignOut = resolve;
+    }));
+    mockGet
+      .mockResolvedValueOnce({
+        exists: () => true,
+        val: () => ({ uid: mockUser.uid, email: mockUser.email, role: 'student', status: 'active' }),
+      })
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolveIdentifierRead = resolve;
+      }));
+    mockOnValue.mockImplementation((_ref, callback) => {
+      callback({ exists: () => true, val: () => ({ uid: mockUser.uid, email: mockUser.email, role: 'student', status: 'active' }) });
+      return vi.fn();
+    });
+    vi.stubEnv('VITE_R2_UPLOAD_WORKER_URL', 'https://student-auth.example');
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ studentId: 'STU-MID-LOGOUT' }),
+    });
+    vi.stubGlobal('fetch', mockFetch);
+
+    const StudentIdProbe = () => {
+      const { studentId } = useAuth();
+      return <div data-testid="student-id">{studentId ?? 'none'}</div>;
+    };
+
+    render(<AuthProvider><TestComponent /><StudentIdProbe /></AuthProvider>);
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('ready'));
+    await act(async () => screen.getByTestId('email-login-btn').click());
+
+    // Start logout without resolving firebaseSignOut yet
+    act(() => {
+      screen.getByTestId('logout-btn').click();
+    });
+
+    // Resolve background identifier read while sign-out is still pending
+    await act(async () => {
+      resolveIdentifierRead({ exists: () => true, val: () => ({ studentId: 'STU-MID-LOGOUT' }) });
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId('student-id')).toHaveTextContent('none');
+    expect(mockFetch).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveSignOut();
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId('student-id')).toHaveTextContent('none');
+  });
+
   it('rejects changing an assigned ID before updating the password', async () => {
     const { auth } = await import('../../services/firebaseCore');
     Object.assign(auth, { currentUser: { uid: 'google-student', getIdToken: vi.fn() } });
