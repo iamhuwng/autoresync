@@ -1,3 +1,5 @@
+import type { BookAssemblyCandidateRecord } from '../../../../src/services/book-assembly/unitAssembly.types.ts';
+import { parseUnitActivityImportBundle, UnitActivityImportError } from '../../../../src/services/book-assembly/unitActivityImport.service.ts';
 import type { ActivityDiff, ActivityValidationContext, NormalizedActivity } from '../../../../src/types/bookActivity.types.ts';
 import { normalizeActivity } from '../../../../src/services/book-activity/activityCanonical.service.ts';
 import { diffActivities } from '../../../../src/services/book-activity/activityDiff.service.ts';
@@ -264,13 +266,18 @@ const collectReceiptCandidateIds = (root: BookActivityAuthoringRoot): Set<string
     const result = plainRecord(op?.result);
     const receipt = bindingReceipt(result?.binding);
     if (receipt) ids.add(receipt.candidateId);
+    if (result?.status === 'unit-binding-pending' && Array.isArray(result.bindings)) {
+      for (const binding of result.bindings) {
+        if (validIdValue(binding?.candidateId)) ids.add(binding.candidateId);
+      }
+    }
   }
   return ids;
 };
 const isPendingBindingOperation = (operation: OperationRecord): boolean => {
   const result = plainRecord(operation.result);
   const receipt = bindingReceipt(result?.binding);
-  return receipt?.phase === 'binding-pending';
+  return receipt?.phase === 'binding-pending' || result?.status === 'unit-binding-pending';
 };
 const prune = (
   root: BookActivityAuthoringRoot,
@@ -339,11 +346,11 @@ const prune = (
   root.candidates = next;
 };
 
-const readBody = async (request: Request): Promise<unknown> => {
+const readBody = async (request: Request, limit = MAX_BODY_BYTES): Promise<unknown> => {
   const contentType = request.headers.get('Content-Type')?.toLowerCase() ?? '';
   if (!contentType.includes('application/json')) throw new AuthoringError('content_type_required');
   const claimedLength = request.headers.get('Content-Length');
-  if (claimedLength !== null && (!/^\d+$/u.test(claimedLength) || Number(claimedLength) > MAX_BODY_BYTES)) {
+  if (claimedLength !== null && (!/^\d+$/u.test(claimedLength) || Number(claimedLength) > limit)) {
     throw new AuthoringError('body_too_large', 413);
   }
   if (!request.body) throw new AuthoringError('invalid_json');
@@ -355,7 +362,7 @@ const readBody = async (request: Request): Promise<unknown> => {
       const next = await reader.read();
       if (next.done) break;
       bytes += next.value.byteLength;
-      if (bytes > MAX_BODY_BYTES) throw new AuthoringError('body_too_large', 413);
+      if (bytes > limit) throw new AuthoringError('body_too_large', 413);
       parts.push(next.value);
     }
   } finally {
@@ -480,11 +487,15 @@ const asCandidate = (value: unknown, expectedCandidateId?: string): CandidateRec
     record.evidenceRefs.length > BOOK_ACTIVITY_MAX_EVIDENCE_REFS ||
     record.evidenceRefs.some((ref) => typeof ref !== 'string' || !BOOK_ACTIVITY_EVIDENCE_REF_PATTERN.test(ref)) ||
     new Set(record.evidenceRefs).size !== record.evidenceRefs.length || !validTimestamp(record.updatedAt)) return undefined;
-  if (encodedBytes(record) > MAX_CANDIDATE_RECORD_BYTES) return undefined;
-  const sourceEvidenceRefs = record.sourceEvidenceRefs === undefined
-    ? [] : evidenceRefs(record.sourceEvidenceRefs);
-  const answerEvidenceRefs = record.answerEvidenceRefs === undefined
-    ? [] : evidenceRefs(record.answerEvidenceRefs);
+  if (record.content === undefined || encodedBytes(record) > MAX_CANDIDATE_RECORD_BYTES) return undefined;
+  let sourceEvidenceRefs: string[] | undefined;
+  let answerEvidenceRefs: string[] | undefined;
+  try {
+    sourceEvidenceRefs = evidenceRefs(record.sourceEvidenceRefs) ?? [];
+    answerEvidenceRefs = evidenceRefs(record.answerEvidenceRefs) ?? [];
+  } catch {
+    return undefined;
+  }
   if (!sourceEvidenceRefs || !answerEvidenceRefs) return undefined;
   const seal = record.assemblyDraft === undefined ? undefined : plainRecord(record.assemblyDraft);
   const sealKeys = seal ? Object.keys(seal).sort().join(',') : '';
@@ -699,6 +710,12 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
     readonly unitKey: string;
     readonly activityKey: string;
   }) => Promise<AssemblyDraftActivityContext | null>;
+  readImportCandidate?: (input: {
+    env: BookActivityAuthoringRepositoryEnv; ownerId: string; bookId: string; unitKey: string;
+  }) => Promise<BookAssemblyCandidateRecord | null>;
+  contextFromCandidate?: (candidate: BookAssemblyCandidateRecord, bookId: string, unitKey: string, activityKey: string) => AssemblyDraftActivityContext | null;
+  verifiedUnitCandidateIds?: (candidate: BookAssemblyCandidateRecord, root: BookActivityAuthoringRoot,
+    bindings: Readonly<Record<string, Readonly<Record<string, UnitActivityBinding>>>>) => Readonly<Record<string, string>>;
   /** Material activation authority; activated candidate identities are immutable. */
   isCandidateActivated?: (input: {
     readonly env: BookActivityAuthoringRepositoryEnv;
@@ -1178,6 +1195,173 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
     validate: (input: { request: Request; env: BookActivityAuthoringRepositoryEnv; uid: string }) => respond('validate', input),
     saveDraft: (input: { request: Request; env: BookActivityAuthoringRepositoryEnv; uid: string }) => respond('save-draft', input),
     discard: (input: { request: Request; env: BookActivityAuthoringRepositoryEnv; uid: string }) => respond('discard', input),
+    async importUnit({ env, uid, request }: { env: BookActivityAuthoringRepositoryEnv; uid: string; request: Request }) {
+      try {
+        options.rolloutGate?.homeworkMutation();
+        const repository = repositoryFor(env);
+        await authenticate(uid, repository);
+        const input = exact(await readBody(request, 1024 * 1024), ['bundle', 'candidateId', 'candidateRevision', 'inspect', 'replacements']);
+        const rawBundle = plainRecord(input.bundle);
+        const bookId = validId(rawBundle?.bookId, 'book_id');
+        const unitKey = validBindingKeyId(rawBundle?.unitKey, 'unit_key');
+        const subject = { env, ownerId: uid, bookId, unitKey };
+        const { readImportCandidate, contextFromCandidate, verifiedUnitCandidateIds } = options;
+        const bindings = options.bindingRepositoryFactory?.(env, uid, bookId, unitKey);
+        if (!readImportCandidate || !contextFromCandidate || !verifiedUnitCandidateIds || !bindings?.readBookBindings) {
+          throw new AuthoringError('unit_activity_binding_unavailable', 503);
+        }
+        const readCurrent = async () => {
+          const draft = await readImportCandidate(subject);
+          if (!draft?.manifest || draft.ownerId !== uid || draft.bookId !== bookId || draft.unitKey !== unitKey
+            || draft.lifecycle !== 'validated' || draft.candidateId !== input.candidateId || draft.revision !== input.candidateRevision) {
+            throw new AuthoringError('unit_activity_binding_draft_changed', 409);
+          }
+          return draft;
+        };
+        const draft = await readCurrent();
+        const bundle = parseUnitActivityImportBundle(JSON.stringify(input.bundle), draft.manifest!, unitKey);
+        const hash = async (value: unknown) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',
+          new TextEncoder().encode(stable(value)))), (byte) => byte.toString(16).padStart(2, '0')).join('');
+        const bundleHash = await hash({ bundle, candidateId: draft.candidateId, revision: draft.revision });
+        const fingerprint = await hash({ bundleHash, replacements: input.replacements ?? {} });
+        let operationId = [fingerprint.slice(0, 8), fingerprint.slice(8, 12), `8${fingerprint.slice(13, 16)}`,
+          `a${fingerprint.slice(17, 20)}`, fingerprint.slice(20, 32)].join('-');
+        const bookBindings = await bindings.readBookBindings(uid, bookId, { strict: true });
+        const selections = input.replacements === undefined ? {} : plainRecord(input.replacements);
+        if (!selections || Object.keys(selections).some((key) => !bundle.slots.some((slot) => slot.activityKey === key))) {
+          throw new AuthoringError('invalid_request');
+        }
+        const sameSlot = (saved: CandidateRecord, slot: typeof bundle.slots[number]) =>
+          stable(saved.content) === stable(slot.content)
+          && stable(saved.evidenceRefs) === stable(slot.evidenceRefs ?? [])
+          && stable(saved.sourceEvidenceRefs) === stable(slot.sourceEvidenceRefs ?? [])
+          && stable(saved.answerEvidenceRefs) === stable(slot.answerEvidenceRefs ?? []);
+        if (input.inspect === true) {
+          const root = await repository.readOwnerRoot(uid);
+          const verified = verifiedUnitCandidateIds(draft, root, bookBindings);
+          const slots = bundle.slots.map((slot) => {
+            const key = slot.activityKey;
+            const id = verified[key];
+            const bound = bookBindings[unitKey]?.[key];
+            const saved = id && asCandidate(root.candidates?.[id], id);
+            if (saved && bound) return {
+              activityKey: key, candidateId: id, revision: saved.revision,
+              status: bound.activityVersionId ? 'published' : sameSlot(saved, slot) ? 'unchanged' : 'different',
+            };
+            return { activityKey: key, status: bound ? 'conflict' : 'missing' };
+          });
+          return { body: { status: 'review', slots }, init: { status: 200 } };
+        }
+        const at = now();
+        const result = await repository.transaction(uid, (root) => {
+          assertPersistedRoot(root, uid);
+          for (const [id, entry] of Object.entries(root.operations ?? {})) {
+            const previous = asOperation(entry);
+            if (previous?.ownerId === uid && previous.result.status === 'unit-binding-pending'
+              && previous.result.bundleHash === bundleHash) {
+              operationId = id;
+              return { outcome: previous.result, write: false };
+            }
+          }
+          const verified = verifiedUnitCandidateIds(draft, root, bookBindings);
+          const completed = asOperation(root.operations?.[operationId]);
+          if (completed?.fingerprint === fingerprint && completed.result.status === 'unit-complete'
+            && bundle.slots.every((slot) => Object.hasOwn(verified, slot.activityKey))) {
+            return { outcome: { status: 'unit-complete', added: 0 }, write: false };
+          }
+          const planned: UnitActivityBinding[] = [];
+          const conflicts: string[] = [];
+          prune(root, at);
+          for (const slot of bundle.slots) {
+            const key = slot.activityKey;
+            const context = contextFromCandidate(draft, bookId, unitKey, key);
+            if (!context || !activityMatchesAssemblyContract(slot.content, context.contract)) {
+              throw new AuthoringError('unit_activity_binding_context_mismatch', 422, { activityKey: key });
+            }
+            const checked = validateContent(slot.content, undefined, { mappedBookPageRefs: [...context.mappedBookPageRefs] });
+            if (!checked.validation.valid || !checked.normalized) throw new AuthoringError('invalid_request', 422, { activityKey: key });
+            const selection = Object.hasOwn(selections, key) ? plainRecord(selections[key]) : null;
+            const bound = bookBindings[unitKey]?.[key];
+            const existingId = Object.hasOwn(verified, key) ? verified[key] : undefined;
+            const saved = existingId ? asCandidate(root.candidates?.[existingId], existingId) : undefined;
+            if (saved && !selection) continue;
+            if (selection && (!saved || !bound || bound.activityVersionId || selection.candidateId !== existingId
+              || selection.revision !== saved.revision)) {
+              conflicts.push(key);
+              continue;
+            }
+            if (saved && sameSlot(saved, slot)) continue;
+            const activityId = bookScopedActivityTargetId(bookId, key);
+            if (!selection && (bound || root.activities?.[activityId])) {
+              conflicts.push(key);
+              continue;
+            }
+            const candidateId = recordId('candidate', createRecordId);
+            if (root.candidates?.[candidateId]) throw new AuthoringError('id_collision', 409);
+            const previousRevision = saved ? saved.targetRevision + 1 : 0;
+            const revised = saved ? validateContent(slot.content, activityForMutation(root, activityId, {
+              mappedBookPageRefs: [...context.mappedBookPageRefs], taskProfileRegistry: defaultBookActivityTaskProfileRegistry,
+            })?.draft, { mappedBookPageRefs: [...context.mappedBookPageRefs] }) : checked;
+            if (!revised.normalized) throw new AuthoringError('invalid_request', 422, { activityKey: key });
+            const candidate: CandidateRecord = {
+              candidateId, targetActivityId: activityId, ownerId: uid, bookId, targetRevision: previousRevision, revision: Math.max(3, (bound?.candidateRevision ?? 0) + 1),
+              lifecycle: 'saved', content: slot.content, validation: revised.validation, diff: revised.diff,
+              evidenceRefs: [...(slot.evidenceRefs ?? [])], sourceEvidenceRefs: [...(slot.sourceEvidenceRefs ?? [])],
+              answerEvidenceRefs: [...(slot.answerEvidenceRefs ?? [])], assemblyDraft: context.seal, updatedAt: at,
+            };
+            if (encodedBytes(candidate) > MAX_CANDIDATE_RECORD_BYTES) throw new AuthoringError('body_too_large', 413);
+            (root.candidates ??= {})[candidateId] = candidate;
+            (root.activities ??= {})[activityId] = {
+              activityId, ownerId: uid, revision: previousRevision + 1, lifecycle: 'draft', editableDraft: slot.content, draft: revised.normalized, updatedAt: at,
+            };
+            planned.push({ schemaVersion: 1, ownerId: uid, bookId, unitKey, activityKey: key, activityId,
+              candidateId, candidateRevision: candidate.revision, candidateLifecycle: 'saved' });
+          }
+          if (conflicts.length) throw new AuthoringError('unit_activity_binding_conflict', 409, { conflicts });
+          if (Object.keys(root.candidates ?? {}).length > MAX_CANDIDATES_PER_OWNER || Object.keys(root.activities ?? {}).length > MAX_ACTIVITIES_PER_OWNER) {
+            throw new AuthoringError('capacity_exceeded', 409);
+          }
+          if (!planned.length) return { outcome: { status: 'unit-complete', added: 0 }, write: false };
+          // An older completed receipt may survive an intervening authorized edit. Only
+          // pending receipts can resume work. Verified bindings above decide new work.
+          const claimed = operationResult(root, uid, operationId, fingerprint, at, () => ({
+            status: 'unit-binding-pending', bundleHash, bindings: planned, replacements: selections, added: planned.length,
+          }));
+          if (!claimed.write) throw new AuthoringError('unit_activity_binding_conflict', 409);
+          return { outcome: claimed.result, next: root, write: true };
+        }, { beforeWrite: async () => { await readCurrent(); } });
+        if (result.status === 'unit-complete') return { body: result, init: { status: 200 } };
+        await readCurrent();
+        const pending = result.bindings as UnitActivityBinding[];
+        const unfinished = pending.filter((binding) => {
+          const current = bookBindings[unitKey]?.[binding.activityKey];
+          return current?.candidateId !== binding.candidateId || current.candidateRevision !== binding.candidateRevision;
+        });
+        // Bound leaf writes and token exchanges per Worker invocation. A continuation
+        // only reconciles the saved receipt, even after the page has been reloaded.
+        for (const binding of unfinished.slice(0, 4)) {
+          const old = plainRecord(plainRecord(result.replacements)?.[binding.activityKey]);
+          const status = await bindings.bindCandidate(binding, { expectedCandidateId: typeof old?.candidateId === 'string' ? old.candidateId : null });
+          if (status === 'conflict' || status === 'stale') throw new AuthoringError('unit_activity_binding_conflict', 409, { conflicts: [binding.activityKey] });
+        }
+        if (unfinished.length > 4) return { body: { status: 'unit-binding-pending', remaining: unfinished.length - 4 }, init: { status: 202 } };
+        await repository.transaction(uid, (root) => {
+          const op = asOperation(root.operations?.[operationId]);
+          if (!op || op.ownerId !== uid || (op.result.status !== 'unit-complete' && op.result.bundleHash !== bundleHash)) throw new AuthoringError('unit_activity_binding_receipt_invalid', 500);
+          if (op.result.status === 'unit-complete') return { outcome: null, write: false };
+          root.operations![operationId] = { ...op, result: { status: 'unit-complete', added: pending.length } };
+          return { outcome: null, next: root, write: true };
+        });
+        return { body: { status: 'unit-complete', added: pending.length }, init: { status: 200 } };
+      } catch (error) {
+        if (error instanceof UnitActivityImportError) return { body: { code: error.code }, init: { status: 422 } };
+        if (error instanceof BookRolloutDeniedError || error instanceof AuthoringError) {
+          return { body: { code: error.code, ...(error instanceof AuthoringError ? error.detail : {}) }, init: { status: error.status } };
+        }
+        console.error('book_unit_import_failed', error instanceof Error ? error.message : 'unknown_error');
+        return { body: { code: 'book_activity_authoring_failed' }, init: { status: 503 } };
+      }
+    },
     async loadCandidate(input: { env: BookActivityAuthoringRepositoryEnv; uid: string; candidateId: string }) {
       try {
         const repository = repositoryFor(input.env); await authenticate(input.uid, repository);
@@ -1186,7 +1370,8 @@ export const createBookActivityAuthoringWorkerHandlers = (options: {
         assertPersistedRoot(persistedRoot, input.uid);
         const candidate = asCandidate(persistedRoot.candidates?.[candidateId], candidateId);
         if (!candidate || candidate.ownerId !== input.uid) return { body: { status: 'not-found' }, init: { status: 404 } };
-        return { body: { status: 'loaded', candidate: clone(candidate) }, init: { status: 200 } };
+        const { assemblyDraft: _internalSeal, ...projection } = candidate;
+        return { body: { status: 'loaded', candidate: clone(projection) }, init: { status: 200 } };
       } catch (error) {
         const status = error instanceof AuthoringError ? error.status : 500;
         return { body: { code: error instanceof AuthoringError ? error.code : 'book_activity_authoring_failed' }, init: { status } };

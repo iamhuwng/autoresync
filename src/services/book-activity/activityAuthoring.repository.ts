@@ -1,3 +1,4 @@
+import type { UnitActivityImportBundle } from '../book-assembly/unitActivityImport.service';
 import {
   ActivityAuthoringAmbiguousTransportError,
   type ActivityAuthoringTransport,
@@ -121,7 +122,21 @@ export interface ActivityLoadCandidateResult {
   candidate: LoadedActivityCandidate;
 }
 
+export interface UnitImportCommand {
+  bundle: UnitActivityImportBundle;
+  replacements?: Readonly<Record<string, { candidateId: string; revision: number }>>;
+  candidateId: string;
+  candidateRevision: number;
+}
+export interface UnitSlotReview {
+  activityKey: string;
+  status: 'missing' | 'different' | 'unchanged' | 'published' | 'conflict';
+  candidateId?: string;
+  revision?: number;
+}
 export interface ActivityAuthoringRepository {
+  inspectUnit?(input: UnitImportCommand): Promise<UnitSlotReview[]>;
+  importUnit?(input: UnitImportCommand): Promise<number>;
   stage(input: ActivityAuthoringMutation): Promise<ActivityStageResult>;
   validate(input: ActivityAuthoringMutation): Promise<ActivityValidateResult>;
   saveDraft(input: ActivityAuthoringMutation): Promise<ActivitySaveDraftResult>;
@@ -410,6 +425,38 @@ const decodeLoad = (value: unknown): ActivityLoadCandidateResult => {
 export const createActivityAuthoringRepository = (
   transport: ActivityAuthoringTransport,
 ): ActivityAuthoringRepository => ({
+  inspectUnit: async (input) => {
+    const result = exact(await transport.mutate('/book-activity-authoring/import-unit', { ...input, inspect: true }), ['status', 'slots']);
+    if (result.status !== 'review' || !Array.isArray(result.slots) || result.slots.length !== input.bundle.slots.length) {
+      throw new Error('Invalid Unit review result.');
+    }
+    return result.slots.map((value, index) => {
+      const row = exact(value, ['activityKey', 'status'], ['candidateId', 'revision']);
+      if (row.activityKey !== input.bundle.slots[index]?.activityKey
+        || !['missing', 'different', 'unchanged', 'published', 'conflict'].includes(String(row.status))) {
+        throw new Error('Invalid Activity review result.');
+      }
+      return { activityKey: row.activityKey as string, status: row.status as UnitSlotReview['status'],
+        ...(row.candidateId === undefined ? {} : { candidateId: id(row.candidateId), revision: revision(row.revision) }) };
+    });
+  },
+  importUnit: async (input) => {
+    let remaining = input.bundle.slots.length;
+    for (;;) {
+      const response = await transport.mutate('/book-activity-authoring/import-unit', input);
+      if ((response as { status?: unknown } | null)?.status === 'unit-binding-pending') {
+        const progress = exact(response, ['status', 'remaining']);
+        const count = revision(progress.remaining);
+        if (count < 1 || count >= remaining) throw new Error('Unit import made no progress. Retry to resume.');
+        remaining = count;
+        continue;
+      }
+      const result = exact(response, ['status', 'added']);
+      if (result.status !== 'unit-complete' || typeof result.added !== 'number' || !Number.isSafeInteger(result.added)
+        || result.added < 0 || result.added > input.bundle.slots.length) throw new Error('Invalid Unit import result.');
+      return result.added;
+    }
+  },
   stage: async (input) => decodeStage(
     await transport.mutate('/book-activity-authoring/stage', input),
   ),

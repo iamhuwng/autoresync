@@ -30,7 +30,7 @@ export interface UnitActivityBindingRepository {
     bookId: string,
     options?: { readonly strict?: boolean },
   ): Promise<Readonly<Record<string, Readonly<Record<string, UnitActivityBinding>>>>>;
-  bindCandidate(binding: UnitActivityBinding): Promise<UnitActivityBindingWriteStatus>;
+  bindCandidate(binding: UnitActivityBinding, options?: { expectedCandidateId: string | null }): Promise<UnitActivityBindingWriteStatus>;
   recordPublication(input: UnitActivityBindingKey & {
     readonly activityId: string;
     readonly candidateId: string;

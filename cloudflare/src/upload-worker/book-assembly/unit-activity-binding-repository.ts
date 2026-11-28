@@ -196,17 +196,20 @@ export class FirebaseRestUnitActivityBindingRepository implements UnitActivityBi
     return byUnit;
   }
 
-  async bindCandidate(input: UnitActivityBinding): Promise<UnitActivityBindingWriteStatus> {
+  async bindCandidate(input: UnitActivityBinding, options?: { expectedCandidateId: string | null }): Promise<UnitActivityBindingWriteStatus> {
     const next = assertUnitActivityBinding(input);
     const path = keyPath(next);
     for (let attempt = 0; attempt < this.maxRetries; attempt += 1) {
       const current = await this.rtdb.readWithEtag<unknown>(path);
       if (current.data === null || current.data === undefined) {
+        if (options?.expectedCandidateId) return 'conflict';
         if (await this.rtdb.writeIfMatch(path, next, current.etag)) return 'created';
         continue;
       }
       const existing = assertUnitActivityBinding(current.data);
       if (!sameKey(existing, next) || existing.activityId !== next.activityId) return 'conflict';
+      if (options && existing.candidateId !== next.candidateId
+        && (existing.candidateId !== options.expectedCandidateId || existing.activityVersionId)) return 'conflict';
       if (existing.activityVersionId !== undefined) {
         if (existing.candidateId === next.candidateId
           && next.candidateRevision === existing.candidateRevision

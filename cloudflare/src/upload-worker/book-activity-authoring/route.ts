@@ -3,6 +3,7 @@
  * Keeping descriptors separate prevents an unreviewed route becoming reachable.
  */
 export const bookActivityAuthoringRouteDescriptors = [
+  { method: 'POST', path: '/book-activity-authoring/import-unit', handler: 'importUnit' },
   { method: 'POST', path: '/book-activity-authoring/stage', handler: 'stage' },
   { method: 'POST', path: '/book-activity-authoring/validate', handler: 'validate' },
   { method: 'POST', path: '/book-activity-authoring/save-draft', handler: 'saveDraft' },

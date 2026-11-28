@@ -1,3 +1,4 @@
+import type { UnitSlotReview } from '../../services/book-activity/activityAuthoring.repository';
 import { type CSSProperties, type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { FEATURE_IDS } from '../../config/featureRegistry';
 import { useFeatureTracking } from '../../hooks/useFeatureTracking';
@@ -476,6 +477,7 @@ const BookAssemblyWorkspace = ({
   const [activityScope, setActivityScope] = useState<'unit' | 'bulk'>('unit');
   const [bulkPromptFilter, setBulkPromptFilter] = useState<'missing' | 'all'>('missing');
   const [bulkImportText, setBulkImportText] = useState('');
+  const [bulkReview, setBulkReview] = useState<{ text: string; slots: (UnitSlotReview & { unitKey: string; selected: boolean })[] } | null>(null);
   const [bulkUnitResults, setBulkUnitResults] = useState<readonly {
     readonly unitKey: string;
     readonly label: string;
@@ -2095,12 +2097,9 @@ const BookAssemblyWorkspace = ({
     }
   };
 
-  const importBulkJson = async (
-    expectedRevisionsByUnit: Readonly<Record<string, Readonly<Record<string, number>>>> = {},
-    skipCompletedUnitKeys: ReadonlySet<string> = new Set(),
-  ) => {
+  const importBulkJson = async () => {
     if (persistenceBusyRef.current) return;
-    if (!repository || !activityAuthoring) {
+    if (!repository || !activityAuthoring?.importUnit) {
       setValidationMessage('Unit import is unavailable until trusted routes are configured.');
       setStatus('error');
       toast.error('Unit Activity import route is unavailable.');
@@ -2125,20 +2124,29 @@ const BookAssemblyWorkspace = ({
     try {
       const validManifest = manifest as unknown as BookAssemblyManifestCandidate;
       const bundles = parseBulkUnitActivityImportBundles(bulkImportText, validManifest);
-      const pendingBundles = bundles.filter((entry) => !skipCompletedUnitKeys.has(entry.unitKey));
+      const review = bulkReview?.text === bulkImportText ? bulkReview : null;
+      if (!review && activityAuthoring.inspectUnit) {
+        const slots: (UnitSlotReview & { unitKey: string; selected: boolean })[] = [];
+        for (const bundle of bundles) {
+          const draft = candidatesByUnit[bundle.unitKey];
+          if (!draft?.manifest || draft.lifecycle !== 'validated' || !importedActivityKeysByUnit[bundle.unitKey]?.length) continue;
+          if (controller.signal.aborted) return;
+          const rows = await activityAuthoring.inspectUnit({ bundle, candidateId: draft.candidateId, candidateRevision: draft.revision });
+          slots.push(...rows.filter((row) => row.status !== 'missing').map((row) => ({ ...row, unitKey: bundle.unitKey, selected: false })));
+        }
+        if (slots.length) {
+          setBulkReview({ text: bulkImportText, slots });
+          setUnitImportStatus('Saved activities are kept. Select any different drafts you want to replace, then apply the import.');
+          setStatus('idle');
+          return;
+        }
+      }
+      const pendingBundles = bundles;
       emit('teacher_materials_book_assembly_unit_import_started', {
         scope: 'bulk',
         unitCount: pendingBundles.length,
       });
-      setBulkUnitResults((current) => bundles.map((entry) => {
-        const previous = current.find((item) => item.unitKey === entry.unitKey);
-        if (skipCompletedUnitKeys.has(entry.unitKey) && previous?.status === 'done') return previous;
-        return {
-          unitKey: entry.unitKey,
-          label: formatUnitLabel(units, entry.unitKey),
-          status: 'pending',
-        };
-      }));
+      setBulkUnitResults(bundles.map((entry) => ({ unitKey: entry.unitKey, label: formatUnitLabel(units, entry.unitKey), status: 'pending' })));
       const sessionContext = {
         authority: {
           bookRevision: effectiveBookRevision,
@@ -2148,6 +2156,7 @@ const BookAssemblyWorkspace = ({
         candidatesByUnit: { ...candidatesByUnit },
       };
       let totalSlots = 0;
+      let preservedSlots = 0;
       let importedUnits = 0;
       for (let index = 0; index < pendingBundles.length; index += 1) {
         const bundle = pendingBundles[index]!;
@@ -2167,9 +2176,13 @@ const BookAssemblyWorkspace = ({
           ? draftSnapshot(previousBulkManifest.sourceSet.sourceStrategy, previousBulkManifest.nodes, previousBulkManifest.sourceSet.sources, previousBulkManifest.units)
           : null;
         const nextBulkSnapshot = draftSnapshot(validManifest.sourceSet.sourceStrategy, validManifest.nodes, validManifest.sourceSet.sources, validManifest.units);
-        const bulkManifestMutated = previousBulkSnapshot !== null && previousBulkSnapshot !== nextBulkSnapshot;
         setUnitImportCancelable(false);
-        const assemblyResult = await persistAndValidateManifest(validManifest, bundle.unitKey, sessionContext);
+        const reuseDraft = previousBulkCandidate?.lifecycle === 'validated'
+          && previousBulkSnapshot === nextBulkSnapshot && previousBulkCandidate.bookRevision === sessionContext.authority.bookRevision
+          && previousBulkCandidate.sourceSetRevision === sessionContext.authority.sourceSetRevision;
+        const assemblyResult = reuseDraft
+          ? { status: 'validated' as const, candidate: previousBulkCandidate, createdNewCandidate: false }
+          : await persistAndValidateManifest(validManifest, bundle.unitKey, sessionContext);
         if (assemblyResult.status === 'conflict') {
           setStatus('conflict');
           const message = `${unitLabel}: Book changed elsewhere. Reload before retrying.`;
@@ -2197,165 +2210,37 @@ const BookAssemblyWorkspace = ({
         setCandidatesByUnit((prev) => ({ ...prev, [assemblyResult.candidate!.unitKey]: assemblyResult.candidate! }));
         setSavedSnapshot(nextBulkSnapshot);
         onDirtyChange?.(false);
-        setUnitImportCancelable(true);
-        const previousBulkSnapshotsBySlot = await loadPreviousSnapshotsForUnit(
-          bundle.unitKey,
-          bundle.slots.map((slot) => slot.activityKey),
-          expectedRevisionsByUnit[bundle.unitKey] ?? {},
-        );
+        let added: number;
         try {
-          const importResult = await stageUnitActivityImportBundle({
-            text: JSON.stringify(bundle),
-            manifest: validManifest,
-            unitKey: bundle.unitKey,
-            activityAuthoring,
-            expectedActivityRevisions: expectedRevisionsByUnit[bundle.unitKey] ?? {},
-            previousSnapshotsBySlot: previousBulkSnapshotsBySlot,
-            resolveActivityTargetId: (slot) => {
-              const unit = validManifest.units.find((entry) => entry.unitKey === bundle.unitKey);
-              return unit?.activitySlots.some((entry) => entry.activityKey === slot.activityKey)
-                ? bookScopedActivityTargetId(validManifest.bookId, slot.activityKey)
-                : null;
-            },
-            onCommitPhaseStart: () => setUnitImportCancelable(false),
-            signal: controller.signal,
+          added = await activityAuthoring.importUnit({
+            replacements: Object.fromEntries((review?.slots ?? []).filter((row) => row.unitKey === bundle.unitKey && row.selected)
+              .map((row) => [row.activityKey, { candidateId: row.candidateId!, revision: row.revision! }])),
+            bundle, candidateId: assemblyResult.candidate.candidateId, candidateRevision: assemblyResult.candidate.revision,
           });
-          setUnitImportCancelable(false);
-          rememberImportedSlotSnapshots(bundle.unitKey, importResult);
-          totalSlots += importResult.staged.length;
-          importedUnits += 1;
-          setImportedActivityKeysByUnit((current) => ({
-            ...current,
-            [bundle.unitKey]: importResult.bundle.slots.map((slot) => slot.activityKey),
-          }));
-          setBulkUnitResults((current) => current.map((item) => (
-            item.unitKey === bundle.unitKey
-              ? { ...item, status: 'done', slotCount: importResult.staged.length }
-              : item
-          )));
-          if (controller.signal.aborted) {
-            setStatus('saved');
-            setUnitImportStatus(`Canceled after ${importedUnits} of ${pendingBundles.length} units.`);
-            return;
-          }
-        } catch (unitError) {
-          if (unitError instanceof UnitActivityImportConflictError) {
-            setStatus('saved');
-            setUnitImportConflict({
-              unitKey: bundle.unitKey,
-              activityKey: unitError.activityKey,
-              currentRevision: unitError.currentRevision,
-            });
-            setBulkUnitResults((current) => current.map((item) => (
-              item.unitKey === bundle.unitKey
-                ? {
-                    ...item,
-                    status: 'conflict',
-                    conflictActivityKey: unitError.activityKey,
-                    conflictRevision: unitError.currentRevision,
-                  }
-                : item
-            )));
-            setUnitImportStatus(`${unitLabel}: ${unitError.activityKey} already has a saved draft.`);
-            toast.warning(`${unitLabel} has an existing draft. Choose Replace to continue.`);
-            emit('teacher_materials_book_assembly_unit_import_conflict_detected', {
-              scope: 'bulk',
-              unitKey: bundle.unitKey,
-              activityKey: unitError.activityKey,
-              currentRevision: unitError.currentRevision,
-            });
-            return;
-          }
-          const hasRemainingCommittedSlots = unitError instanceof UnitActivityImportPartialCommitError
-            && unitError.committedActivityKeys.some((key) => !unitError.rolledBackActivityKeys.includes(key));
-          if (hasRemainingCommittedSlots) {
-            const remainingCommittedKeys = unitError.committedActivityKeys.filter(
-              (key) => !unitError.rolledBackActivityKeys.includes(key),
-            );
-            if (remainingCommittedKeys.length > 0) {
-              setImportedActivityKeysByUnit((current) => ({
-                ...current,
-                [bundle.unitKey]: [...new Set([...(current[bundle.unitKey] ?? []), ...remainingCommittedKeys])],
-              }));
-            }
-            throw unitError;
-          }
-          if (bulkManifestMutated && previousBulkManifest) {
-            let restored: BookAssemblyMutationResult;
-            try {
-              restored = await repository.replace({
-                operationId: operationId(),
-                bookId: validManifest.bookId,
-                unitKey: bundle.unitKey,
-                candidateId: assemblyResult.candidate.candidateId,
-                expectedCandidateRevision: assemblyResult.candidate.revision,
-                expectedBookRevision: sessionContext.authority.bookRevision,
-                expectedSourceSetRevision: sessionContext.authority.sourceSetRevision,
-                manifest: previousBulkManifest,
-              });
-            } catch (rollbackError) {
-              const primaryCause = unitError instanceof Error ? unitError.message : 'Bulk Activity import failed.';
-              const rollbackCause = rollbackError instanceof Error ? rollbackError.message : 'Manifest restore failed.';
-              throw new UnitActivityImportError(
-                'manifest-rollback-failed',
-                `${primaryCause} Manifest changes for ${unitLabel} could not be reverted (${rollbackCause}) and remain saved at revision ${assemblyResult.candidate.revision}.`,
-              );
-            }
-            if (!restored.candidate) {
-              const primaryCause = unitError instanceof Error ? unitError.message : 'Bulk Activity import failed.';
-              throw new UnitActivityImportError(
-                'manifest-rollback-failed',
-                `${primaryCause} Manifest changes for ${unitLabel} could not be reverted (${mutationErrorMessage(restored)}) and remain saved at revision ${assemblyResult.candidate.revision}.`,
-              );
-            }
-            sessionContext.candidatesByUnit[bundle.unitKey] = restored.candidate;
-            setCandidate(restored.candidate);
-            setCandidatesByUnit((prev) => ({ ...prev, [bundle.unitKey]: restored.candidate! }));
-            setSavedSnapshot(previousBulkSnapshot);
-            onDirtyChange?.(true);
-          } else if (!previousBulkCandidate && assemblyResult.createdNewCandidate) {
-            try {
-              const discarded = await repository.discard({
-                operationId: operationId(),
-                bookId: validManifest.bookId,
-                unitKey: bundle.unitKey,
-                candidateId: assemblyResult.candidate.candidateId,
-                expectedCandidateRevision: assemblyResult.candidate.revision,
-                ...(assemblyResult.candidate.lifecycle === 'validated'
-                  ? { allowUnpublishedValidatedRollback: true as const }
-                  : {}),
-              });
-              if (!['discarded', 'replayed'].includes(discarded.status)) {
-                throw new Error(mutationErrorMessage(discarded));
-              }
-              delete sessionContext.candidatesByUnit[bundle.unitKey];
-              setCandidate(null);
-              setCandidatesByUnit((prev) => {
-                const next = { ...prev };
-                delete next[bundle.unitKey];
-                return next;
-              });
-              setSavedSnapshot('');
-              onDirtyChange?.(true);
-            } catch (rollbackError) {
-              const primaryCause = unitError instanceof Error ? unitError.message : 'Bulk Activity import failed.';
-              const rollbackCause = rollbackError instanceof Error ? rollbackError.message : 'Candidate cleanup failed.';
-              throw new UnitActivityImportError(
-                'manifest-rollback-failed',
-                `${primaryCause} Newly created draft for ${unitLabel} could not be discarded (${rollbackCause}) and remains saved at revision ${assemblyResult.candidate.revision}.`,
-              );
-            }
-          }
-          throw unitError;
+        } catch (error) {
+          const message = `${unitLabel}: ${error instanceof Error ? error.message : 'Unit import failed.'} Saved progress is kept. Retry to resume.`;
+          setBulkUnitResults((current) => current.map((item) => item.unitKey === bundle.unitKey
+            ? { ...item, status: 'error', message } : item));
+          throw new UnitActivityImportError('unit-import-failed', message);
         }
+        importedUnits += 1;
+        totalSlots += added;
+        preservedSlots += bundle.slots.length - added;
+        setImportedActivityKeysByUnit((current) => ({ ...current, [bundle.unitKey]: bundle.slots.map((slot) => slot.activityKey) }));
+        setBulkUnitResults((current) => current.map((item) => item.unitKey === bundle.unitKey
+          ? { ...item, status: 'done', slotCount: bundle.slots.length } : item));
+        setUnitImportCancelable(true);
       }
+      setBulkReview(null);
       setBulkImportText('');
       setUnitImportConflict(null);
       setUnitImportExpectedRevisionsByUnit({});
-      setUnitImportStatus(`Imported ${importedUnits} ${importedUnits === 1 ? 'unit' : 'units'} (${totalSlots} activities).`);
+      const summary = preservedSlots ? `Completed ${importedUnits} units. Saved ${totalSlots} activities and kept ${preservedSlots} saved activities.`
+        : `Imported ${importedUnits} ${importedUnits === 1 ? 'unit' : 'units'} (${totalSlots} activities).`;
+      setUnitImportStatus(summary);
       onDirtyChange?.(false);
       setStatus('saved');
-      toast.success(`Imported ${importedUnits} ${importedUnits === 1 ? 'unit' : 'units'} (${totalSlots} activities).`);
+      toast.success(summary);
       emit('teacher_materials_book_assembly_unit_import_staged', {
         scope: 'bulk',
         unitCount: importedUnits,
@@ -2399,18 +2284,6 @@ const BookAssemblyWorkspace = ({
       [conflict.unitKey]: nextForUnit,
     };
     setUnitImportExpectedRevisionsByUnit(nextAll);
-    if (activityScope === 'bulk') {
-      emit('teacher_materials_book_assembly_unit_import_replacement_selected', {
-        scope: 'bulk',
-        unitKey: conflict.unitKey,
-        activityKey: conflict.activityKey,
-        currentRevision: conflict.currentRevision,
-      });
-      const completed = new Set(bulkUnitResults.filter((item) => item.status === 'done').map((item) => item.unitKey));
-      setUnitImportConflict(null);
-      void importBulkJson(nextAll, completed);
-      return;
-    }
     if (conflict.unitKey !== selectedUnitKey) return;
     emit('teacher_materials_book_assembly_unit_import_replacement_selected', {
       unitKey: conflict.unitKey,
@@ -2441,6 +2314,7 @@ const BookAssemblyWorkspace = ({
   };
 
   const updateBulkImportText = (text: string) => {
+    setBulkReview(null);
     setUnitImportConflict(null);
     setUnitImportExpectedRevisionsByUnit({});
     setBulkUnitResults([]);
@@ -2805,7 +2679,7 @@ const BookAssemblyWorkspace = ({
                         canUsePromptOverride={Boolean(bulkPromptText)}
                         copyLabel={`Copy bulk prompt (${bulkTargetUnitKeys.length})`}
                         uploadLabel="Upload JSON(s)"
-                        importLabel="Import all"
+                        importLabel={bulkReview?.text === bulkImportText ? 'Apply import' : 'Import all'}
                         editorLabel="Paste bulk Unit Activity JSON"
                         placeholder='Paste bulk JSON or drop one or more .json files…  {"units":[{"unitKey":"...","slots":[...]}]}'
                         extraActions={missingUnitKeys.length > 0 && missingUnitKeys.length < unitsWithSlots.length ? (
@@ -2846,6 +2720,21 @@ const BookAssemblyWorkspace = ({
                         selectedUnitKey={selectedUnitKey}
                         statusText={unitImportStatus}
                       />
+                      {bulkReview?.text === bulkImportText && (
+                        <fieldset disabled={unitImportBusy}>
+                          <legend>Review saved activities</legend>
+                          {bulkReview.slots.map((row) => <div key={row.activityKey}>
+                            {row.status === 'different' ? <label><input type="checkbox" checked={row.selected}
+                              onChange={(event) => {
+                                const selected = event.currentTarget.checked;
+                                setBulkReview({ ...bulkReview, slots: bulkReview.slots.map((entry) =>
+                                  entry === row ? { ...entry, selected } : entry) });
+                                emit('teacher_materials_book_assembly_unit_import_replacement_selected', { unitKey: row.unitKey, activityKey: row.activityKey, selected });
+                              }} /> Replace {formatUnitLabel(units, row.unitKey)} / {row.activityKey}</label>
+                              : <span>{formatUnitLabel(units, row.unitKey)} / {row.activityKey} ({row.status})</span>}
+                          </div>)}
+                        </fieldset>
+                      )}
                       {bulkUnitResults.length > 0 && (
                         <div className="book-assembly-edit__bulk-results" aria-label="Bulk import unit status">
                           {bulkUnitResults.map((item) => (

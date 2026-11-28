@@ -7,6 +7,7 @@ import type { BookRolloutWorkerEnvironment } from '../../book-rollout-gate.ts';
 
 export const BOOK_ACTIVITY_AUTHORING_ROOT = 'book_activity_authoring/owners';
 const MAX_RETRIES = 5;
+const tokenProviderCache = new Map<string, ReturnType<typeof createFirebaseClaimTokenProvider>>();
 export const MAX_ACTIVITIES_PER_OWNER = 1024;
 export const MAX_CANDIDATES_PER_OWNER = 1536;
 export const MAX_OPERATIONS_PER_OWNER = 512;
@@ -75,10 +76,15 @@ const hydrateCandidate = (value: unknown): unknown => {
   const isValid = validation?.valid === true;
   return {
     ...record,
+    ...(record.lifecycle === 'discarded' && record.content === undefined ? { content: null } : {}),
     ...(record.diff === undefined ? { diff: null } : {}),
-    ...(isValid && record.evidenceRefs === undefined ? { evidenceRefs: [] } : {}),
-    ...(isValid && record.sourceEvidenceRefs === undefined ? { sourceEvidenceRefs: [] } : {}),
-    ...(isValid && record.answerEvidenceRefs === undefined ? { answerEvidenceRefs: [] } : {}),
+    ...(plainRecord(record.diff)?.classification === 'unchanged'
+      && plainRecord(record.diff)?.reasons === undefined
+      ? { diff: { ...plainRecord(record.diff), reasons: [] } }
+      : {}),
+    ...(record.evidenceRefs === undefined ? { evidenceRefs: [] } : {}),
+    ...(record.sourceEvidenceRefs === undefined ? { sourceEvidenceRefs: [] } : {}),
+    ...(record.answerEvidenceRefs === undefined ? { answerEvidenceRefs: [] } : {}),
     ...(isValid && validation
       ? {
         validation: {
@@ -101,6 +107,10 @@ const hydrateOperationResult = (value: unknown): unknown => {
     ...(isSuccessfulProjection && record.evidenceRefs === undefined ? { evidenceRefs: [] } : {}),
     ...(isSuccessfulProjection && record.sourceEvidenceRefs === undefined ? { sourceEvidenceRefs: [] } : {}),
     ...(isSuccessfulProjection && record.answerEvidenceRefs === undefined ? { answerEvidenceRefs: [] } : {}),
+    ...(plainRecord(record.diff)?.classification === 'unchanged'
+      && plainRecord(record.diff)?.reasons === undefined
+      ? { diff: { ...plainRecord(record.diff), reasons: [] } }
+      : {}),
     ...(isSuccessfulProjection && validation && validation.valid === true && validation.errors === undefined
       ? { validation: { ...validation, errors: [] } }
       : {}),
@@ -219,13 +229,18 @@ export class FirebaseRestBookActivityAuthoringRepository {
     if (clientEmail !== identity) {
       throw new Error('book_activity_authoring_service_identity_mismatch');
     }
-    const getFirebaseAuthToken = createFirebaseClaimTokenProvider({
+    const providerKey = [options.env.FIREBASE_PROJECT_ID, options.env.FIREBASE_WEB_API_KEY, identity, keyJson].join("\u0000");
+    let getFirebaseAuthToken = tokenProviderCache.get(providerKey);
+    if (!getFirebaseAuthToken) {
+      getFirebaseAuthToken = createFirebaseClaimTokenProvider({
       serviceAccountJson: keyJson,
       serviceIdentity: identity,
       firebaseProjectId: options.env.FIREBASE_PROJECT_ID?.trim() ?? '',
       firebaseWebApiKey: options.env.FIREBASE_WEB_API_KEY?.trim() ?? '',
       fetchImpl,
-    });
+      });
+      tokenProviderCache.set(providerKey, getFirebaseAuthToken);
+    }
     this.rtdb = new FirebaseRtdbRestClient({
       env: options.env,
       fetchImpl,
