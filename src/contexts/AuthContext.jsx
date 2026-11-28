@@ -150,6 +150,8 @@ export function AuthProvider({ children }) {
   const handleForceLogout = useCallback(async (reason, userId) => {
     if (isForceLoggingOut.current) return;
     isForceLoggingOut.current = true;
+    authSessionRef.current += 1;
+    activeAuthUidRef.current = null;
 
     console.warn(`[Security] Force logout triggered: ${reason}`);
     setForceLogoutReason(reason);
@@ -165,8 +167,6 @@ export function AuthProvider({ children }) {
       await firebaseSignOut(auth);
 
       // Clear local state
-      authSessionRef.current += 1;
-      activeAuthUidRef.current = null;
       setUser(null);
       setProfile(null);
       setStudentId(null);
@@ -550,6 +550,9 @@ export function AuthProvider({ children }) {
    */
   const logout = async () => {
     try {
+      authSessionRef.current += 1;
+      activeAuthUidRef.current = null;
+
       // Log logout event before signing out (Task 6.9)
       if (user?.uid && profile?.role) {
         logSecurityEventAsync('logout', user.uid, profile.role, 'manual');
@@ -558,8 +561,6 @@ export function AuthProvider({ children }) {
       await firebaseSignOut(auth);
 
       // Clear local state immediately
-      authSessionRef.current += 1;
-      activeAuthUidRef.current = null;
       setUser(null);
       setProfile(null);
       setStudentId(null);
