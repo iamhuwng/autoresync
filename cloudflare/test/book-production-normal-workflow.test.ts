@@ -193,7 +193,7 @@ describe('production-normal #59 workflow', () => {
   const originalFetch = globalThis.fetch;
   afterEach(() => { globalThis.fetch = originalFetch; vi.restoreAllMocks(); });
 
-  it('uses default createUploadWorker fetch/router composition from durable PDF authority through publication fences', async () => {
+  it.each(['individual', 'bulk'])('uses production router composition for %s PDF activity authoring', async (mode) => {
     const assemblyKey = privateKey();
     const assemblyIdentity = 'book-assembly@example.test';
     const authoringIdentity = 'book-authoring@example.test';
@@ -289,6 +289,35 @@ describe('production-normal #59 workflow', () => {
     });
     expect(validated.response.status).toBe(200);
     expect(validated.body).toMatchObject({ status: 'validated', candidate: { candidateId, lifecycle: 'validated', revision: 2 } });
+
+    if (mode === 'bulk') {
+      const input = { candidateId, candidateRevision: 2, bundle: {
+        promptVersion: 'book-unit-json-v1', schemaVersion: 'prd0062.unit_activity_import.v1',
+        bookId, unitKey, slots: [{ activityKey, content: activity }],
+      } };
+      const route = '/book-activity-authoring/import-unit';
+      bindingWriteFailures.remaining = 1;
+      expect((await fetchRoute(route, input)).response.status).toBe(503);
+      const repaired = await fetchRoute(route, input);
+      expect(repaired.body).toEqual({ status: 'unit-complete', added: 1 });
+      const saved = clone(readTree(tree, `book_activity_authoring/owners/${ownerId}`));
+      const binding = clone(readTree(tree, bindingPath));
+      expect(binding).toMatchObject({ candidateLifecycle: 'saved', activityKey });
+      const repeated = await fetchRoute(route, input);
+      expect(repeated.body).toEqual({ status: 'unit-complete', added: 0 });
+      const editedInput = { ...input, bundle: { ...input.bundle, slots: [{ activityKey, content: { ...activity, title: 'Different title' } }] } };
+      expect((await fetchRoute(route, editedInput)).body).toEqual({ status: 'unit-complete', added: 0 });
+      expect(readTree(tree, `book_activity_authoring/owners/${ownerId}`)).toEqual(saved);
+      expect(readTree(tree, bindingPath)).toEqual(binding);
+      const review = await fetchRoute(route, { ...editedInput, inspect: true });
+      expect(review.body).toMatchObject({ status: 'review', slots: [{ activityKey, status: 'different', revision: 3 }] });
+      const oldId = (binding as { candidateId: string }).candidateId;
+      const replacement = { ...editedInput, replacements: { [activityKey]: { candidateId: oldId, revision: 3 } } };
+      expect((await fetchRoute(route, replacement)).body).toEqual({ status: 'unit-complete', added: 1 });
+      expect((await fetchRoute(route, replacement)).body).toEqual({ status: 'unit-complete', added: 0 });
+      expect((await fetchRoute(route, { ...input, replacements: replacement.replacements })).response.status).toBe(409);
+      return;
+    }
 
     const staged = await fetchRoute('/book-activity-authoring/stage', {
       operationId: operation('004'), expectedRevision: 0, bookId, targetActivityId: 'ba_626f6f6b2d31_736c6f742d31',

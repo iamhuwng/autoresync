@@ -131,7 +131,7 @@ const activityAuthoringRoutes = bookActivityAuthoringRouteDescriptors.map((route
   firebaseAuth: 'firebase-id-token-teacher',
   rateClass: route.handler === 'loadCandidate' ? 'book-read' : 'book-control',
   gateEnv: 'BOOK_ACTIVITY_AUTHORING_ROUTES_ENABLED',
-  requestBodyBytes: route.method === 'GET' ? 0 : MAX_CONTROL_REQUEST_BYTES,
+  requestBodyBytes: route.handler === 'importUnit' ? MAX_ASSEMBLY_REQUEST_BYTES : route.method === 'GET' ? 0 : MAX_CONTROL_REQUEST_BYTES,
   responseLimitBytes: MAX_CONTROL_RESPONSE_BYTES,
   identityEnv: 'BOOK_ACTIVITY_AUTHORING_SERVICE_IDENTITY',
   credentialEnv: 'BOOK_ACTIVITY_AUTHORING_GOOGLE_SA_KEY',

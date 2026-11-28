@@ -1596,6 +1596,7 @@ describe('BookAssemblyWorkspace', () => {
       load: vi.fn(),
     };
     const activityAuthoring = {
+      importUnit: vi.fn(async () => 1),
       stage: vi.fn(async (input: { targetActivityId: string; evidenceRefs?: readonly string[]; sourceEvidenceRefs?: readonly string[]; answerEvidenceRefs?: readonly string[] }) => ({
         status: 'staged' as const,
         candidateId: `act-${input.targetActivityId}`,
@@ -1694,7 +1695,7 @@ describe('BookAssemblyWorkspace', () => {
               assetRefs: [],
               interaction: { family: 'choice', variant: 'single-select' },
               answerRule: { defaultPoints: 1, normalization: 'exact', requiredSelectionCount: 1 },
-              interactions: [{ prompt: 'Q1', options: ['A', 'B'], acceptedOptionIndexes: [0] }],
+              interactions: [{ prompt: 'Q1', options: ['A', 'B'], acceptedOptionIndexes: [0], sourceAssisted: { questionLabel: '1', accessiblePrompt: 'Choose one.', responseShape: 'single-choice', sourceExerciseLabel: 'Exercise 1' } }],
               scoring: { mode: 'auto-where-possible' },
             },
             evidenceRefs: ['import:u1-a1'],
@@ -1733,10 +1734,10 @@ describe('BookAssemblyWorkspace', () => {
     expect(screen.getByRole('button', { name: /Copy bulk prompt \(2\)/ })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Import all' }));
-    await waitFor(() => expect(activityAuthoring.saveDraft).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(activityAuthoring.importUnit).toHaveBeenCalledTimes(2));
     expect(screen.getByText('2 / 2 units ready')).toBeInTheDocument();
-    expect(screen.getByLabelText('Bulk import unit status')).toHaveTextContent('Unit 1 ✓');
-    expect(screen.getByLabelText('Bulk import unit status')).toHaveTextContent('Unit 2 ✓');
+    expect(screen.getByLabelText('Bulk import unit status')).toHaveTextContent('Unit 1');
+    expect(screen.getByLabelText('Bulk import unit status')).toHaveTextContent('Unit 2');
   });
 
   it('accumulates expectedActivityRevisions across multi-slot conflict retries instead of resetting earlier slots to 0', async () => {

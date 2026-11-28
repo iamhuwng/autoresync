@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeActivity } from '../../src/services/book-activity/activityCanonical.service.ts';
+import { createBookActivityAuthoringWorkerHandlers } from '../src/upload-worker/book-activity-authoring/worker.ts';
 import {
   FirebaseRestBookActivityAuthoringRepository,
   type BookActivityAuthoringRoot,
@@ -28,6 +29,29 @@ const omitActivityDefaults = (value: Record<string, unknown>): Record<string, un
 };
 
 describe('Book Activity authoring Firebase repository', () => {
+  it('can load a sibling candidate after RTDB erases discarded candidate content', async () => {
+    const candidate = {
+      candidateId: 'candidate-1', targetActivityId: 'activity-1', ownerId: 'owner-1',
+      targetRevision: 0, revision: 2, lifecycle: 'validated', validation: { valid: true },
+      updatedAt: 1_700_000_000_000,
+    };
+    const candidates = {
+      'candidate-1': { ...candidate, content },
+      'candidate-2': { ...candidate, candidateId: 'candidate-2', lifecycle: 'discarded', revision: 3 },
+    };
+    const repository = new FirebaseRestBookActivityAuthoringRepository({
+      env: { FIREBASE_DB_URL: 'https://firebase.test', BOOK_ACTIVITY_AUTHORING_SERVICE_IDENTITY: 'authoring@test.example' },
+      getAccessToken: async () => 'test-token',
+      fetchImpl: async (input) => Response.json(String(input).includes('/users/') ? { role: 'teacher', status: 'active' } : { candidates }, {
+        headers: { etag: '"v1"' },
+      }),
+    });
+    const handlers = createBookActivityAuthoringWorkerHandlers({ repository });
+    const load = (candidateId: string) => handlers.loadCandidate({ env: {}, uid: 'owner-1', candidateId });
+    expect(await load('candidate-1')).toMatchObject({ init: { status: 200 }, body: { candidate: { lifecycle: 'validated' } } });
+    expect(await load('candidate-2')).toMatchObject({ init: { status: 200 }, body: { candidate: { lifecycle: 'discarded', content: null } } });
+  });
+
   it('hydrates RTDB-erased normal-path values before reads and CAS mutations', async () => {
     const normalized = normalizeActivity(content);
     const fullCandidate = {

@@ -274,7 +274,7 @@ export const createBookRouteHandlers = (
     ['create', 'activate', 'supersede', 'revoke'], 'bookDelivery', () => []);
   addFactoryHandlers(handlers, delivery as Record<string, unknown>, ['resolve'], 'bookDelivery', () => ['recipientId', 'contextId']);
   addFactoryHandlers(handlers, activity,
-    ['stage', 'validate', 'saveDraft', 'discard'], 'bookActivityAuthoring', () => []);
+    ['stage', 'validate', 'saveDraft', 'discard', 'importUnit'], 'bookActivityAuthoring', () => []);
   addFactoryHandlers(handlers, activity, ['loadCandidate'], 'bookActivityAuthoring', () => ['candidateId']);
   addFactoryHandlers(handlers, assembly,
     ['create', 'replace', 'rebase', 'validate', 'discard'], 'bookAssembly', () => ['bookId']);

@@ -152,8 +152,19 @@ export const readVerifiedDraftActivityCandidateIds = async (
   const unit = manifest?.units.find((entry) => entry.unitKey === unitKey);
   if (!manifest || !unit) return {};
   const root = cachedOwnerRoot ?? await activityRepository.readOwnerRoot(ownerId);
-  const isFullPdf = manifest.sourceSet.sourceStrategy === 'full_pdf';
   const bookBindings = cachedBookBindings ?? await bindingRepository.readBookBindings!(ownerId, bookId);
+  return verifiedUnitCandidateIds(candidate, root, bookBindings);
+};
+
+const verifiedUnitCandidateIds = (
+  candidate: BookAssemblyCandidateRecord,
+  root: Awaited<ReturnType<FirebaseRestBookActivityAuthoringRepository['readOwnerRoot']>>,
+  bookBindings: Readonly<Record<string, Readonly<Record<string, UnitActivityBinding>>>>,
+): Readonly<Record<string, string>> => {
+  const { ownerId, bookId, unitKey, manifest } = candidate;
+  const unit = manifest?.units.find((entry) => entry.unitKey === unitKey);
+  if (!manifest || !unit) return {};
+  const isFullPdf = manifest.sourceSet.sourceStrategy === 'full_pdf';
   const bindingsBySlot = unit.activitySlots.map(({ activityKey }) => ({
     activityKey,
     binding: bookBindings[unitKey]?.[activityKey] ?? null,
@@ -213,6 +224,7 @@ export const sourceUploadAccess = (env: Env) => {
   return { accountId, getAccessToken: () => provider.getAccessToken() };
 };
 
+const assemblyClaimProviderCache = new Map<string, ReturnType<typeof createFirebaseClaimTokenProvider>>();
 type AssemblyClaimService = 'book_assembly' | 'book_assembly_activation' | 'book_assembly_preview' | 'book_assembly_publication';
 const claimProvider = (
   env: Env, ownerId: string, bookId: string, unitKey: string, service: AssemblyClaimService = 'book_assembly', activation?: { operationId: string; setupActivationIndex: string; expectedBookRevision: number; expectedSourceSetRevision: number; inputFingerprint: string },
@@ -222,8 +234,13 @@ const claimProvider = (
   if (!identity.trim() || !key.trim() || typeof env.FIREBASE_PROJECT_ID !== 'string' || typeof env.FIREBASE_WEB_API_KEY !== 'string') {
     throw new Error('book_assembly_production_credentials_unavailable');
   }
-  const provider = createFirebaseClaimTokenProvider({ serviceAccountJson: key, serviceIdentity: identity,
-    firebaseProjectId: env.FIREBASE_PROJECT_ID, firebaseWebApiKey: env.FIREBASE_WEB_API_KEY });
+  const cacheKey = [env.FIREBASE_PROJECT_ID, env.FIREBASE_WEB_API_KEY, identity, key].join('\u0000');
+  let provider = assemblyClaimProviderCache.get(cacheKey);
+  if (!provider) {
+    provider = createFirebaseClaimTokenProvider({ serviceAccountJson: key, serviceIdentity: identity,
+      firebaseProjectId: env.FIREBASE_PROJECT_ID, firebaseWebApiKey: env.FIREBASE_WEB_API_KEY });
+    assemblyClaimProviderCache.set(cacheKey, provider);
+  }
   const claims: BookFirebaseClaimTuple = service === 'book_assembly_publication'
     ? { service, ownerId, bookId }
     : service === 'book_assembly_activation'
@@ -245,8 +262,13 @@ const approvalClaimProvider = (
   if (!identity.trim() || !key.trim() || typeof env.FIREBASE_PROJECT_ID !== 'string' || typeof env.FIREBASE_WEB_API_KEY !== 'string') {
     throw new Error('book_assembly_production_credentials_unavailable');
   }
-  const provider = createFirebaseClaimTokenProvider({ serviceAccountJson: key, serviceIdentity: identity,
-    firebaseProjectId: env.FIREBASE_PROJECT_ID, firebaseWebApiKey: env.FIREBASE_WEB_API_KEY });
+  const cacheKey = [env.FIREBASE_PROJECT_ID, env.FIREBASE_WEB_API_KEY, identity, key].join('\u0000');
+  let provider = assemblyClaimProviderCache.get(cacheKey);
+  if (!provider) {
+    provider = createFirebaseClaimTokenProvider({ serviceAccountJson: key, serviceIdentity: identity,
+      firebaseProjectId: env.FIREBASE_PROJECT_ID, firebaseWebApiKey: env.FIREBASE_WEB_API_KEY });
+    assemblyClaimProviderCache.set(cacheKey, provider);
+  }
   return () => provider({ service, ownerId, bookId, unitKey, approvalId });
 };
 
@@ -582,10 +604,7 @@ const lineage = async (
   );
 };
 
-const assemblyDraftActivityContext = async (
-  env: Env, ownerId: string, bookId: string, unitKey: string, activityKey: string,
-) => {
-  const candidate = await authoringCandidate(env, ownerId, bookId, unitKey);
+const contextFromCandidate = (candidate: BookAssemblyCandidateRecord | null, bookId: string, unitKey: string, activityKey: string) => {
   const unit = candidate?.manifest?.units.find((entry) => entry.unitKey === unitKey);
   const slot = unit?.activitySlots.find((entry) => entry.activityKey === activityKey);
   if (!candidate?.manifest || !unit || !slot) return null;
@@ -899,7 +918,10 @@ export const createProductionBookAssemblyRouteOptions = (): Pick<BookRouteHandle
     },
     bindingRepositoryFactory: (env) => bindings(env as Env),
     readAssemblyDraftActivityContext: async ({ env, ownerId, bookId: scopedBookId, unitKey, activityKey }) =>
-      assemblyDraftActivityContext(env as Env, ownerId, scopedBookId, unitKey, activityKey),
+      contextFromCandidate(await authoringCandidate(env as Env, ownerId, scopedBookId, unitKey), scopedBookId, unitKey, activityKey),
+    readImportCandidate: ({ env, ownerId, bookId, unitKey }) => authoringCandidate(env as Env, ownerId, bookId, unitKey),
+    verifiedUnitCandidateIds,
+    contextFromCandidate,
     isCandidateActivated: async ({ env, ownerId, bookId, candidateId, candidateRevision }) => {
       const bookAuthority = await authority(env as Env, ownerId, bookId, 'authoring');
       return activeComponentPdfActivation(bookAuthority ?? {})?.activities.some((activity) =>

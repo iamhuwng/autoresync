@@ -4,6 +4,8 @@ import {
   validateActivityCandidate,
 } from './activityCandidate.service';
 import type {
+  UnitImportCommand,
+  UnitSlotReview,
   ActivityAuthoringMutation,
   ActivityAuthoringRepository,
   ActivityDiscardResult,
@@ -12,7 +14,7 @@ import type {
   ActivityStageResult,
   ActivityValidateResult,
 } from './activityAuthoring.repository';
-import { ActivityAuthoringAmbiguousTransportError } from './activityStorage.service';
+import { ActivityAuthoringAmbiguousTransportError, ActivityAuthoringHttpError } from './activityStorage.service';
 
 const operationId = (): string => {
   if (!globalThis.crypto?.randomUUID) {
@@ -22,6 +24,8 @@ const operationId = (): string => {
 };
 
 export interface ActivityAuthoringService {
+  inspectUnit?(input: UnitImportCommand): Promise<UnitSlotReview[]>;
+  importUnit?(input: UnitImportCommand): Promise<number>;
   stage(input: ActivityCandidateInput & { expectedRevision: number }): Promise<ActivityStageResult>;
   validate(input: {
     candidateId: string;
@@ -72,6 +76,16 @@ export const createActivityAuthoringService = (
     }
   };
   return {
+    inspectUnit: repository.inspectUnit,
+    ...(repository.importUnit ? { importUnit: async (input: UnitImportCommand) => {
+      try { return await repository.importUnit!(input); }
+      catch (error) {
+        if (!(error instanceof ActivityAuthoringAmbiguousTransportError)
+          && !(error instanceof ActivityAuthoringHttpError && [429, 502, 503, 504].includes(error.statusCode))) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        return repository.importUnit!(input);
+      }
+    } } : {}),
     async stage(input) {
       const previous = input.targetActivityId ? options.previous?.(input.targetActivityId) : undefined;
       const candidate = validateActivityCandidate(input, previous);
